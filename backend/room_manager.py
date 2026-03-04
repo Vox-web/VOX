@@ -19,6 +19,7 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
+import os
 
 from fastapi import WebSocket
 
@@ -119,7 +120,8 @@ class RoomManager:
             import qrcode
             from qrcode.image.pil import PilImage
 
-            url = f"{self.base_url}/room/{room_id}"
+            base_url = os.getenv("BASE_URL", "http://localhost:8080")
+            url = f"{base_url}/room/{room_id}"
             qr = qrcode.QRCode(
                 version=1,
                 error_correction=qrcode.constants.ERROR_CORRECT_M,
