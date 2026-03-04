@@ -40,6 +40,8 @@
 
         @media (max-width: 400px) {
             .container { padding: 10px; gap: 10px; }
+            .header { padding: 4px 0 2px; }
+            .header .subtitle { margin-top: 0; }
         }
 
         /* ======== Header ======== */
@@ -58,8 +60,9 @@
         .back-btn {
             position: absolute; top: 14px; left: 0;
             background: none; border: none; color: var(--text2);
-            font-size: 20px; cursor: pointer; padding: 4px 8px;
-            border-radius: 8px; transition: all 0.2s; display: none;
+            font-size: 20px; cursor: pointer; padding: 8px 14px;
+            border-radius: 10px; transition: all 0.2s; display: none;
+            min-width: 44px; min-height: 44px;
         }
         .back-btn:hover { color: var(--text); background: var(--surface2); }
         .back-btn.visible { display: block; }
