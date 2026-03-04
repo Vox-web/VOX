@@ -98,8 +98,21 @@ nav{
 }
 .btn-login{background:transparent;color:var(--text2);border:1px solid var(--border2)}
 .btn-login:hover{color:var(--text);border-color:var(--accent)}
-.btn-register{background:var(--accent);color:#fff;box-shadow:0 4px 16px var(--accent-glow)}
+.btn-register{background:var(--accent);color:#fff;box-shadow:0 4px 16px var(--accent-glow);flex-shrink:0;white-space:nowrap}
 .btn-register:hover{background:var(--accent2);transform:translateY(-1px)}
+@media(max-width:600px){
+  .nav-auth-btn{
+    padding:6px 12px;
+    font-size:13px;
+  }
+  .lang-btn{
+    padding:5px 7px;
+  }
+  .nav-logo{
+    letter-spacing:3px;
+    font-size:19px;
+  }
+}
 
 .nav-user{
   display:none;align-items:center;gap:10px;
