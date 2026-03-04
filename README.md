@@ -95,3 +95,16 @@ https://deepgram.com/
 Аккаунт привязан к obivan.ua@gmaul.com
 
 
+cd /путь/к/проекту
+
+git init
+git add .
+git commit -m "initial commit"
+
+# Вставь свою ссылку из GitHub:
+git remote add origin https://github.com/Vox-web/VOX.git
+git branch -M main
+git push -u origin main
+
+https://railway.com/
+https://web-production-bd9a.up.railway.app     -   адрес сайта!
