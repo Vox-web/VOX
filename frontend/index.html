@@ -98,8 +98,21 @@ nav{
 }
 .btn-login{background:transparent;color:var(--text2);border:1px solid var(--border2)}
 .btn-login:hover{color:var(--text);border-color:var(--accent)}
-.btn-register{background:var(--accent);color:#fff;box-shadow:0 4px 16px var(--accent-glow)}
+.btn-register{background:var(--accent);color:#fff;box-shadow:0 4px 16px var(--accent-glow);flex-shrink:0;white-space:nowrap}
 .btn-register:hover{background:var(--accent2);transform:translateY(-1px)}
+@media(max-width:600px){
+  .nav-auth-btn{
+    padding:6px 12px;
+    font-size:13px;
+  }
+  .lang-btn{
+    padding:5px 7px;
+  }
+  .nav-logo{
+    letter-spacing:3px;
+    font-size:19px;
+  }
+}
 
 .nav-user{
   display:none;align-items:center;gap:10px;
@@ -837,7 +850,7 @@ footer{
     <div id="formRegister" style="display:none">
       <div class="form-group">
         <label class="form-label" data-i18n="f_name">Ім'я</label>
-        <input class="form-input" type="text" id="regName" placeholder="Ваше ім'я" autocomplete="name" data-i18n-placeholder="reg_name_ph"/>
+        <input class="form-input" type="text" id="regName" placeholder="Ваше ім'я" autocomplete="name"/>
       </div>
       <div class="form-group">
         <label class="form-label" data-i18n="f_email">Email</label>
@@ -845,7 +858,7 @@ footer{
       </div>
       <div class="form-group">
         <label class="form-label" data-i18n="f_password">Пароль</label>
-        <input class="form-input" type="password" id="regPassword" placeholder="Мін. 6 символів" autocomplete="new-password" data-i18n-placeholder="reg_pass_ph"/>
+        <input class="form-input" type="password" id="regPassword" placeholder="Мін. 6 символів" autocomplete="new-password"/>
       </div>
       <button class="form-submit" id="regSubmit" onclick="doRegister()" data-i18n="btn_register">Зареєструватись</button>
       <div class="form-error" id="regError"></div>
@@ -879,7 +892,7 @@ footer{
       <div id="anonFields">
         <div class="form-group">
           <label class="form-label" data-i18n="rev_anon_name">Ваше ім'я (необов'язково)</label>
-          <input class="form-input" type="text" id="anonName" placeholder="Анонімно" data-i18n-placeholder="rev_anon_ph"/>
+          <input class="form-input" type="text" id="anonName" placeholder="Анонімно"/>
         </div>
         <div class="form-group">
           <label class="form-label" data-i18n="rev_anon_email">Email (необов'язково)</label>
@@ -948,7 +961,6 @@ uk:{
   dash_sub:"Готовий почати розмову? Відкрий хост-панель та підключай гостей.",
   dash_go_host:"Перейти до VOX Host", dash_leave_review:"Залишити відгук", dash_billing:"Білінг (незабаром)",
   billing_title:"Платіжна інформація", billing_desc:"Безкоштовний план · Білінг буде доступний у наступному оновленні",
-  reg_name_ph:"Ваше ім'я", reg_pass_ph:"Мін. 6 символів", rev_anon_ph:"Анонімно",
 },
 en:{
   nav_login:"Login", nav_register:"Sign Up", nav_logout:"Logout",
@@ -993,7 +1005,6 @@ en:{
   dash_sub:"Ready to start a conversation? Open the host panel and connect guests.",
   dash_go_host:"Go to VOX Host", dash_leave_review:"Leave a review", dash_billing:"Billing (coming soon)",
   billing_title:"Payment information", billing_desc:"Free plan · Billing will be available in the next update",
-  reg_name_ph:"Your name", reg_pass_ph:"Min. 6 characters", rev_anon_ph:"Anonymous",
 },
 de:{
   nav_login:"Anmelden", nav_register:"Registrieren", nav_logout:"Abmelden",
@@ -1038,7 +1049,6 @@ de:{
   dash_sub:"Bereit ein Gespräch zu starten? Öffnen Sie das Host-Panel und verbinden Sie Gäste.",
   dash_go_host:"Zu VOX Host gehen", dash_leave_review:"Bewertung hinterlassen", dash_billing:"Abrechnung (demnächst)",
   billing_title:"Zahlungsinformationen", billing_desc:"Kostenloser Plan · Abrechnung im nächsten Update verfügbar",
-  reg_name_ph:"Ihr Name", reg_pass_ph:"Mind. 6 Zeichen", rev_anon_ph:"Anonym",
 }};
 
 let currentLang = localStorage.getItem('vox_ui_lang') || 'uk';
@@ -1047,6 +1057,9 @@ function setLang(lang){
   localStorage.setItem('vox_ui_lang', lang);
   document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('active', b.textContent.trim().toLowerCase().startsWith(lang==='uk'?'ua':lang)));
   applyI18n();
+  // Re-apply if profile panel is already open
+  const panel = document.getElementById('profilePanel');
+  if(panel && panel.style.display === 'block') applyI18n();
 }
 function t(k){ return (I18N[currentLang]||I18N.uk)[k] || (I18N.uk[k]) || k; }
 function applyI18n(){
@@ -1058,12 +1071,6 @@ function applyI18n(){
   });
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el=>{
     el.placeholder = t(el.dataset.i18nPlaceholder);
-  });
-  // Update profile panel (may be hidden)
-  document.querySelectorAll('#profilePanel [data-i18n]').forEach(el=>{
-    const v = t(el.dataset.i18n);
-    if(el.tagName==='INPUT'||el.tagName==='TEXTAREA') el.placeholder = v;
-    else el.textContent = v;
   });
 }
 
@@ -1256,6 +1263,7 @@ checkAuth();
 function toggleProfilePanel(){
   const panel = document.getElementById('profilePanel');
   panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  if(panel.style.display === 'block') applyI18n();
 }
 // Close profile panel when clicking outside
 document.addEventListener('click', function(e){
