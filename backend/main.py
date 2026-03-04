@@ -96,7 +96,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+# Используем .resolve() чтобы получить абсолютный путь без ошибок симлинков
+BASE_DIR = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = BASE_DIR / "frontend"
 
 # ---------------------------------------------------------------------------
 # Конфигурация Solo-сессии
@@ -137,7 +139,13 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "kozerog")
 async def serve_index():
     html_path = FRONTEND_DIR / "index.html"
     if not html_path.exists():
-        raise HTTPException(status_code=404, detail="index.html not found")
+        # Выведет точный путь в логи Railway (в консоль)
+        logger.error(f"❌ 404 Ошибка: Файл не найден по пути {html_path}")
+        # Выведет точный путь тебе прямо на экран в браузере
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Сбой путей: файл не найден по адресу {html_path}"
+        )
     return FileResponse(html_path)
 
 
