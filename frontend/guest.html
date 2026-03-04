@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙</text></svg>">
+    <title>VOX — Room</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #f4f2f7;
+            --surface: #ffffff;
+            --surface2: #edeaf3;
+            --border: #ddd6e8;
+            --text: #2d2640;
+            --text2: #7a7189;
+            --accent: #7c6aff;
+            --accent-dim: rgba(124, 106, 255, 0.10);
+            --green: #2ecc71;
+            --yellow: #f0a500;
+            --red: #e74c3c;
+            --radius: 14px;
+            --shadow: 0 2px 12px rgba(100, 80, 160, 0.07);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .header { text-align: center; padding: 12px 0 4px; }
+        .header h1 {
+            font-size: 28px; font-weight: 700;
+            color: var(--accent); letter-spacing: 4px;
+        }
+        .header .subtitle { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+        .screen { display: none; flex-direction: column; gap: 14px; }
+        .screen.active { display: flex; }
+
+        .card {
+            background: var(--surface); border-radius: var(--radius); padding: 16px;
+            box-shadow: var(--shadow);
+        }
+        .card-label {
+            font-size: 11px; text-transform: uppercase;
+            letter-spacing: 1px; color: var(--text2); margin-bottom: 10px;
+        }
+        .card-text {
+            font-size: 15px; line-height: 1.5; min-height: 20px; word-wrap: break-word;
+        }
+        .card.translation { border-left: 3px solid var(--accent); }
+        .card.translation .card-text { color: var(--accent); font-size: 18px; }
+        .card.original .card-text { color: var(--text2); }
+
+        .btn {
+            padding: 14px 24px; border-radius: 10px; border: none;
+            font-size: 15px; font-weight: 600; cursor: pointer;
+            transition: all 0.25s; text-align: center; width: 100%;
+        }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:hover { filter: brightness(1.15); }
+        .btn-ghost {
+            background: var(--surface2); color: var(--text2);
+            border: 1px solid var(--border);
+        }
+        .btn-ghost:hover { border-color: var(--text2); color: var(--text); }
+        .btn-danger { background: var(--red); color: #fff; }
+        .btn-warning {
+            background: var(--yellow); color: #111;
+        }
+
+        .lang-row {
+            display: flex; align-items: center; gap: 12px;
+            justify-content: center; padding: 8px 0;
+        }
+        .lang-row label { font-size: 13px; color: var(--text2); }
+        select {
+            background: var(--surface); color: var(--text);
+            border: 1px solid var(--border); border-radius: 8px;
+            padding: 8px 14px; font-size: 14px; outline: none; cursor: pointer;
+        }
+        select:focus { border-color: var(--accent); }
+        input[type="text"] {
+            background: var(--surface); color: var(--text);
+            border: 1px solid var(--border); border-radius: 8px;
+            padding: 10px 14px; font-size: 14px; outline: none; width: 100%;
+        }
+        input:focus { border-color: var(--accent); }
+
+        /* Status */
+        .status-bar {
+            display: flex; align-items: center; justify-content: center;
+            gap: 8px; padding: 6px 16px; border-radius: 20px;
+            background: var(--surface); font-size: 13px;
+            box-shadow: var(--shadow);
+        }
+        .status-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: var(--red);
+            transition: background 0.3s;
+        }
+        .status-dot.connected { background: var(--green); }
+
+        /* Speak banner */
+        .speak-banner {
+            display: none; text-align: center; padding: 20px;
+            background: var(--accent-dim); border-radius: var(--radius);
+            border: 2px solid var(--accent);
+            animation: glowPulse 1.5s infinite;
+        }
+        .speak-banner.active { display: block; }
+        .speak-banner h2 {
+            font-size: 22px; color: var(--accent); margin-bottom: 8px;
+        }
+        @keyframes glowPulse {
+            0%, 100% { box-shadow: 0 0 10px rgba(124,106,255,0.2); }
+            50% { box-shadow: 0 0 25px rgba(124,106,255,0.4); }
+        }
+
+        /* VAD */
+        .vad-indicator {
+            display: flex; align-items: center; justify-content: center;
+            gap: 3px; height: 30px; margin: 8px 0;
+        }
+        .vad-bar {
+            width: 3px; height: 8px; background: var(--border);
+            border-radius: 2px; transition: height 0.1s, background 0.1s;
+        }
+        .vad-bar.active { background: var(--accent); }
+
+        /* Raise hand button */
+        .hand-btn {
+            padding: 16px; border-radius: 14px; border: 2px solid var(--border);
+            background: var(--surface); color: var(--text);
+            font-size: 17px; font-weight: 600; cursor: pointer;
+            transition: all 0.3s; width: 100%; text-align: center;
+            box-shadow: var(--shadow);
+        }
+        .hand-btn:hover { border-color: var(--accent); }
+        .hand-btn.requesting {
+            border-color: var(--yellow); background: rgba(240,165,0,0.08);
+            color: #b87a00;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%,100% { opacity:1; } 50% { opacity:0.6; }
+        }
+
+        /* Muted / kicked overlay */
+        .overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(244,242,247,0.92);
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            z-index: 100; align-items: center; justify-content: center;
+            flex-direction: column; gap: 16px; text-align: center; padding: 24px;
+        }
+        .overlay.active { display: flex; }
+        .overlay h2 { font-size: 24px; }
+        .overlay p { color: var(--text2); font-size: 14px; }
+
+        /* History */
+        .history {
+            display: flex; flex-direction: column; gap: 6px;
+            max-height: 220px; overflow-y: auto;
+            scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+        }
+        .history-item {
+            background: var(--surface2); border-radius: 8px;
+            padding: 8px 10px; font-size: 12px;
+        }
+        .history-time { color: var(--text2); font-size: 11px; }
+        .history-original { color: var(--text2); }
+        .history-translation { color: var(--accent); margin-top: 2px; }
+
+        .divider { height: 1px; background: var(--surface2); margin: 2px 0; }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ======== FIXED TOP NAV ======== */
+        .top-nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+            height: 52px;
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+            box-shadow: 0 1px 8px rgba(100,80,160,0.07);
+        }
+        .top-nav-logo {
+            font-size: 20px; font-weight: 700; color: var(--accent);
+            letter-spacing: 4px; font-family: -apple-system, sans-serif;
+            text-decoration: none;
+        }
+        .top-nav-right {
+            display: flex; align-items: center; gap: 8px;
+        }
+        .top-nav-btn {
+            display: flex; align-items: center; gap: 5px;
+            text-decoration: none; color: var(--text2);
+            font-size: 13px; font-weight: 500;
+            background: var(--surface2); border: 1px solid var(--border);
+            padding: 6px 12px; border-radius: 9px;
+            transition: all 0.2s; white-space: nowrap;
+        }
+        .top-nav-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+        .top-nav-btn.review-btn { background: rgba(240,165,0,0.10); border-color: rgba(240,165,0,0.3); color: #c47f00; }
+        .top-nav-btn.review-btn:hover { background: rgba(240,165,0,0.18); }
+
+        /* Push content below fixed nav */
+        .container { padding-top: calc(52px + 16px) !important; }
+
+        /* Hide old floating buttons */
+        .review-fab { display: none !important; }
+
+        @media (max-width: 400px) {
+            .top-nav-btn span.nav-label { display: none; }
+            .top-nav-btn { padding: 6px 9px; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="top-nav">
+        <a href="/landing" class="top-nav-logo">VOX</a>
+        <div class="top-nav-right">
+            <a href="/host" class="top-nav-btn">🏠 <span class="nav-label">На головну</span></a>
+        </div>
+    </nav>
+    <div class="container">
+        <div class="header">
+            <div class="subtitle" id="roomLabel">Room</div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- SCREEN 1: Join -->
+        <!-- ============================================================ -->
+        <div class="screen active" id="screenJoin">
+            <div class="card">
+                <div class="card-label" id="joinTitle">Join Room</div>
+
+                <div class="lang-row">
+                    <label id="joinLangLabel">Your language:</label>
+                    <select id="guestLangSelect">
+                        <option value="en" selected>🇬🇧 English</option>
+                        <option value="uk">🇺🇦 Українська</option>
+                        <option value="de">🇩🇪 Deutsch</option>
+                        <option value="ru">🇷🇺 Русский</option>
+                        <option value="pl">🇵🇱 Polski</option>
+                        <option value="fr">🇫🇷 Français</option>
+                        <option value="zh">🇨🇳 中文</option>
+                        <option value="es">🇪🇸 Español</option>
+                        <option value="it">🇮🇹 Italiano</option>
+                        <option value="pt">🇧🇷 Português</option>
+                        <option value="ja">🇯🇵 日本語</option>
+                        <option value="ko">🇰🇷 한국어</option>
+                        <option value="ar">🇸🇦 العربية</option>
+                        <option value="tr">🇹🇷 Türkçe</option>
+                        <option value="hi">🇮🇳 हिन्दी</option>
+                    </select>
+                </div>
+
+                <div style="margin: 8px 0;">
+                    <input type="text" id="displayNameInput" placeholder="Your name (optional)" maxlength="30">
+                </div>
+
+                <button class="btn btn-primary" onclick="joinRoom()" id="btnJoin">
+                    Join
+                </button>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- SCREEN 2: Room -->
+        <!-- ============================================================ -->
+        <div class="screen" id="screenRoom">
+            <!-- Status -->
+            <div class="status-bar">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Connected</span>
+            </div>
+
+            <!-- Speak banner (appears when granted) -->
+            <div class="speak-banner" id="speakBanner">
+                <h2 id="speakNowText">🎤 SPEAK NOW</h2>
+                <div class="vad-indicator" id="vadIndicator">
+                    <div class="vad-bar"></div><div class="vad-bar"></div>
+                    <div class="vad-bar"></div><div class="vad-bar"></div>
+                    <div class="vad-bar"></div><div class="vad-bar"></div>
+                    <div class="vad-bar"></div><div class="vad-bar"></div>
+                    <div class="vad-bar"></div>
+                </div>
+                <button class="btn btn-ghost" onclick="doneSpeaking()" id="btnDone" style="margin-top:10px;">
+                    ✅ Done
+                </button>
+            </div>
+
+            <!-- Raise hand / request speak -->
+            <button class="hand-btn" id="handBtn" onclick="toggleHandRaise()">
+                <span id="handBtnText">🖐 I want to speak</span>
+            </button>
+
+            <!-- Speaker indicator (кто сейчас говорит) -->
+            <div id="speakerIndicator" style="
+                text-align:center; padding:6px 12px; font-size:13px;
+                color:var(--text2); background:var(--accent-dim);
+                border-radius:8px; display:none;
+            ">
+                <span id="speakerName"></span>
+            </div>
+
+            <!-- Translation cards -->
+            <div class="card original">
+                <div class="card-label" id="labelOrig">Original</div>
+                <div class="card-text" id="originalText">—</div>
+            </div>
+            <div class="card translation">
+                <div class="card-label" id="labelTrans">Translation</div>
+                <div class="card-text" id="translationText">—</div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="card-label" style="padding:0 4px;" id="labelHist">History</div>
+            <div class="history" id="history"></div>
+        </div>
+    </div>
+
+    <!-- Overlays -->
+    <div class="overlay" id="overlayMuted">
+        <h2>🔇</h2>
+        <p id="mutedMsg">You have been muted by the host</p>
+    </div>
+    <div class="overlay" id="overlayKicked">
+        <h2>❌</h2>
+        <p id="kickedMsg">You have been removed from the room</p>
+    </div>
+    <div class="overlay" id="overlayClosed">
+        <h2>🔴</h2>
+        <p id="closedMsg">The room has been closed</p>
+    </div>
+    
+
+    <script>
+    // =================================================================
+    // i18n — Guest UI strings
+    // =================================================================
+    const GUEST_I18N = {
+        en: {
+            joinTitle: 'Join Room', langLabel: 'Your language:', btnJoin: 'Join',
+            statusConnected: 'Connected', statusDisconnected: 'Disconnected',
+            handRaise: '🖐 I want to speak', handWaiting: '⏳ Waiting for approval...',
+            speakNow: '🎤 SPEAK NOW', btnDone: '✅ Done',
+            labelOrig: 'Original', labelTrans: 'Translation', labelHist: 'History',
+            mutedMsg: 'You have been muted by the host',
+            unmutedMsg: 'You have been unmuted',
+            kickedMsg: 'You have been removed from the room',
+            closedMsg: 'The room has been closed',
+            deniedMsg: 'Your request was denied',
+            recording: 'Recording',
+            speaking: 'is speaking...',
+            hostSpeaking: 'Host is speaking...',
+        },
+        uk: {
+            joinTitle: 'Приєднатися', langLabel: 'Ваша мова:', btnJoin: 'Увійти',
+            statusConnected: 'Підключено', statusDisconnected: 'Відключено',
+            handRaise: '🖐 Хочу сказати', handWaiting: '⏳ Очікую дозволу...',
+            speakNow: '🎤 ГОВОРІТЬ', btnDone: '✅ Готово',
+            labelOrig: 'Оригінал', labelTrans: 'Переклад', labelHist: 'Історія',
+            mutedMsg: 'Вас заглушив хост',
+            unmutedMsg: 'Вас увімкнено',
+            kickedMsg: 'Вас відключено від кімнати',
+            closedMsg: 'Кімнату закрито',
+            deniedMsg: 'Ваш запит відхилено',
+            recording: 'Записую',
+            speaking: 'говорить...',
+            hostSpeaking: 'Ведучий говорить...',
+        },
+        de: {
+            joinTitle: 'Raum beitreten', langLabel: 'Ihre Sprache:', btnJoin: 'Beitreten',
+            statusConnected: 'Verbunden', statusDisconnected: 'Getrennt',
+            handRaise: '🖐 Ich möchte sprechen', handWaiting: '⏳ Warte auf Genehmigung...',
+            speakNow: '🎤 SPRECHEN SIE', btnDone: '✅ Fertig',
+            labelOrig: 'Original', labelTrans: 'Übersetzung', labelHist: 'Verlauf',
+            mutedMsg: 'Sie wurden vom Host stummgeschaltet',
+            unmutedMsg: 'Sie wurden entstummt',
+            kickedMsg: 'Sie wurden aus dem Raum entfernt',
+            closedMsg: 'Der Raum wurde geschlossen',
+            deniedMsg: 'Ihre Anfrage wurde abgelehnt',
+            recording: 'Aufnahme',
+            speaking: 'spricht...',
+            hostSpeaking: 'Moderator spricht...',
+        },
+        ru: {
+            joinTitle: 'Присоединиться', langLabel: 'Ваш язык:', btnJoin: 'Войти',
+            statusConnected: 'Подключено', statusDisconnected: 'Отключено',
+            handRaise: '🖐 Хочу сказать', handWaiting: '⏳ Ожидаю разрешения...',
+            speakNow: '🎤 ГОВОРИТЕ', btnDone: '✅ Готово',
+            labelOrig: 'Оригинал', labelTrans: 'Перевод', labelHist: 'История',
+            mutedMsg: 'Вас заглушил хост',
+            unmutedMsg: 'Вас включили',
+            kickedMsg: 'Вас отключили от комнаты',
+            closedMsg: 'Комната закрыта',
+            deniedMsg: 'Ваш запрос отклонён',
+            recording: 'Записываю',
+            speaking: 'говорит...',
+            hostSpeaking: 'Ведущий говорит...',
+        },
+        pl: {
+            joinTitle: 'Dołącz do pokoju', langLabel: 'Twój język:', btnJoin: 'Dołącz',
+            statusConnected: 'Połączono', statusDisconnected: 'Rozłączono',
+            handRaise: '🖐 Chcę mówić', handWaiting: '⏳ Czekam na zgodę...',
+            speakNow: '🎤 MÓWI TERAZ', btnDone: '✅ Gotowe',
+            labelOrig: 'Oryginał', labelTrans: 'Tłumaczenie', labelHist: 'Historia',
+            mutedMsg: 'Zostałeś wyciszony przez hosta',
+            unmutedMsg: 'Zostałeś odciszony',
+            kickedMsg: 'Zostałeś usunięty z pokoju',
+            closedMsg: 'Pokój został zamknięty',
+            deniedMsg: 'Twoja prośba została odrzucona',
+            recording: 'Nagrywam',
+            speaking: 'mówi...',
+            hostSpeaking: 'Moderator mówi...',
+        },
+        fr: {
+            joinTitle: 'Rejoindre la salle', langLabel: 'Votre langue :', btnJoin: 'Rejoindre',
+            statusConnected: 'Connecté', statusDisconnected: 'Déconnecté',
+            handRaise: '🖐 Je veux parler', handWaiting: '⏳ En attente...',
+            speakNow: '🎤 PARLEZ', btnDone: '✅ Terminé',
+            labelOrig: 'Original', labelTrans: 'Traduction', labelHist: 'Historique',
+            mutedMsg: "L'hôte vous a mis en sourdine",
+            unmutedMsg: 'Vous avez été réactivé',
+            kickedMsg: 'Vous avez été retiré de la salle',
+            closedMsg: 'La salle a été fermée',
+            deniedMsg: 'Votre demande a été refusée',
+        },
+        zh: {
+            joinTitle: '加入房间', langLabel: '您的语言：', btnJoin: '加入',
+            statusConnected: '已连接', statusDisconnected: '已断开',
+            handRaise: '🖐 我想发言', handWaiting: '⏳ 等待批准...',
+            speakNow: '🎤 请说', btnDone: '✅ 完成',
+            labelOrig: '原文', labelTrans: '翻译', labelHist: '历史',
+            mutedMsg: '主持人已将您静音',
+            unmutedMsg: '您已被取消静音',
+            kickedMsg: '您已被移出房间',
+            closedMsg: '房间已关闭',
+            deniedMsg: '您的请求已被拒绝',
+        },
+        es: {
+            joinTitle: 'Unirse a la sala', langLabel: 'Tu idioma:', btnJoin: 'Unirse',
+            statusConnected: 'Conectado', statusDisconnected: 'Desconectado',
+            handRaise: '🖐 Quiero hablar', handWaiting: '⏳ Esperando aprobación...',
+            speakNow: '🎤 HABLE AHORA', btnDone: '✅ Listo',
+            labelOrig: 'Original', labelTrans: 'Traducción', labelHist: 'Historial',
+            mutedMsg: 'El anfitrión te ha silenciado',
+            unmutedMsg: 'Se te ha activado el sonido',
+            kickedMsg: 'Has sido eliminado de la sala',
+            closedMsg: 'La sala ha sido cerrada',
+            deniedMsg: 'Tu solicitud fue rechazada',
+        },
+        it: {
+            joinTitle: 'Entra nella stanza', langLabel: 'La tua lingua:', btnJoin: 'Entra',
+            statusConnected: 'Connesso', statusDisconnected: 'Disconnesso',
+            handRaise: '🖐 Voglio parlare', handWaiting: '⏳ In attesa...',
+            speakNow: '🎤 PARLA ORA', btnDone: '✅ Fatto',
+            labelOrig: 'Originale', labelTrans: 'Traduzione', labelHist: 'Cronologia',
+            mutedMsg: "L'host ti ha silenziato",
+            unmutedMsg: 'Sei stato riattivato',
+            kickedMsg: 'Sei stato rimosso dalla stanza',
+            closedMsg: 'La stanza è stata chiusa',
+            deniedMsg: 'La tua richiesta è stata rifiutata',
+        },
+        pt: {
+            joinTitle: 'Entrar na sala', langLabel: 'Seu idioma:', btnJoin: 'Entrar',
+            statusConnected: 'Conectado', statusDisconnected: 'Desconectado',
+            handRaise: '🖐 Quero falar', handWaiting: '⏳ Aguardando aprovação...',
+            speakNow: '🎤 FALE AGORA', btnDone: '✅ Pronto',
+            labelOrig: 'Original', labelTrans: 'Tradução', labelHist: 'Histórico',
+            mutedMsg: 'O anfitrião silenciou você',
+            unmutedMsg: 'Você foi ativado',
+            kickedMsg: 'Você foi removido da sala',
+            closedMsg: 'A sala foi fechada',
+            deniedMsg: 'Seu pedido foi negado',
+        },
+        ja: {
+            joinTitle: 'ルームに参加', langLabel: '言語：', btnJoin: '参加',
+            statusConnected: '接続済み', statusDisconnected: '切断',
+            handRaise: '🖐 発言したい', handWaiting: '⏳ 承認待ち...',
+            speakNow: '🎤 話してください', btnDone: '✅ 完了',
+            labelOrig: '原文', labelTrans: '翻訳', labelHist: '履歴',
+            mutedMsg: 'ホストにミュートされました',
+            unmutedMsg: 'ミュートが解除されました',
+            kickedMsg: 'ルームから削除されました',
+            closedMsg: 'ルームが閉じられました',
+            deniedMsg: 'リクエストが拒否されました',
+        },
+        ko: {
+            joinTitle: '방 참가', langLabel: '언어:', btnJoin: '참가',
+            statusConnected: '연결됨', statusDisconnected: '연결 끊김',
+            handRaise: '🖐 발언하고 싶습니다', handWaiting: '⏳ 승인 대기 중...',
+            speakNow: '🎤 말씀하세요', btnDone: '✅ 완료',
+            labelOrig: '원문', labelTrans: '번역', labelHist: '기록',
+            mutedMsg: '호스트가 음소거했습니다',
+            unmutedMsg: '음소거가 해제되었습니다',
+            kickedMsg: '방에서 퇴장되었습니다',
+            closedMsg: '방이 닫혔습니다',
+            deniedMsg: '요청이 거부되었습니다',
+        },
+        ar: {
+            joinTitle: 'انضم إلى الغرفة', langLabel: 'لغتك:', btnJoin: 'انضم',
+            statusConnected: 'متصل', statusDisconnected: 'غير متصل',
+            handRaise: '🖐 أريد التحدث', handWaiting: '⏳ في انتظار الموافقة...',
+            speakNow: '🎤 تحدث الآن', btnDone: '✅ انتهيت',
+            labelOrig: 'الأصل', labelTrans: 'الترجمة', labelHist: 'السجل',
+            mutedMsg: 'تم كتم صوتك من قبل المضيف',
+            unmutedMsg: 'تم إلغاء كتم صوتك',
+            kickedMsg: 'تمت إزالتك من الغرفة',
+            closedMsg: 'تم إغلاق الغرفة',
+            deniedMsg: 'تم رفض طلبك',
+        },
+        tr: {
+            joinTitle: 'Odaya katıl', langLabel: 'Diliniz:', btnJoin: 'Katıl',
+            statusConnected: 'Bağlandı', statusDisconnected: 'Bağlantı kesildi',
+            handRaise: '🖐 Konuşmak istiyorum', handWaiting: '⏳ Onay bekleniyor...',
+            speakNow: '🎤 KONUŞUN', btnDone: '✅ Bitti',
+            labelOrig: 'Orijinal', labelTrans: 'Çeviri', labelHist: 'Geçmiş',
+            mutedMsg: 'Ev sahibi sizi susturdu',
+            unmutedMsg: 'Sesiniz açıldı',
+            kickedMsg: 'Odadan çıkarıldınız',
+            closedMsg: 'Oda kapatıldı',
+            deniedMsg: 'İsteğiniz reddedildi',
+        },
+        hi: {
+            joinTitle: 'कमरे में शामिल हों', langLabel: 'आपकी भाषा:', btnJoin: 'शामिल हों',
+            statusConnected: 'जुड़ा हुआ', statusDisconnected: 'डिस्कनेक्ट',
+            handRaise: '🖐 मैं बोलना चाहता हूँ', handWaiting: '⏳ अनुमति की प्रतीक्षा...',
+            speakNow: '🎤 अब बोलिए', btnDone: '✅ हो गया',
+            labelOrig: 'मूल', labelTrans: 'अनुवाद', labelHist: 'इतिहास',
+            mutedMsg: 'होस्ट ने आपको म्यूट किया',
+            unmutedMsg: 'आपको अनम्यूट किया गया',
+            kickedMsg: 'आपको कमरे से हटा दिया गया',
+            closedMsg: 'कमरा बंद कर दिया गया',
+            deniedMsg: 'आपका अनुरोध अस्वीकार कर दिया गया',
+        },
+    };
+
+    // =================================================================
+    // State
+    // =================================================================
+    let guestLang = 'en';
+    let guestId = null;
+    let roomId = null;
+    let ws = null;
+    let myState = 'listening'; // listening | requesting | speaking
+    let audioContext = null;
+    let audioWorkletNode = null;
+    let mediaStream = null;
+    let playbackContext = null;
+    let audioQueue = [];
+    let isPlaying = false;
+    let currentSpeaker = 'Host';
+
+    // DOM
+    const screenJoin = document.getElementById('screenJoin');
+    const screenRoom = document.getElementById('screenRoom');
+    const statusDot = document.getElementById('statusDot');
+    const statusTextEl = document.getElementById('statusText');
+    const speakBanner = document.getElementById('speakBanner');
+    const handBtn = document.getElementById('handBtn');
+    const handBtnText = document.getElementById('handBtnText');
+    const originalText = document.getElementById('originalText');
+    const translationText = document.getElementById('translationText');
+    const historyDiv = document.getElementById('history');
+    const vadBars = document.querySelectorAll('.vad-bar');
+
+    // Extract room_id from URL: /room/{room_id}
+    const pathParts = window.location.pathname.split('/');
+    roomId = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
+    document.getElementById('roomLabel').textContent = `Room: ${roomId.toUpperCase()}`;
+    // Восстановление сессии после обновления страницы
+    const savedSession = sessionStorage.getItem(`vox_guest_${roomId}`);
+    if (savedSession) {
+        try {
+            const sess = JSON.parse(savedSession);
+            guestId = sess.guest_id;
+            guestLang = sess.lang || 'en';
+            document.getElementById('guestLangSelect').value = guestLang;
+            applyI18n();
+            screenJoin.classList.remove('active');
+            screenRoom.classList.add('active');
+            connectGuestWS();
+            // Восстановить историю
+            const hist = JSON.parse(sessionStorage.getItem(`vox_hist_${roomId}`) || '[]');
+            hist.reverse().forEach(h => {
+                const it = document.createElement('div'); it.className = 'history-item';
+                const who = h.speaker ? `<span style="color:var(--accent);font-weight:600;">${escapeHtml(h.speaker)}</span> · ` : '';
+                it.innerHTML = `<div class="history-time">${who}${h.tm}</div><div class="history-original">${escapeHtml(h.o)}</div><div class="history-translation">${escapeHtml(h.tr)}</div>`;
+                historyDiv.insertBefore(it, historyDiv.firstChild);
+            });
+        } catch(e) { sessionStorage.removeItem(`vox_guest_${roomId}`); }
+    }
+
+    // =================================================================
+    // i18n helper
+    // =================================================================
+    function t(key) {
+        const strings = GUEST_I18N[guestLang] || GUEST_I18N['en'];
+        return strings[key] || (GUEST_I18N['en'][key]) || key;
+    }
+
+    function applyI18n() {
+        document.getElementById('joinTitle').textContent = t('joinTitle');
+        document.getElementById('joinLangLabel').textContent = t('langLabel');
+        document.getElementById('btnJoin').textContent = t('btnJoin');
+        document.getElementById('labelOrig').textContent = t('labelOrig');
+        document.getElementById('labelTrans').textContent = t('labelTrans');
+        document.getElementById('labelHist').textContent = t('labelHist');
+        document.getElementById('speakNowText').textContent = t('speakNow');
+        document.getElementById('btnDone').textContent = t('btnDone');
+        document.getElementById('mutedMsg').textContent = t('mutedMsg');
+        document.getElementById('kickedMsg').textContent = t('kickedMsg');
+        document.getElementById('closedMsg').textContent = t('closedMsg');
+        updateHandButton();
+    }
+
+    // Update i18n when language changes on join screen
+    document.getElementById('guestLangSelect').addEventListener('change', (e) => {
+        guestLang = e.target.value;
+        applyI18n();
+    });
+
+    // =================================================================
+    // Join room
+    // =================================================================
+    async function joinRoom() {
+        guestLang = document.getElementById('guestLangSelect').value;
+        const displayName = document.getElementById('displayNameInput').value.trim();
+        const btn = document.getElementById('btnJoin');
+        btn.textContent = '...';
+        btn.disabled = true;
+
+        try {
+            const resp = await fetch(`/room/${roomId}/join`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({language: guestLang, display_name: displayName}),
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json();
+                alert(err.detail || 'Failed to join');
+                btn.textContent = t('btnJoin');
+                btn.disabled = false;
+                return;
+            }
+
+            const data = await resp.json();
+            guestId = data.guest_id;
+
+            // Сохраняем сессию для восстановления при рефреше
+            sessionStorage.setItem(`vox_guest_${roomId}`, JSON.stringify({
+                guest_id: guestId,
+                lang: guestLang,
+                name: displayName,
+            }));
+
+            // Switch screens
+            screenJoin.classList.remove('active');
+            screenRoom.classList.add('active');
+            applyI18n();
+
+            // Connect WebSocket
+            connectGuestWS();
+
+        } catch (e) {
+            console.error('Join error:', e);
+            btn.textContent = t('btnJoin');
+            btn.disabled = false;
+        }
+    }
+
+    // =================================================================
+    // WebSocket
+    // =================================================================
+    function connectGuestWS() {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const url = `${protocol}//${location.host}/ws/room/${roomId}/guest/${guestId}`;
+
+        ws = new WebSocket(url);
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = () => {
+            statusDot.className = 'status-dot connected';
+            statusTextEl.textContent = t('statusConnected');
+            // Изначально хост говорит
+            document.getElementById('speakerName').textContent = '🎤 ' + t('hostSpeaking');
+            document.getElementById('speakerIndicator').style.display = 'block';
+        };
+
+        ws.onclose = () => {
+            statusDot.className = 'status-dot';
+            statusTextEl.textContent = t('statusDisconnected');
+        };
+
+        ws.onerror = () => {
+            statusDot.className = 'status-dot';
+        };
+
+        ws.onmessage = (event) => {
+            if (event.data instanceof ArrayBuffer) {
+                handleAudioMsg(event.data);
+            } else {
+                handleJsonMsg(JSON.parse(event.data));
+            }
+        };
+    }
+
+    function handleJsonMsg(msg) {
+        switch (msg.type) {
+            case 'speak_granted':
+                myState = 'speaking';
+                speakBanner.classList.add('active');
+                handBtn.style.display = 'none';
+                document.getElementById('speakerIndicator').style.display = 'none';
+                startGuestMic();
+                break;
+
+            case 'speak_revoked':
+                myState = 'listening';
+                speakBanner.classList.remove('active');
+                handBtn.style.display = 'block';
+                stopGuestMic();
+                updateHandButton();
+                break;
+
+            case 'speak_denied':
+                myState = 'listening';
+                updateHandButton();
+                break;
+
+            case 'muted':
+                document.getElementById('overlayMuted').classList.add('active');
+                break;
+
+            case 'unmuted':
+                document.getElementById('overlayMuted').classList.remove('active');
+                break;
+
+            case 'kicked':
+                document.getElementById('overlayKicked').classList.add('active');
+                if (ws) { ws.close(); ws = null; }
+                stopGuestMic();
+                sessionStorage.removeItem(`vox_guest_${roomId}`);
+                sessionStorage.removeItem(`vox_hist_${roomId}`);
+                break;
+
+            case 'room_closed':
+                document.getElementById('overlayClosed').classList.add('active');
+                if (ws) { ws.close(); ws = null; }
+                stopGuestMic();
+                sessionStorage.removeItem(`vox_guest_${roomId}`);
+                sessionStorage.removeItem(`vox_hist_${roomId}`);
+                break;
+
+            case 'speaker_changed':
+                // Показываем кто сейчас говорит (постоянный индикатор)
+                const indicator = document.getElementById('speakerIndicator');
+                const nameEl = document.getElementById('speakerName');
+                if (msg.guest_id) {
+                    currentSpeaker = msg.display_name || 'Guest';
+                    nameEl.textContent = '🎤 ' + (msg.display_name || 'Guest') + ' ' + t('speaking');
+                    indicator.style.display = 'block';
+                } else if (msg.guest_id === null) {
+                    currentSpeaker = 'Host';
+                    nameEl.textContent = '🎤 ' + t('hostSpeaking');
+                    indicator.style.display = 'block';
+                } else {
+                    indicator.style.display = 'none';
+                }
+                break;
+
+            case 'transcript':
+                if (msg.is_final) {
+                    originalText.textContent = msg.text || '—';
+                    originalText.style.opacity='1';
+                    translationText.textContent='⏳'; translationText.style.opacity='0.4';
+                } else {
+                    // Deepgram interim — текст в реальном времени
+                    originalText.textContent = '🎤 ' + (msg.text || (GUEST_I18N[guestLang]?.recording || 'Recording') + '...');
+                    originalText.style.opacity='0.7';
+                }
+                break;
+
+            case 'translation':
+                translationText.textContent = msg.text || '—';
+                translationText.style.opacity='1';
+                addToHistory(originalText.textContent, msg.text, msg.lang_from, msg.lang_to, msg.speaker || currentSpeaker);
+                break;
+        }
+    }
+
+    function handleAudioMsg(data) {
+        const prefix = new TextDecoder().decode(new Uint8Array(data, 0, 6));
+        if (prefix === 'AUDIO:') playAudio(data.slice(6));
+    }
+
+    // =================================================================
+    // Hand raise
+    // =================================================================
+    function toggleHandRaise() {
+        if (myState === 'listening') {
+            myState = 'requesting';
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({action: 'request_speak'}));
+            }
+            updateHandButton();
+        } else if (myState === 'requesting') {
+            myState = 'listening';
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({action: 'cancel_request'}));
+            }
+            updateHandButton();
+        }
+    }
+
+    function updateHandButton() {
+        if (myState === 'requesting') {
+            handBtnText.textContent = t('handWaiting');
+            handBtn.classList.add('requesting');
+        } else {
+            handBtnText.textContent = t('handRaise');
+            handBtn.classList.remove('requesting');
+        }
+    }
+
+    function doneSpeaking() {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({action: 'done_speaking'}));
+        }
+        myState = 'listening';
+        speakBanner.classList.remove('active');
+        handBtn.style.display = 'block';
+        stopGuestMic();
+        updateHandButton();
+    }
+
+    // =================================================================
+    // Guest microphone
+    // =================================================================
+    async function startGuestMic() {
+        try {
+            mediaStream = await navigator.mediaDevices.getUserMedia({
+                audio: {sampleRate:16000, channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true}
+            });
+            audioContext = new AudioContext({sampleRate: 16000});
+
+            const workletCode = `
+                class VoxGuestProcessor extends AudioWorkletProcessor {
+                    constructor() { super(); this.buffer = []; this.CHUNK_SIZE = 512; }
+                    process(inputs) {
+                        const input = inputs[0];
+                        if (!input || !input[0]) return true;
+                        this.buffer.push(...input[0]);
+                        while (this.buffer.length >= this.CHUNK_SIZE) {
+                            const chunk = new Float32Array(this.buffer.splice(0, this.CHUNK_SIZE));
+                            this.port.postMessage(chunk.buffer, [chunk.buffer]);
+                        }
+                        return true;
+                    }
+                }
+                registerProcessor('vox-guest-processor', VoxGuestProcessor);
+            `;
+            const blob = new Blob([workletCode], {type:'application/javascript'});
+            const url = URL.createObjectURL(blob);
+            await audioContext.audioWorklet.addModule(url);
+            URL.revokeObjectURL(url);
+
+            const source = audioContext.createMediaStreamSource(mediaStream);
+            audioWorkletNode = new AudioWorkletNode(audioContext, 'vox-guest-processor');
+            audioWorkletNode.port.onmessage = (e) => {
+                if (ws && ws.readyState === WebSocket.OPEN) ws.send(e.data);
+                animateVAD(new Float32Array(e.data));
+            };
+            source.connect(audioWorkletNode);
+            audioWorkletNode.connect(audioContext.destination);
+        } catch (e) {
+            console.error('Mic error:', e);
+        }
+    }
+
+    function stopGuestMic() {
+        if (audioWorkletNode) { audioWorkletNode.disconnect(); audioWorkletNode = null; }
+        if (audioContext) { audioContext.close(); audioContext = null; }
+        if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+        resetVAD();
+    }
+
+    // =================================================================
+    // Audio playback (с разблокировкой AudioContext после рефреша)
+    // =================================================================
+    let _audioUnlocked = false;
+
+    // Браузер блокирует AudioContext без user gesture.
+    // После восстановления сессии (sessionStorage) жеста нет —
+    // разблокируем при первом клике/тапе на странице.
+    function _ensureAudioUnlock() {
+        if (_audioUnlocked) return;
+        const unlock = async () => {
+            if (playbackContext && playbackContext.state === 'suspended') {
+                try { await playbackContext.resume(); } catch(e) {}
+            }
+            _audioUnlocked = true;
+            document.removeEventListener('click', unlock, true);
+            document.removeEventListener('touchstart', unlock, true);
+        };
+        document.addEventListener('click', unlock, true);
+        document.addEventListener('touchstart', unlock, true);
+    }
+    _ensureAudioUnlock();
+
+    async function playAudio(mp3Bytes) {
+        audioQueue.push(mp3Bytes);
+        if (!isPlaying) processAudioQueue();
+    }
+    async function processAudioQueue() {
+        if (audioQueue.length === 0) { isPlaying = false; return; }
+        isPlaying = true;
+        const mp3 = audioQueue.shift();
+        try {
+            if (!playbackContext) {
+                playbackContext = new AudioContext();
+                // Пробуем разблокировать сразу
+                if (playbackContext.state === 'suspended') {
+                    try { await playbackContext.resume(); } catch(e) {}
+                }
+            }
+            if (playbackContext.state === 'suspended') {
+                // AudioContext всё ещё заблокирован — ждём user gesture
+                console.warn('AudioContext suspended — audio queued, waiting for user gesture');
+                // Ставим обратно в очередь и пробуем через 500мс
+                audioQueue.unshift(mp3);
+                isPlaying = false;
+                setTimeout(() => { if (!isPlaying && audioQueue.length > 0) processAudioQueue(); }, 500);
+                return;
+            }
+            const buf = await playbackContext.decodeAudioData(mp3.slice(0));
+            const src = playbackContext.createBufferSource();
+            src.buffer = buf; src.connect(playbackContext.destination);
+            src.onended = () => processAudioQueue(); src.start(0);
+        } catch (e) { console.error('Playback error:', e); processAudioQueue(); }
+    }
+
+    // =================================================================
+    // UI utilities
+    // =================================================================
+    function animateVAD(chunk) {
+        let sum = 0;
+        for (let i = 0; i < chunk.length; i++) sum += chunk[i] * chunk[i];
+        const rms = Math.sqrt(sum / chunk.length);
+        const level = Math.min(rms * 10, 1.0);
+        vadBars.forEach(bar => {
+            bar.style.height = (4 + Math.random() * level * 20) + 'px';
+            bar.classList.toggle('active', level > 0.02);
+        });
+    }
+    function resetVAD() {
+        vadBars.forEach(b => { b.style.height = '8px'; b.classList.remove('active'); });
+    }
+
+    function addToHistory(original, translation, from, to, speaker) {
+        const time = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+        const item = document.createElement('div');
+        item.className = 'history-item fade-in';
+        const who = speaker ? `<span style="color:var(--accent);font-weight:600;">${escapeHtml(speaker)}</span> · ` : '';
+        item.innerHTML = `
+            <div class="history-time">${who}${time}</div>
+            <div class="history-original">${escapeHtml(original)}</div>
+            <div class="history-translation">${escapeHtml(translation)}</div>`;
+        historyDiv.insertBefore(item, historyDiv.firstChild);
+        while (historyDiv.children.length > 20) historyDiv.removeChild(historyDiv.lastChild);
+        const arr = JSON.parse(sessionStorage.getItem(`vox_hist_${roomId}`) || '[]');
+        arr.unshift({o: original, tr: translation, speaker, tm: time});
+        if (arr.length > 20) arr.length = 20;
+        sessionStorage.setItem(`vox_hist_${roomId}`, JSON.stringify(arr));
+    }
+
+    function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    // Init i18n
+    applyI18n();
+    console.log('VOX Guest v0.3.2');
+    </script>
+</body>
+</html>

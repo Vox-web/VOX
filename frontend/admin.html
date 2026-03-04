@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VOX Admin Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#09080f;--bg2:#110e1c;--surface:#15121f;--surface2:#1e1930;
+  --border:#2a2340;--border2:#3d3560;
+  --text:#f0eeff;--text2:#9b93c4;--text3:#5e5880;
+  --accent:#7c6aff;--accent2:#a594ff;--accent-dim:rgba(124,106,255,.12);
+  --green:#2dd4a0;--yellow:#f0c050;--red:#ff5f7e;
+  --radius:14px;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* ─── LOGIN ─── */
+#loginWrap{
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:24px;
+}
+.login-box{
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:24px;padding:48px 40px;width:100%;max-width:380px;text-align:center;
+}
+.login-logo{
+  font-family:'Syne',sans-serif;font-size:32px;font-weight:800;
+  color:var(--accent);letter-spacing:5px;margin-bottom:6px;
+}
+.login-sub{color:var(--text3);font-size:14px;margin-bottom:36px}
+.f-input{
+  width:100%;background:var(--bg2);border:1px solid var(--border2);
+  color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;
+  padding:13px 16px;border-radius:12px;outline:none;margin-bottom:14px;
+  transition:border .25s;
+}
+.f-input:focus{border-color:var(--accent)}
+.f-input::placeholder{color:var(--text3)}
+.f-btn{
+  width:100%;padding:14px;border-radius:12px;border:none;
+  background:var(--accent);color:#fff;
+  font-family:'DM Sans',sans-serif;font-size:16px;font-weight:600;
+  cursor:pointer;transition:all .25s;
+  box-shadow:0 4px 16px rgba(124,106,255,.35);
+}
+.f-btn:hover{background:var(--accent2)}
+.f-err{color:var(--red);font-size:13px;margin-top:12px;display:none}
+
+/* ─── APP ─── */
+#appWrap{display:none;min-height:100vh;flex-direction:column}
+
+header{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:0 28px;height:60px;
+  display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;
+}
+.h-logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--accent);letter-spacing:4px}
+.h-right{display:flex;align-items:center;gap:16px}
+.h-tag{
+  background:rgba(255,95,126,.1);color:var(--red);
+  font-size:12px;font-weight:600;letter-spacing:1px;
+  padding:5px 12px;border-radius:99px;border:1px solid rgba(255,95,126,.25);
+}
+.h-logout{
+  background:transparent;border:1px solid var(--border2);
+  color:var(--text3);font-family:'DM Sans',sans-serif;
+  font-size:13px;padding:7px 14px;border-radius:8px;cursor:pointer;
+  transition:all .2s;
+}
+.h-logout:hover{color:var(--red);border-color:var(--red)}
+
+.layout{display:flex;flex:1}
+.sidebar{
+  width:220px;background:var(--bg2);border-right:1px solid var(--border);
+  padding:24px 12px;flex-shrink:0;
+}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 14px;border-radius:var(--radius);
+  font-size:14px;font-weight:500;cursor:pointer;
+  color:var(--text2);transition:all .2s;margin-bottom:4px;border:none;background:none;width:100%;
+}
+.nav-item:hover{background:var(--surface);color:var(--text)}
+.nav-item.active{background:var(--accent-dim);color:var(--accent2)}
+.nav-icon{font-size:18px}
+
+.content{flex:1;padding:28px;overflow-y:auto;max-width:1100px}
+
+/* ─── STATS ROW ─── */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:28px}
+.stat{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:20px;
+}
+.stat-n{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;
+  background:linear-gradient(135deg,var(--accent),#c084fc);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.stat-l{color:var(--text2);font-size:13px;margin-top:4px}
+
+/* ─── TABLE ─── */
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.table-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px;border-bottom:1px solid var(--border);
+}
+.table-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:700}
+.filters{display:flex;gap:8px}
+.filter-btn{
+  border:1px solid var(--border2);background:transparent;
+  color:var(--text2);font-family:'DM Sans',sans-serif;
+  font-size:12px;padding:6px 14px;border-radius:8px;cursor:pointer;transition:all .2s;
+}
+.filter-btn:hover,.filter-btn.active{border-color:var(--accent);color:var(--accent2)}
+table{width:100%;border-collapse:collapse}
+th{
+  text-align:left;padding:12px 16px;
+  font-size:12px;font-weight:600;letter-spacing:.5px;
+  color:var(--text3);text-transform:uppercase;
+  border-bottom:1px solid var(--border);background:var(--bg2);
+}
+td{padding:14px 16px;border-bottom:1px solid var(--border);vertical-align:top;font-size:14px}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(124,106,255,.04)}
+.stars-cell{color:var(--yellow);letter-spacing:2px;font-size:13px}
+.source-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:11px;padding:4px 10px;border-radius:99px;font-weight:500;
+}
+.src-landing{background:rgba(124,106,255,.12);color:var(--accent2);border:1px solid rgba(124,106,255,.25)}
+.src-host{background:rgba(45,212,160,.1);color:var(--green);border:1px solid rgba(45,212,160,.2)}
+.status-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:11px;padding:4px 10px;border-radius:99px;
+}
+.s-pending{background:rgba(240,192,80,.1);color:var(--yellow);border:1px solid rgba(240,192,80,.2)}
+.s-approved{background:rgba(45,212,160,.1);color:var(--green);border:1px solid rgba(45,212,160,.2)}
+.act-btns{display:flex;gap:6px;flex-wrap:wrap}
+.act-btn{
+  border:none;cursor:pointer;
+  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;
+  padding:6px 12px;border-radius:7px;transition:all .2s;
+}
+.btn-approve{background:rgba(45,212,160,.12);color:var(--green)}
+.btn-approve:hover{background:rgba(45,212,160,.25)}
+.btn-reject{background:rgba(255,95,126,.1);color:var(--red)}
+.btn-reject:hover{background:rgba(255,95,126,.2)}
+.btn-delete{background:rgba(255,95,126,.08);color:var(--red)}
+.btn-delete:hover{background:rgba(255,95,126,.18)}
+
+.review-txt{color:var(--text2);max-width:300px;white-space:pre-wrap;line-height:1.5}
+.user-email{color:var(--text3);font-size:12px}
+.empty-state{text-align:center;padding:48px;color:var(--text3)}
+.empty-icon{font-size:40px;margin-bottom:12px}
+
+/* ─── TOAST ─── */
+.toast{
+  position:fixed;bottom:28px;right:28px;z-index:1000;
+  background:var(--surface2);border:1px solid var(--border2);
+  color:var(--text);font-size:14px;padding:14px 20px;
+  border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.4);
+  transform:translateY(20px);opacity:0;
+  transition:all .3s;pointer-events:none;
+}
+.toast.show{transform:translateY(0);opacity:1}
+
+/* ─── REFRESH BTN ─── */
+.refresh-btn{
+  border:1px solid var(--border2);background:transparent;
+  color:var(--text2);font-family:'DM Sans',sans-serif;
+  font-size:13px;padding:7px 14px;border-radius:8px;cursor:pointer;
+  transition:all .2s;display:flex;align-items:center;gap:6px;
+}
+.refresh-btn:hover{border-color:var(--accent);color:var(--accent2)}
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN ═══ -->
+<div id="loginWrap">
+  <div class="login-box">
+    <div class="login-logo">VOX</div>
+    <p class="login-sub">Admin Panel · Restricted Access</p>
+    <input class="f-input" type="text" id="adminLogin" placeholder="Login" autocomplete="username"/>
+    <input class="f-input" type="password" id="adminPass" placeholder="Password" autocomplete="current-password"/>
+    <button class="f-btn" onclick="doAdminLogin()">Увійти в панель</button>
+    <p class="f-err" id="loginErr">Невірний логін або пароль</p>
+  </div>
+</div>
+
+<!-- ═══ APP ═══ -->
+<div id="appWrap">
+  <header>
+    <div class="h-logo">VOX</div>
+    <div class="h-right">
+      <span class="h-tag">🔒 ADMIN</span>
+      <button class="h-logout" onclick="adminLogout()">Вийти</button>
+    </div>
+  </header>
+  <div class="layout">
+    <nav class="sidebar">
+      <button class="nav-item active" onclick="showPage('reviews')" id="nav-reviews">
+        <span class="nav-icon">⭐</span> Відгуки
+      </button>
+      <button class="nav-item" onclick="showPage('users')" id="nav-users">
+        <span class="nav-icon">👥</span> Користувачі
+      </button>
+    </nav>
+    <div class="content">
+
+      <!-- ── REVIEWS PAGE ── -->
+      <div id="pageReviews">
+        <div class="stats" id="reviewStats">
+          <div class="stat"><div class="stat-n" id="sTotal">–</div><div class="stat-l">Всього відгуків</div></div>
+          <div class="stat"><div class="stat-n" id="sPending">–</div><div class="stat-l">Очікують</div></div>
+          <div class="stat"><div class="stat-n" id="sApproved">–</div><div class="stat-l">Опубліковано</div></div>
+          <div class="stat"><div class="stat-n" id="sAvg">–</div><div class="stat-l">Середня оцінка</div></div>
+        </div>
+        <div class="table-wrap">
+          <div class="table-head">
+            <span class="table-title">Відгуки користувачів</span>
+            <div class="filters">
+              <button class="filter-btn active" onclick="filterReviews('all',this)">Всі</button>
+              <button class="filter-btn" onclick="filterReviews('pending',this)">Очікують</button>
+              <button class="filter-btn" onclick="filterReviews('approved',this)">Опубліковані</button>
+              <button class="refresh-btn" onclick="loadReviews()">↻ Оновити</button>
+            </div>
+          </div>
+          <div id="reviewsTable">
+            <div class="empty-state"><div class="empty-icon">⏳</div><div>Завантаження...</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── USERS PAGE ── -->
+      <div id="pageUsers" style="display:none">
+        <div class="table-wrap">
+          <div class="table-head">
+            <span class="table-title">Зареєстровані користувачі</span>
+            <button class="refresh-btn" onclick="loadUsers()">↻ Оновити</button>
+          </div>
+          <div id="usersTable">
+            <div class="empty-state"><div class="empty-icon">⏳</div><div>Завантаження...</div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════ AUTH ═══════════
+const ADMIN_CREDS = {login:'admin', password:'kozerog'};
+let adminAuthed = sessionStorage.getItem('vox_admin') === '1';
+
+function doAdminLogin(){
+  const login = document.getElementById('adminLogin').value.trim();
+  const pass  = document.getElementById('adminPass').value;
+  const err   = document.getElementById('loginErr');
+  if(login === ADMIN_CREDS.login && pass === ADMIN_CREDS.password){
+    sessionStorage.setItem('vox_admin','1');
+    adminAuthed = true;
+    err.style.display='none';
+    document.getElementById('loginWrap').style.display='none';
+    document.getElementById('appWrap').style.display='flex';
+    loadReviews();
+  } else {
+    err.style.display='block';
+    document.getElementById('adminPass').value='';
+  }
+}
+
+function adminLogout(){
+  sessionStorage.removeItem('vox_admin');
+  adminAuthed = false;
+  document.getElementById('loginWrap').style.display='flex';
+  document.getElementById('appWrap').style.display='none';
+}
+
+function getAdminHeaders(){
+  const creds = btoa(`${ADMIN_CREDS.login}:${ADMIN_CREDS.password}`);
+  return {'Authorization':'Basic '+creds,'Content-Type':'application/json'};
+}
+
+document.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!adminAuthed) doAdminLogin(); });
+
+// ═══════════ NAV ═══════════
+function showPage(page){
+  ['reviews','users'].forEach(p=>{
+    document.getElementById('page'+capitalize(p)).style.display = p===page?'block':'none';
+    document.getElementById('nav-'+p).classList.toggle('active', p===page);
+  });
+  if(page==='users') loadUsers();
+}
+function capitalize(s){return s.charAt(0).toUpperCase()+s.slice(1)}
+
+// ═══════════ REVIEWS ═══════════
+let allReviews = [];
+let currentFilter = 'all';
+
+async function loadReviews(){
+  try{
+    const r = await fetch('/api/admin/reviews',{headers:getAdminHeaders()});
+    if(!r.ok){ if(r.status===401||r.status===403) adminLogout(); return; }
+    allReviews = await r.json();
+    renderReviewStats();
+    renderReviews();
+  } catch(e){ showToast('❌ Помилка завантаження відгуків'); }
+}
+
+function renderReviewStats(){
+  const total   = allReviews.length;
+  const pending = allReviews.filter(r=>!r.is_approved).length;
+  const approved= allReviews.filter(r=>r.is_approved).length;
+  const avg     = total ? (allReviews.reduce((s,r)=>s+r.rating,0)/total).toFixed(1) : '–';
+  document.getElementById('sTotal').textContent    = total;
+  document.getElementById('sPending').textContent  = pending;
+  document.getElementById('sApproved').textContent = approved;
+  document.getElementById('sAvg').textContent      = avg;
+}
+
+function filterReviews(f, btn){
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderReviews();
+}
+
+function renderReviews(){
+  let list = allReviews;
+  if(currentFilter==='pending')  list = list.filter(r=>!r.is_approved);
+  if(currentFilter==='approved') list = list.filter(r=>r.is_approved);
+
+  const wrap = document.getElementById('reviewsTable');
+  if(!list.length){
+    wrap.innerHTML=`<div class="empty-state"><div class="empty-icon">📭</div><div>Відгуків немає</div></div>`;
+    return;
+  }
+  const starsStr = n => '★'.repeat(n)+'☆'.repeat(5-n);
+  const esc = s => (s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  wrap.innerHTML = `
+  <table>
+    <thead><tr>
+      <th>Дата</th><th>Автор</th><th>Оцінка</th><th>Відгук</th><th>Джерело</th><th>Статус</th><th>Дії</th>
+    </tr></thead>
+    <tbody>
+    ${list.map(r=>`
+      <tr id="row-${r.id}">
+        <td style="white-space:nowrap;color:var(--text3);font-size:12px">${fmtDate(r.created_at)}</td>
+        <td>
+          <div style="font-weight:500">${esc(r.user_name||'Анонім')}</div>
+          <div class="user-email">${esc(r.user_email||'')}</div>
+        </td>
+        <td><div class="stars-cell">${starsStr(r.rating)}</div></td>
+        <td><div class="review-txt">${esc(r.text)}</div></td>
+        <td>
+          <span class="source-badge ${r.source==='host'?'src-host':'src-landing'}">
+            ${r.source==='host'?'🎙 Host':'🌐 Landing'}
+          </span>
+        </td>
+        <td>
+          <span class="status-badge ${r.is_approved?'s-approved':'s-pending'}">
+            ${r.is_approved?'✓ Опубліковано':'⏳ Очікує'}
+          </span>
+        </td>
+        <td>
+          <div class="act-btns">
+            ${!r.is_approved
+              ? `<button class="act-btn btn-approve" onclick="approveReview(${r.id},true)">✓ Опублікувати</button>`
+              : `<button class="act-btn btn-reject"  onclick="approveReview(${r.id},false)">✗ Відкликати</button>`
+            }
+            <button class="act-btn btn-delete" onclick="deleteReview(${r.id})">🗑</button>
+          </div>
+        </td>
+      </tr>
+    `).join('')}
+    </tbody>
+  </table>`;
+}
+
+async function approveReview(id, approved){
+  try{
+    const r = await fetch(`/api/admin/reviews/${id}/approve?approved=${approved}`,
+      {method:'PATCH',headers:getAdminHeaders()});
+    if(r.ok){
+      const idx = allReviews.findIndex(x=>x.id===id);
+      if(idx>=0) allReviews[idx].is_approved = approved;
+      renderReviewStats(); renderReviews();
+      showToast(approved?'✅ Відгук опубліковано':'↩️ Відгук відкликано');
+    }
+  }catch(e){ showToast('❌ Помилка'); }
+}
+
+async function deleteReview(id){
+  if(!confirm('Видалити відгук назавжди?')) return;
+  try{
+    const r = await fetch(`/api/admin/reviews/${id}`,{method:'DELETE',headers:getAdminHeaders()});
+    if(r.ok){
+      allReviews = allReviews.filter(x=>x.id!==id);
+      renderReviewStats(); renderReviews();
+      showToast('🗑 Відгук видалено');
+    }
+  }catch(e){ showToast('❌ Помилка'); }
+}
+
+// ═══════════ USERS ═══════════
+async function loadUsers(){
+  try{
+    const r = await fetch('/api/admin/users',{headers:getAdminHeaders()});
+    if(!r.ok){ if(r.status===401||r.status===403) adminLogout(); return; }
+    const users = await r.json();
+    const wrap = document.getElementById('usersTable');
+    if(!users.length){
+      wrap.innerHTML=`<div class="empty-state"><div class="empty-icon">👤</div><div>Немає користувачів</div></div>`;
+      return;
+    }
+    const esc = s=>(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    wrap.innerHTML=`
+    <table>
+      <thead><tr><th>#</th><th>Ім'я</th><th>Email</th><th>Дата реєстрації</th><th>Статус</th></tr></thead>
+      <tbody>
+      ${users.map(u=>`
+        <tr>
+          <td style="color:var(--text3)">${u.id}</td>
+          <td style="font-weight:500">${esc(u.name)}</td>
+          <td style="color:var(--text2)">${esc(u.email)}</td>
+          <td style="color:var(--text3);font-size:12px">${fmtDate(u.created_at)}</td>
+          <td><span class="status-badge ${u.is_active?'s-approved':'s-pending'}">${u.is_active?'✓ Активний':'✗ Заблокований'}</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  }catch(e){ showToast('❌ Помилка завантаження'); }
+}
+
+// ═══════════ HELPERS ═══════════
+function fmtDate(s){
+  if(!s) return '–';
+  const d = new Date(s);
+  return d.toLocaleDateString('uk-UA',{day:'2-digit',month:'2-digit',year:'numeric'})
+    + ' ' + d.toLocaleTimeString('uk-UA',{hour:'2-digit',minute:'2-digit'});
+}
+
+let _toast;
+function showToast(msg){
+  const el = document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(_toast); _toast=setTimeout(()=>el.classList.remove('show'),3000);
+}
+
+// ═══════════ INIT ═══════════
+if(adminAuthed){
+  document.getElementById('loginWrap').style.display='none';
+  document.getElementById('appWrap').style.display='flex';
+  loadReviews();
+}
+</script>
+</body>
+</html>

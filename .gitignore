@@ -1,0 +1,34 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+
+# Models (загружаются автоматически)
+models/
+*.pth
+*.bin
+*.onnx
+
+# Temp files
+*.mp3
+*.wav
+vox_log.txt
+.vox_installed
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

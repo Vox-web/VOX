@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙</text></svg>">
+    <title>VOX — Real-Time Translation</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #f4f2f7;
+            --surface: #ffffff;
+            --surface2: #edeaf3;
+            --border: #ddd6e8;
+            --text: #2d2640;
+            --text2: #7a7189;
+            --accent: #7c6aff;
+            --accent-dim: rgba(124, 106, 255, 0.10);
+            --green: #2ecc71;
+            --yellow: #f0a500;
+            --red: #e74c3c;
+            --radius: 14px;
+            --shadow: 0 2px 12px rgba(100, 80, 160, 0.07);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg); color: var(--text);
+            min-height: 100dvh;
+            display: flex; flex-direction: column; align-items: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .container {
+            width: 100%; max-width: 500px; padding: 16px;
+            display: flex; flex-direction: column; gap: 14px;
+            padding-bottom: env(safe-area-inset-bottom, 16px);
+        }
+
+        @media (max-width: 400px) {
+            .container { padding: 10px; gap: 10px; }
+        }
+
+        /* ======== Header ======== */
+        .header {
+            text-align: center; padding: 12px 0 4px; position: relative;
+        }
+        .header h1 {
+            font-size: 28px; font-weight: 700;
+            color: var(--accent); letter-spacing: 4px;
+        }
+        .header .subtitle {
+            font-size: 12px; color: var(--text2); margin-top: 2px;
+            transition: opacity 0.25s;
+        }
+
+        .back-btn {
+            position: absolute; top: 14px; left: 0;
+            background: none; border: none; color: var(--text2);
+            font-size: 20px; cursor: pointer; padding: 4px 8px;
+            border-radius: 8px; transition: all 0.2s; display: none;
+        }
+        .back-btn:hover { color: var(--text); background: var(--surface2); }
+        .back-btn.visible { display: block; }
+
+        .ui-lang-switcher {
+            position: absolute; top: 14px; right: 0;
+            display: flex; background: var(--surface);
+            border-radius: 10px; padding: 3px; gap: 2px;
+            border: 1px solid var(--border);
+        }
+        .ui-lang-btn {
+            border: none; background: transparent; color: var(--text2);
+            font-size: 12px; font-weight: 600; padding: 5px 10px;
+            border-radius: 8px; cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            letter-spacing: 0.5px;
+        }
+        .ui-lang-btn:hover { color: var(--text); }
+        .ui-lang-btn.active {
+            color: #fff; background: var(--accent);
+            box-shadow: 0 2px 8px rgba(124,106,255,0.3);
+        }
+
+        /* ======== Screens ======== */
+        .screen {
+            display: none; flex-direction: column; gap: 14px;
+        }
+        .screen.active {
+            display: flex;
+            animation: screenIn 0.3s ease forwards;
+        }
+        @keyframes screenIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ======== Shared components ======== */
+        .card { background: var(--surface); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+        .card-label {
+            font-size: 11px; text-transform: uppercase;
+            letter-spacing: 1px; color: var(--text2); margin-bottom: 8px;
+        }
+        .card-text { font-size: 15px; line-height: 1.5; min-height: 20px; word-wrap: break-word; }
+        .card.translation { border-left: 3px solid var(--accent); }
+        .card.translation .card-text { color: var(--accent); font-size: 18px; }
+        .card.original .card-text { color: var(--text2); }
+
+        .btn {
+            padding: 12px 24px; border-radius: 10px; border: none;
+            font-size: 15px; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; text-align: center; width: 100%;
+        }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:hover { filter: brightness(1.15); }
+        .btn-danger { background: transparent; color: var(--red); border: 1px solid rgba(255,68,68,0.3); }
+        .btn-danger:hover { background: rgba(255,68,68,0.1); }
+        .btn-ghost { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); }
+        .btn-ghost:hover { border-color: var(--text2); color: var(--text); }
+        .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 6px; width: auto; }
+
+        select {
+            background: var(--surface); color: var(--text);
+            border: 1px solid var(--border); border-radius: 8px;
+            padding: 8px 14px; font-size: 14px; outline: none; cursor: pointer;
+        }
+        select:focus { border-color: var(--accent); }
+
+        .lang-row {
+            display: flex; align-items: center; gap: 12px;
+            justify-content: center; padding: 8px 0;
+        }
+        .lang-row label { font-size: 13px; color: var(--text2); }
+
+        .status-bar {
+            display: flex; align-items: center; justify-content: center;
+            gap: 8px; padding: 8px 16px; border-radius: 20px;
+            background: var(--surface); font-size: 13px;
+            box-shadow: var(--shadow);
+        }
+        .status-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: var(--red);
+            transition: background 0.3s;
+        }
+        .status-dot.connected { background: orange; }
+        .status-dot.listening { background: var(--green); animation: pulse 1.5s infinite; }
+
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
+
+        .vad-indicator {
+            display: flex; align-items: center; justify-content: center;
+            gap: 3px; height: 28px;
+        }
+        .vad-bar {
+            width: 3px; height: 6px; background: var(--border);
+            border-radius: 2px; transition: height 0.1s, background 0.1s;
+        }
+        .vad-bar.active { background: var(--accent); }
+
+        .history {
+            display: flex; flex-direction: column; gap: 6px;
+            max-height: 240px; overflow-y: auto;
+            scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+        }
+        .history-item { background: var(--surface2); border-radius: 8px; padding: 8px 10px; font-size: 12px; }
+        .history-time { color: var(--text2); font-size: 11px; }
+        .history-original { color: var(--text2); }
+        .history-translation { color: var(--accent); margin-top: 2px; }
+
+        .divider { height: 1px; background: var(--surface2); margin: 2px 0; }
+        .fade-in { animation: screenIn 0.3s ease forwards; }
+        .i18n { transition: opacity 0.25s; }
+        .i18n.fading { opacity: 0; }
+
+        /* ======== Menu ======== */
+        .menu-option {
+            background: var(--surface); border: 2px solid var(--border);
+            border-radius: var(--radius); padding: 22px 20px;
+            cursor: pointer; transition: all 0.25s;
+            display: flex; align-items: center; gap: 16px;
+            box-shadow: var(--shadow);
+        }
+        .menu-option:hover { border-color: var(--accent); box-shadow: 0 4px 16px rgba(124,106,255,0.12); }
+        .menu-option:active { transform: scale(0.98); }
+        .menu-icon { font-size: 32px; flex-shrink: 0; }
+        .menu-option h3 { font-size: 17px; margin-bottom: 2px; }
+        .menu-option p { font-size: 12px; color: var(--text2); }
+
+        /* ======== How-to ======== */
+        .howto-toggle {
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            margin-top: 8px; padding: 10px; cursor: pointer;
+            color: var(--text2); font-size: 14px; border: none; background: none; width: 100%;
+            transition: color 0.2s;
+        }
+        .howto-toggle:hover { color: var(--accent); }
+        .howto-toggle .arrow { transition: transform 0.3s; display: inline-block; }
+        .howto-toggle.open .arrow { transform: rotate(180deg); }
+        .howto-content {
+            max-height: 0; overflow: hidden; transition: max-height 0.4s ease;
+            background: var(--surface); border-radius: var(--radius); padding: 0 16px;
+            font-size: 13px; line-height: 1.7; color: var(--text2);
+        }
+        .howto-content.open { max-height: 600px; padding: 16px; }
+        .howto-content h4 { color: var(--text); margin: 0 0 8px; font-size: 14px; }
+        .howto-content ol { margin: 0; padding-left: 20px; }
+        .howto-content ol li { margin-bottom: 6px; }
+        .howto-content .section { margin-bottom: 14px; }
+        .howto-content .section:last-child { margin-bottom: 0; }
+
+        /* ======== Solo big btn ======== */
+        .solo-btn {
+            width: 130px; height: 130px; border-radius: 50%;
+            border: 3px solid var(--border); background: var(--surface);
+            color: var(--text); font-size: 15px; font-weight: 600;
+            cursor: pointer; transition: all 0.3s;
+            display: flex; align-items: center; justify-content: center;
+            margin: 4px auto; user-select: none;
+            box-shadow: var(--shadow);
+        }
+        .solo-btn:hover { border-color: var(--accent); }
+        .solo-btn.active {
+            border-color: var(--accent); background: var(--accent);
+            color: #fff; box-shadow: 0 4px 24px rgba(124,106,255,0.35);
+        }
+        .solo-btn.active:hover {
+            background: var(--red); border-color: var(--red);
+            color: #fff; box-shadow: 0 4px 20px rgba(231,76,60,0.3);
+        }
+
+        /* ======== Room specifics ======== */
+        .qr-section { text-align: center; }
+        .qr-section img { width: 170px; height: 170px; border-radius: 8px; margin: 6px 0; }
+        .room-code { font-size: 22px; font-weight: 700; color: var(--accent); letter-spacing: 3px; margin: 2px 0; }
+        .room-url { font-size: 11px; color: var(--text2); word-break: break-all; }
+
+        .participant-list { display: flex; flex-direction: column; gap: 8px; }
+        .participant-item {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--surface2); border-radius: 10px;
+            padding: 10px 12px; transition: all 0.25s;
+        }
+        .participant-item.requesting { border-left: 3px solid var(--yellow); }
+        .participant-item.speaking { border-left: 3px solid var(--accent); background: var(--accent-dim); }
+        .participant-item.muted { opacity: 0.5; }
+
+        .p-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; transition: background 0.3s; }
+        .p-dot.listening { background: var(--green); }
+        .p-dot.requesting { background: var(--yellow); animation: pulse 1.2s infinite; }
+        .p-dot.speaking { background: var(--accent); animation: pulse 0.8s infinite; }
+        .p-dot.muted { background: var(--red); }
+
+        .p-info { flex: 1; min-width: 0; }
+        .p-name { font-size: 14px; font-weight: 500; }
+        .p-lang { font-size: 11px; color: var(--text2); }
+        .p-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .p-actions button {
+            background: none; border: none; cursor: pointer;
+            font-size: 16px; padding: 4px; border-radius: 6px; transition: background 0.2s;
+        }
+        .p-actions button:hover { background: var(--surface2); }
+        .request-actions { display: flex; gap: 6px; margin-top: 6px; }
+
+        .mic-section {
+            display: flex; align-items: center; justify-content: center;
+            gap: 14px; padding: 6px 0;
+        }
+        .mic-btn {
+            width: 68px; height: 68px; border-radius: 50%;
+            border: 3px solid var(--border); background: var(--surface);
+            color: var(--text); font-size: 26px; cursor: pointer;
+            transition: all 0.3s; display: flex;
+            align-items: center; justify-content: center;
+            box-shadow: var(--shadow);
+        }
+        .mic-btn:hover { border-color: var(--accent); }
+        .mic-btn.active {
+            border-color: var(--accent); background: var(--accent);
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(124,106,255,0.3);
+        }
+        .speaker-name { font-size: 14px; color: var(--accent); font-weight: 600; }
+        .empty-state { text-align: center; padding: 20px; color: var(--text2); font-size: 13px; }
+
+        /* ── Review Button ── */
+.review-fab {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    z-index: 50;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 9px 16px;
+    border-radius: 99px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    box-shadow: var(--shadow);
+    transition: all 0.25s;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    text-decoration: none;
+}
+.review-fab:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(124,106,255,0.2);
+}
+
+        /* ======== FIXED TOP NAV ======== */
+        .top-nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+            height: 52px;
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+            box-shadow: 0 1px 8px rgba(100,80,160,0.07);
+        }
+        .top-nav-logo {
+            font-size: 20px; font-weight: 700; color: var(--accent);
+            letter-spacing: 4px; font-family: -apple-system, sans-serif;
+            text-decoration: none;
+        }
+        .top-nav-right {
+            display: flex; align-items: center; gap: 8px;
+        }
+        .top-nav-btn {
+            display: flex; align-items: center; gap: 5px;
+            text-decoration: none; color: var(--text2);
+            font-size: 13px; font-weight: 500;
+            background: var(--surface2); border: 1px solid var(--border);
+            padding: 6px 12px; border-radius: 9px;
+            transition: all 0.2s; white-space: nowrap;
+        }
+        .top-nav-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+        .top-nav-btn.review-btn { background: rgba(240,165,0,0.10); border-color: rgba(240,165,0,0.3); color: #c47f00; }
+        .top-nav-btn.review-btn:hover { background: rgba(240,165,0,0.18); }
+
+        /* Push content below fixed nav */
+        .container { padding-top: calc(52px + 16px) !important; }
+
+        /* Hide old floating buttons */
+        .review-fab { display: none !important; }
+
+        @media (max-width: 400px) {
+            .top-nav-btn span.nav-label { display: none; }
+            .top-nav-btn { padding: 6px 9px; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="top-nav">
+        <a href="/landing" class="top-nav-logo">VOX</a>
+        <div class="top-nav-right">
+            <a href="/review?source=host" class="top-nav-btn review-btn" target="_blank">⭐ <span class="nav-label" id="navReviewLabel">Відгук</span></a>
+            <a href="/cabinet" class="top-nav-btn">👤 <span class="nav-label" id="navCabinetLabel">Кабінет</span></a>
+        </div>
+    </nav>
+
+
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <button class="back-btn" id="backBtn" onclick="goBack()">←</button>
+            <div class="subtitle i18n" id="subtitle">Real-time AI Translation</div>
+            <div class="ui-lang-switcher">
+                <button class="ui-lang-btn active" data-uilang="uk">UA</button>
+                <button class="ui-lang-btn" data-uilang="en">EN</button>
+                <button class="ui-lang-btn" data-uilang="de">DE</button>
+            </div>
+        </div>
+
+        <!-- SCREEN: MENU -->
+        <div class="screen active" id="screenMenu">
+            <div class="menu-option" onclick="showScreen('screenSolo')">
+                <div class="menu-icon">🎧</div>
+                <div>
+                    <h3 class="i18n" id="menuSoloTitle">Solo</h3>
+                    <p class="i18n" id="menuSoloDesc">Персональний режим — один слухач</p>
+                </div>
+            </div>
+            <div class="menu-option" onclick="showScreen('screenRoomSetup')">
+                <div class="menu-icon">👥</div>
+                <div>
+                    <h3 class="i18n" id="menuRoomTitle">Кімната</h3>
+                    <p class="i18n" id="menuRoomDesc">Мультимовна кімната для груп</p>
+                </div>
+            </div>
+            <button class="howto-toggle" onclick="toggleHowTo()">
+                <span class="i18n" id="howtoToggle">Як користуватися?</span>
+                <span class="arrow">▼</span>
+            </button>
+            <div class="howto-content" id="howtoContent"></div>
+        </div>
+
+        <!-- SCREEN: SOLO -->
+        <div class="screen" id="screenSolo">
+            <div class="status-bar">
+                <div class="status-dot" id="soloStatusDot"></div>
+                <span class="i18n" id="soloStatusText">Не підключено</span>
+            </div>
+            <div class="lang-row">
+                <label class="i18n" id="soloSrcLangLabel">Ваша мова:</label>
+                <select id="soloSrcLangSelect">
+                    <option value="auto">🌐 Auto</option>
+                    <option value="uk">🇺🇦 Українська</option>
+                    <option value="ru" selected>🇷🇺 Русский</option>
+                    <option value="en">🇬🇧 English</option>
+                    <option value="de">🇩🇪 Deutsch</option>
+                    <option value="pl">🇵🇱 Polski</option>
+                    <option value="fr">🇫🇷 Français</option>
+                    <option value="zh">🇨🇳 中文</option>
+                    <option value="es">🇪🇸 Español</option>
+                    <option value="it">🇮🇹 Italiano</option>
+                    <option value="pt">🇧🇷 Português</option>
+                    <option value="ja">🇯🇵 日本語</option>
+                    <option value="ko">🇰🇷 한국어</option>
+                    <option value="ar">🇸🇦 العربية</option>
+                    <option value="tr">🇹🇷 Türkçe</option>
+                    <option value="hi">🇮🇳 हिन्दी</option>
+                </select>
+            </div>
+            <div class="lang-row">
+                <label class="i18n" id="soloLangLabel">Мова перекладу:</label>
+                <select id="soloLangSelect">
+                    <option value="uk" selected>🇺🇦 Українська</option>
+                    <option value="ru">🇷🇺 Русский</option>
+                    <option value="en">🇬🇧 English</option>
+                    <option value="de">🇩🇪 Deutsch</option>
+                    <option value="pl">🇵🇱 Polski</option>
+                    <option value="fr">🇫🇷 Français</option>
+                    <option value="zh">🇨🇳 中文</option>
+                    <option value="es">🇪🇸 Español</option>
+                    <option value="it">🇮🇹 Italiano</option>
+                    <option value="pt">🇧🇷 Português</option>
+                    <option value="ja">🇯🇵 日本語</option>
+                    <option value="ko">🇰🇷 한국어</option>
+                    <option value="ar">🇸🇦 العربية</option>
+                    <option value="tr">🇹🇷 Türkçe</option>
+                    <option value="hi">🇮🇳 हिन्दी</option>
+                </select>
+            </div>
+            <div class="vad-indicator" id="soloVad">
+                <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
+                <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
+                <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
+            </div>
+            <button class="solo-btn i18n" id="soloBtn" onclick="soloToggle()">СЛУХАТИ</button>
+            <div class="card original">
+                <div class="card-label i18n" id="soloLabelOrig">Оригінал</div>
+                <div class="card-text" id="soloOriginal">—</div>
+            </div>
+            <div class="card translation">
+                <div class="card-label i18n" id="soloLabelTrans">Переклад</div>
+                <div class="card-text" id="soloTranslation">—</div>
+            </div>
+            <div class="divider"></div>
+            <div class="card-label i18n" style="padding:0 4px;" id="soloLabelHist">Історія</div>
+            <div class="history" id="soloHistory"></div>
+        </div>
+
+        <!-- SCREEN: ROOM SETUP -->
+        <div class="screen" id="screenRoomSetup">
+            <div class="card">
+                <div class="card-label i18n" id="roomSetupTitle">Налаштування кімнати</div>
+                <div class="lang-row">
+                    <label class="i18n" id="roomHostLangLabel">Ваша мова:</label>
+                    <select id="roomHostLangSelect">
+                        <option value="uk" selected>🇺🇦 Українська</option>
+                        <option value="en">🇬🇧 English</option>
+                        <option value="de">🇩🇪 Deutsch</option>
+                        <option value="ru">🇷🇺 Русский</option>
+                        <option value="pl">🇵🇱 Polski</option>
+                        <option value="fr">🇫🇷 Français</option>
+                        <option value="zh">🇨🇳 中文</option>
+                        <option value="es">🇪🇸 Español</option>
+                        <option value="it">🇮🇹 Italiano</option>
+                        <option value="pt">🇧🇷 Português</option>
+                        <option value="ja">🇯🇵 日本語</option>
+                        <option value="ko">🇰🇷 한국어</option>
+                        <option value="ar">🇸🇦 العربية</option>
+                        <option value="tr">🇹🇷 Türkçe</option>
+                        <option value="hi">🇮🇳 हिन्दी</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary i18n" id="btnCreateRoom" onclick="createRoom()">Створити кімнату</button>
+                <div id="roomCostWarning" style="margin-top:10px;padding:10px 14px;background:rgba(240,165,0,0.10);border:1px solid rgba(240,165,0,0.3);border-radius:10px;font-size:12px;color:#c47f00;line-height:1.5;">
+                    ⚠️ <span class="i18n" id="roomCostNote">Вартість: $0.05/хв × кількість гостей. При 3 гостях — ~$0.15/хв</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCREEN: ROOM DASHBOARD -->
+        <div class="screen" id="screenRoom">
+            <div class="status-bar">
+                <div class="status-dot" id="roomStatusDot"></div>
+                <span class="i18n" id="roomStatusText">Підключення...</span>
+            </div>
+            <div class="card qr-section">
+                <div class="card-label i18n" id="roomQrLabel">Скануйте для входу</div>
+                <img id="roomQrImg" src="" alt="QR">
+                <div class="room-code" id="roomCode"></div>
+                <div class="room-url" id="roomUrl"></div>
+            </div>
+            <div class="card">
+                <div class="card-label">
+                    <span class="i18n" id="roomParticipantsLabel">Учасники</span>
+                    <span id="roomPCount">(0)</span>
+                </div>
+                <div class="participant-list" id="roomPList">
+                    <div class="empty-state i18n" id="roomEmpty">Очікуємо учасників...</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-label i18n" id="roomMicLabel">Ваш мікрофон</div>
+                <div class="mic-section">
+                    <button class="mic-btn" id="roomMicBtn" onclick="roomToggleMic()">🎤</button>
+                    <div>
+                        <div class="speaker-name i18n" id="roomActiveSpeaker">Ви (Хост)</div>
+                        <div class="vad-indicator" id="roomVad">
+                            <div class="vad-bar"></div><div class="vad-bar"></div>
+                            <div class="vad-bar"></div><div class="vad-bar"></div>
+                            <div class="vad-bar"></div><div class="vad-bar"></div>
+                            <div class="vad-bar"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card original">
+                <div class="card-label i18n" id="roomLabelOrig">Оригінал</div>
+                <div class="card-text" id="roomOriginal">—</div>
+            </div>
+            <div class="card translation">
+                <div class="card-label i18n" id="roomLabelTrans">Переклад</div>
+                <div class="card-text" id="roomTranslation">—</div>
+            </div>
+            <div class="divider"></div>
+            <div class="card-label i18n" style="padding:0 4px;" id="roomLabelHist">Історія</div>
+            <div class="history" id="roomHistory"></div>
+            <button class="btn btn-danger i18n" id="btnCloseRoom" onclick="closeRoom()" style="margin-top:6px;">Закрити кімнату</button>
+        </div>
+    </div>
+    
+
+    <script>
+    // =====================================================================
+    // i18n
+    // =====================================================================
+    const I18N = {
+        uk: {
+            subtitle: 'Переклад мови в реальному часі',
+            menuSoloTitle: 'Solo', menuSoloDesc: 'Персональний режим — один слухач',
+            menuRoomTitle: 'Кімната', menuRoomDesc: 'Мультимовна кімната для груп',
+            soloLangLabel: 'Мова перекладу:',
+            soloSrcLangLabel: 'Ваша мова:',
+            soloStatusDisconnected: 'Не підключено', soloStatusConnecting: 'Підключення...',
+            soloStatusConnected: 'Підключено', soloStatusListening: 'Слухаю...',
+            soloStatusStopped: 'Зупинено', soloStatusMicError: 'Мікрофон недоступний',
+            soloStatusError: "Помилка з'єднання",
+            soloBtnListen: 'СЛУХАТИ', soloBtnStop: 'СТОП',
+            soloLabelOrig: 'Оригінал', soloLabelTrans: 'Переклад', soloLabelHist: 'Історія',
+            soloRecording: 'Записую',
+            roomSetupTitle: 'Налаштування кімнати', roomHostLangLabel: 'Ваша мова:',
+            btnCreateRoom: 'Створити кімнату', roomQrLabel: 'Скануйте для входу',
+            roomCostNote: 'Вартість: $0.05/хв × кількість гостей. При 3 гостях — ~$0.15/хв',
+            roomParticipantsLabel: 'Учасники', roomEmpty: 'Очікуємо учасників...',
+            roomMicLabel: 'Ваш мікрофон', roomActiveSpeaker: 'Ви (Хост)',
+            roomLabelOrig: 'Оригінал', roomLabelTrans: 'Переклад', roomLabelHist: 'Історія',
+            btnCloseRoom: 'Закрити кімнату',
+            roomStatusConnecting: 'Підключення...', roomStatusConnected: 'Підключено',
+            roomStatusDisconnected: 'Відключено', roomStatusMicOff: 'Мікрофон вимк.',
+            roomStatusSpeaking: 'Говорю...',
+            stateListening: 'Слухає', stateRequesting: 'Просить слово...',
+            stateSpeaking: 'Говорить', stateMuted: 'Заглушений',
+            confirmClose: 'Закрити кімнату? Всі учасники будуть відключені.',
+            howtoToggle: 'Як користуватися?',
+            howtoHtml: '<div class="section"><h4>🎧 Solo — Персональний переклад</h4><ol><li>Оберіть вашу мову та мову перекладу</li><li>Натисніть <b>СЛУХАТИ</b> — говоріть у мікрофон</li><li>Через 1-2 сек. почуєте переклад у навушниках</li><li>Натисніть <b>СТОП</b> щоб зупинити</li></ol></div><div class="section"><h4>👥 Кімната — Груповий переклад</h4><ol><li>Натисніть «Створити кімнату» та оберіть мову</li><li>Покажіть QR-код учасникам — вони сканують телефоном</li><li>Кожен учасник обирає свою мову і чує переклад</li><li>Учасник натискає «Хочу сказати» щоб отримати слово</li><li>Ви керуєте: даєте слово, заглушуєте, відключаєте</li></ol></div>',
+            navReview: 'Відгук', navCabinet: 'Кабінет',
+        },
+        en: {
+            subtitle: 'Real-time AI Translation',
+            menuSoloTitle: 'Solo', menuSoloDesc: 'Personal mode — one listener, one speaker',
+            menuRoomTitle: 'Room', menuRoomDesc: 'Multi-language room for groups',
+            soloLangLabel: 'Translate to:',
+            soloSrcLangLabel: 'Your language:',
+            soloStatusDisconnected: 'Disconnected', soloStatusConnecting: 'Connecting...',
+            soloStatusConnected: 'Connected', soloStatusListening: 'Listening...',
+            soloStatusStopped: 'Stopped', soloStatusMicError: 'Microphone unavailable',
+            soloStatusError: 'Connection error',
+            soloBtnListen: 'LISTEN', soloBtnStop: 'STOP',
+            soloLabelOrig: 'Original', soloLabelTrans: 'Translation', soloLabelHist: 'History',
+            soloRecording: 'Recording',
+            roomSetupTitle: 'Room Settings', roomHostLangLabel: 'Your language:',
+            btnCreateRoom: 'Create Room', roomQrLabel: 'Scan to join',
+            roomCostNote: 'Cost: $0.05/min × number of guests. With 3 guests — ~$0.15/min',
+            roomParticipantsLabel: 'Participants', roomEmpty: 'Waiting for participants...',
+            roomMicLabel: 'Your microphone', roomActiveSpeaker: 'You (Host)',
+            roomLabelOrig: 'Original', roomLabelTrans: 'Translation', roomLabelHist: 'History',
+            btnCloseRoom: 'Close Room',
+            roomStatusConnecting: 'Connecting...', roomStatusConnected: 'Connected',
+            roomStatusDisconnected: 'Disconnected', roomStatusMicOff: 'Mic off',
+            roomStatusSpeaking: 'Speaking...',
+            stateListening: 'Listening', stateRequesting: 'Requesting...',
+            stateSpeaking: 'Speaking', stateMuted: 'Muted',
+            confirmClose: 'Close this room? All participants will be disconnected.',
+            howtoToggle: 'How does it work?',
+            howtoHtml: '<div class="section"><h4>🎧 Solo — Personal Translation</h4><ol><li>Select your language and translation language</li><li>Press <b>LISTEN</b> — speak into the microphone</li><li>In 1-2 sec. you\'ll hear the translation in your earphones</li><li>Press <b>STOP</b> to end</li></ol></div><div class="section"><h4>👥 Room — Group Translation</h4><ol><li>Press "Create Room" and select your language</li><li>Show the QR code to participants — they scan with their phone</li><li>Each participant selects their language and hears translation</li><li>Participant presses "I want to speak" to request the floor</li><li>You control everything: grant speech, mute, disconnect</li></ol></div>',
+            navReview: 'Review', navCabinet: 'Cabinet',
+        },
+        de: {
+            subtitle: 'KI-Übersetzung in Echtzeit',
+            menuSoloTitle: 'Solo', menuSoloDesc: 'Persönlicher Modus — ein Zuhörer',
+            menuRoomTitle: 'Raum', menuRoomDesc: 'Mehrsprachiger Raum für Gruppen',
+            soloLangLabel: 'Übersetzen in:',
+            soloSrcLangLabel: 'Ihre Sprache:',
+            soloStatusDisconnected: 'Nicht verbunden', soloStatusConnecting: 'Verbindung...',
+            soloStatusConnected: 'Verbunden', soloStatusListening: 'Höre zu...',
+            soloStatusStopped: 'Gestoppt', soloStatusMicError: 'Mikrofon nicht verfügbar',
+            soloStatusError: 'Verbindungsfehler',
+            soloBtnListen: 'HÖREN', soloBtnStop: 'STOPP',
+            soloLabelOrig: 'Original', soloLabelTrans: 'Übersetzung', soloLabelHist: 'Verlauf',
+            soloRecording: 'Aufnahme',
+            roomSetupTitle: 'Raumeinstellungen', roomHostLangLabel: 'Ihre Sprache:',
+            btnCreateRoom: 'Raum erstellen', roomQrLabel: 'Scannen zum Beitreten',
+            roomCostNote: 'Kosten: $0.05/Min × Anzahl der Gäste. Bei 3 Gästen — ~$0.15/Min',
+            roomParticipantsLabel: 'Teilnehmer', roomEmpty: 'Warte auf Teilnehmer...',
+            roomMicLabel: 'Ihr Mikrofon', roomActiveSpeaker: 'Sie (Host)',
+            roomLabelOrig: 'Original', roomLabelTrans: 'Übersetzung', roomLabelHist: 'Verlauf',
+            btnCloseRoom: 'Raum schließen',
+            roomStatusConnecting: 'Verbindung...', roomStatusConnected: 'Verbunden',
+            roomStatusDisconnected: 'Getrennt', roomStatusMicOff: 'Mikrofon aus',
+            roomStatusSpeaking: 'Spreche...',
+            stateListening: 'Hört zu', stateRequesting: 'Bittet ums Wort...',
+            stateSpeaking: 'Spricht', stateMuted: 'Stummgeschaltet',
+            confirmClose: 'Raum schließen? Alle Teilnehmer werden getrennt.',
+            howtoToggle: 'Wie funktioniert es?',
+            howtoHtml: '<div class="section"><h4>🎧 Solo — Persönliche Übersetzung</h4><ol><li>Wählen Sie Ihre Sprache und die Übersetzungssprache</li><li>Drücken Sie <b>HÖREN</b> — sprechen Sie ins Mikrofon</li><li>In 1-2 Sek. hören Sie die Übersetzung im Kopfhörer</li><li>Drücken Sie <b>STOPP</b> zum Beenden</li></ol></div><div class="section"><h4>👥 Raum — Gruppenübersetzung</h4><ol><li>Drücken Sie «Raum erstellen» und wählen Sie Ihre Sprache</li><li>Zeigen Sie den QR-Code den Teilnehmern — sie scannen mit dem Handy</li><li>Jeder Teilnehmer wählt seine Sprache und hört die Übersetzung</li><li>Teilnehmer drückt «Ich möchte sprechen» um das Wort zu erhalten</li><li>Sie steuern alles: Wort erteilen, stummschalten, trennen</li></ol></div>',
+            navReview: 'Bewertung', navCabinet: 'Kabinett',
+        },
+    };
+
+    let uiLang = localStorage.getItem('vox_ui_lang') || 'uk';
+    function t(k) { return (I18N[uiLang]||I18N.en)[k] || I18N.en[k] || k; }
+
+    function applyI18n(animate) {
+        const els = document.querySelectorAll('.i18n');
+        function update() {
+            els.forEach(el => { if (el.id && I18N[uiLang]?.[el.id] !== undefined) el.textContent = I18N[uiLang][el.id]; });
+            const btn = document.getElementById('soloBtn');
+            btn.textContent = soloListening ? t('soloBtnStop') : t('soloBtnListen');
+            soloSetStatus(curSoloKey);
+            document.documentElement.lang = uiLang;
+            document.getElementById('howtoContent').innerHTML = t('howtoHtml');
+            const r = document.getElementById('navReviewLabel');
+            const cab = document.getElementById('navCabinetLabel');
+            if(r) r.textContent = I18N[uiLang].navReview;
+            if(cab) cab.textContent = I18N[uiLang].navCabinet;
+            const st = document.getElementById('roomStatusText');
+            if(st) st.textContent = t(_curRoomStatusKey);
+        }
+        if (animate) {
+            els.forEach(el => el.classList.add('fading'));
+            setTimeout(() => { update(); els.forEach(el => el.classList.remove('fading')); }, 250);
+        } else update();
+    }
+
+        document.querySelectorAll('.ui-lang-btn').forEach(b => b.classList.toggle('active', b.dataset.uilang === uiLang));
+        document.querySelectorAll('.ui-lang-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (btn.dataset.uilang === uiLang) return;
+            document.querySelectorAll('.ui-lang-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            uiLang = btn.dataset.uilang;
+            localStorage.setItem('vox_ui_lang', uiLang);
+            applyI18n(true);
+            if (curScreen === 'screenRoom') renderParticipants();
+        });
+    });
+
+    // =====================================================================
+    // Navigation
+    // =====================================================================
+    function toggleHowTo() {
+        const btn = document.querySelector('.howto-toggle');
+        const content = document.getElementById('howtoContent');
+        btn.classList.toggle('open');
+        content.classList.toggle('open');
+    }
+
+    let curScreen = 'screenMenu';
+    const navStack = [];
+
+    function showScreen(id) {
+        navStack.push(curScreen);
+        document.getElementById(curScreen).classList.remove('active');
+        document.getElementById(id).classList.add('active');
+        curScreen = id;
+        document.getElementById('backBtn').classList.toggle('visible', curScreen !== 'screenMenu');
+    }
+
+    function goBack() {
+        if (curScreen === 'screenSolo') soloStop();
+        const prev = navStack.pop() || 'screenMenu';
+        document.getElementById(curScreen).classList.remove('active');
+        document.getElementById(prev).classList.add('active');
+        curScreen = prev;
+        document.getElementById('backBtn').classList.toggle('visible', curScreen !== 'screenMenu');
+    }
+
+    // =====================================================================
+    // Shared helpers
+    // =====================================================================
+    function _vad(vadEl, chunk) {
+        const bars = vadEl.querySelectorAll('.vad-bar');
+        let s = 0; for (let i = 0; i < chunk.length; i++) s += chunk[i]*chunk[i];
+        const lv = Math.min(Math.sqrt(s/chunk.length)*10, 1);
+        bars.forEach(b => { b.style.height = (4+Math.random()*lv*20)+'px'; b.classList.toggle('active', lv>0.02); });
+    }
+    function _resetV(vadEl) { vadEl.querySelectorAll('.vad-bar').forEach(b => { b.style.height='6px'; b.classList.remove('active'); }); }
+    function _esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+    function _hist(el, o, tr, speaker) {
+        const loc = uiLang==='de'?'de-DE':uiLang==='en'?'en-GB':'uk-UA';
+        const tm = new Date().toLocaleTimeString(loc, {hour:'2-digit',minute:'2-digit'});
+        const who = speaker ? `<span style="color:var(--accent);font-weight:600;">${_esc(speaker)}</span> · ` : '';
+        const it = document.createElement('div'); it.className = 'history-item fade-in';
+        it.innerHTML = `<div class="history-time">${who}${tm}</div><div class="history-original">${_esc(o)}</div><div class="history-translation">${_esc(tr)}</div>`;
+        el.insertBefore(it, el.firstChild);
+        while (el.children.length > 20) el.removeChild(el.lastChild);
+        // Сохраняем историю
+        const key = el.id === 'roomHistory' ? 'vox_hist_room' : 'vox_hist_solo';
+        const arr = JSON.parse(sessionStorage.getItem(key) || '[]');
+        arr.unshift({o, tr, speaker, tm});
+        if (arr.length > 20) arr.length = 20;
+        sessionStorage.setItem(key, JSON.stringify(arr));
+    }
+
+    let pbCtx=null, aQ=[], aPlaying=false;
+    let _audioUnlocked = false;
+
+    // Разблокировка AudioContext после рефреша (нет user gesture при восстановлении сессии)
+    function _ensureAudioUnlock() {
+        if (_audioUnlocked) return;
+        const unlock = async () => {
+            if (pbCtx && pbCtx.state === 'suspended') {
+                try { await pbCtx.resume(); } catch(e) {}
+            }
+            _audioUnlocked = true;
+            document.removeEventListener('click', unlock, true);
+            document.removeEventListener('touchstart', unlock, true);
+        };
+        document.addEventListener('click', unlock, true);
+        document.addEventListener('touchstart', unlock, true);
+    }
+    _ensureAudioUnlock();
+
+    function _playA(mp3) { aQ.push(mp3); if (!aPlaying) _pQ(); }
+    function _notifyTtsDone() {
+        if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(JSON.stringify({type:'tts_done'}));
+    }
+    async function _pQ() {
+        if (!aQ.length) { aPlaying=false; _notifyTtsDone(); return; } aPlaying=true;
+        const m = aQ.shift();
+        try { if (!pbCtx) pbCtx = new AudioContext();
+            if (pbCtx.state === 'suspended') {
+                try { await pbCtx.resume(); } catch(e) {}
+            }
+            if (pbCtx.state === 'suspended') {
+                // Ждём user gesture
+                console.warn('AudioContext suspended — audio queued');
+                aQ.unshift(m); aPlaying=false;
+                setTimeout(() => { if (!aPlaying && aQ.length) _pQ(); }, 500);
+                return;
+            }
+            const b = await pbCtx.decodeAudioData(m.slice(0));
+            const s = pbCtx.createBufferSource(); s.buffer=b; s.connect(pbCtx.destination);
+            s.onended = ()=>_pQ(); s.start(0);
+        } catch(e) { console.error('Play err:',e); _pQ(); }
+    }
+    function _audioMsg(d) { const p = new TextDecoder().decode(new Uint8Array(d,0,6)); if (p==='AUDIO:') _playA(d.slice(6)); }
+
+    async function _mic(name, onChunk) {
+        const st = await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+        const cx = new AudioContext({sampleRate:16000});
+        const code = `class ${name} extends AudioWorkletProcessor{constructor(){super();this.b=[];}process(i){const c=i[0]?.[0];if(!c)return true;this.b.push(...c);while(this.b.length>=512){const ch=new Float32Array(this.b.splice(0,512));this.port.postMessage(ch.buffer,[ch.buffer]);}return true;}}registerProcessor('${name}',${name});`;
+        const bl = new Blob([code],{type:'application/javascript'}); const u = URL.createObjectURL(bl);
+        await cx.audioWorklet.addModule(u); URL.revokeObjectURL(u);
+        const src = cx.createMediaStreamSource(st);
+        const nd = new AudioWorkletNode(cx, name);
+        nd.port.onmessage = e => onChunk(e.data);
+        src.connect(nd); nd.connect(cx.destination);
+        return { stop(){ nd.disconnect(); cx.close(); st.getTracks().forEach(t=>t.stop()); } };
+    }
+
+    // =====================================================================
+    // SOLO
+    // =====================================================================
+    let soloListening=false, soloWs=null, soloMic=null, curSoloKey='soloStatusDisconnected';
+    const soloVadEl=document.getElementById('soloVad'), soloOrigEl=document.getElementById('soloOriginal'),
+          soloTransEl=document.getElementById('soloTranslation'), soloHistEl=document.getElementById('soloHistory');
+
+    function soloSetStatus(k) {
+        curSoloKey = k;
+        const dot = document.getElementById('soloStatusDot'), txt = document.getElementById('soloStatusText');
+        dot.className = 'status-dot ' + (k.includes('Listening')?'listening': k.includes('Connected')||k.includes('Connecting')||k.includes('Stopped')?'connected':'');
+        txt.textContent = t(k);
+    }
+
+    function soloConnectWS() {
+        const p = location.protocol==='https:'?'wss:':'ws:';
+        soloWs = new WebSocket(`${p}//${location.host}/ws/solo`);
+        soloWs.binaryType = 'arraybuffer';
+        soloWs.onopen = () => {
+            soloSetStatus('soloStatusConnected');
+            const srcLang = document.getElementById('soloSrcLangSelect').value;
+            const tgtLang = document.getElementById('soloLangSelect').value;
+            soloWs.send(JSON.stringify({
+                type: 'config',
+                source_lang: srcLang === 'auto' ? null : srcLang,
+                target_lang: tgtLang,
+            }));
+        };
+        soloWs.onclose = () => { soloSetStatus('soloStatusDisconnected'); if (soloListening) setTimeout(soloConnectWS,2000); };
+        soloWs.onerror = () => soloSetStatus('soloStatusError');
+        soloWs.onmessage = e => {
+            if (e.data instanceof ArrayBuffer) _audioMsg(e.data);
+            else { const m = JSON.parse(e.data);
+                if (m.type==='transcript') {
+                    if (m.is_final) {
+                        soloOrigEl.textContent = m.text||'—';
+                        soloOrigEl.style.opacity = '1';
+                        soloTransEl.textContent = '⏳';
+                        soloTransEl.style.opacity = '0.4';
+                    } else {
+                        soloOrigEl.textContent = '🎤 ' + (m.text || t('soloRecording') + '...');
+                        soloOrigEl.style.opacity = '0.7';
+                    }
+                }
+                else if (m.type==='translation') {
+                    soloTransEl.textContent = m.text||'—';
+                    soloTransEl.style.opacity = '1';
+                    _hist(soloHistEl, soloOrigEl.textContent, m.text);
+                }
+            }
+        };
+    }
+
+    async function soloToggle() {
+        if (soloListening) return soloStop();
+        soloListening = true;
+        document.getElementById('soloBtn').classList.add('active');
+        document.getElementById('soloBtn').textContent = t('soloBtnStop');
+        soloSetStatus('soloStatusConnecting');
+        soloConnectWS();
+        await new Promise(r => setTimeout(r, 400));
+        try {
+            soloMic = await _mic('VoxSP', buf => {
+                if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(buf);
+                _vad(soloVadEl, new Float32Array(buf));
+            });
+            if (soloListening) soloSetStatus('soloStatusListening');
+        } catch(e) { console.error('Mic err:',e); soloSetStatus('soloStatusMicError'); soloStop(); }
+    }
+
+    function soloStop() {
+        soloListening = false;
+        document.getElementById('soloBtn').classList.remove('active');
+        document.getElementById('soloBtn').textContent = t('soloBtnListen');
+        soloMic?.stop(); soloMic = null;
+        soloWs?.close(); soloWs = null;
+        soloSetStatus('soloStatusStopped');
+        _resetV(soloVadEl);
+    }
+
+    document.getElementById('soloLangSelect').addEventListener('change', async e => {
+        try { await fetch('/set-config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({target_lang:e.target.value})}); } catch(err) {}
+        if (soloWs?.readyState === WebSocket.OPEN) {
+            soloWs.send(JSON.stringify({type:'config', target_lang: e.target.value}));
+        }
+    });
+
+    document.getElementById('soloSrcLangSelect').addEventListener('change', async e => {
+        const v = e.target.value;
+        try { await fetch('/set-config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({source_lang: v === 'auto' ? null : v})}); } catch(err) {}
+        if (soloWs?.readyState === WebSocket.OPEN) {
+            soloWs.send(JSON.stringify({type:'config', source_lang: v === 'auto' ? null : v}));
+        }
+    });
+
+    // =====================================================================
+    // ROOM
+    // =====================================================================
+    let roomId=null, roomWs=null, roomMicObj=null, roomMicActive=false, participants={};
+    const roomVadEl=document.getElementById('roomVad'), roomOrigEl=document.getElementById('roomOriginal'),
+          roomTransEl=document.getElementById('roomTranslation'), roomHistEl=document.getElementById('roomHistory');
+
+    let _curRoomStatusKey = 'roomStatusConnecting';
+    function roomSetStatus(k) {
+        _curRoomStatusKey = k;
+        const dot=document.getElementById('roomStatusDot'), txt=document.getElementById('roomStatusText');
+        dot.className = 'status-dot ' + (k.includes('Speaking')||k.includes('Listening')?'listening': k.includes('Connected')||k.includes('Connecting')||k.includes('MicOff')?'connected':'');
+        txt.textContent = t(k);
+    }
+
+    async function createRoom() {
+        const lang = document.getElementById('roomHostLangSelect').value;
+        const btn = document.getElementById('btnCreateRoom');
+        btn.disabled = true; btn.textContent = '...';
+        try {
+            const r = await fetch('/room/create', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host_language:lang})});
+            const d = await r.json();
+            roomId = d.room_id;
+            sessionStorage.setItem('vox_host_room', JSON.stringify({
+                room_id: roomId,
+                host_lang: lang,
+                qr: d.qr_code || '',
+            }));
+            showScreen('screenRoom');
+            if (d.qr_code) document.getElementById('roomQrImg').src = d.qr_code;
+            document.getElementById('roomCode').textContent = roomId.toUpperCase();
+            document.getElementById('roomUrl').textContent = `${location.origin}/room/${roomId}`;
+            connectRoomWS();
+        } catch(e) { console.error('Create err:',e); }
+        finally { btn.disabled = false; btn.textContent = t('btnCreateRoom'); }
+    }
+
+    function connectRoomWS() {
+        const p = location.protocol==='https:'?'wss:':'ws:';
+        roomWs = new WebSocket(`${p}//${location.host}/ws/room/${roomId}/host`);
+        roomWs.binaryType = 'arraybuffer';
+        roomWs.onopen = () => roomSetStatus('roomStatusConnected');
+        roomWs.onclose = (e) => {
+            roomSetStatus('roomStatusDisconnected');
+            if (e.code === 4004 || !roomId) return;
+            setTimeout(connectRoomWS, 3000);
+        };
+        roomWs.onerror = () => roomSetStatus('roomStatusDisconnected');
+        roomWs.onmessage = e => {
+            if (e.data instanceof ArrayBuffer) _audioMsg(e.data);
+            else handleRoomMsg(JSON.parse(e.data));
+        };
+    }
+
+    function handleRoomMsg(m) {
+        switch(m.type) {
+            case 'room_state': participants = m.room.participants||{}; renderParticipants(); break;
+            case 'participant_joined': participants[m.guest_id] = m; renderParticipants(); break;
+            case 'participant_left': delete participants[m.guest_id]; renderParticipants(); break;
+            case 'speak_request': if(participants[m.guest_id]){participants[m.guest_id].state='requesting';renderParticipants();} break;
+            case 'request_cancelled': if(participants[m.guest_id]){participants[m.guest_id].state='listening';renderParticipants();} break;
+            case 'speaker_changed':
+                if(m.guest_id) { document.getElementById('roomActiveSpeaker').textContent = `${m.display_name} (${m.language})`; if(participants[m.guest_id]){participants[m.guest_id].state='speaking';renderParticipants();} }
+                else { Object.values(participants).forEach(p=>{if(p.state==='speaking')p.state='listening';}); renderParticipants(); document.getElementById('roomActiveSpeaker').textContent = t('roomActiveSpeaker'); }
+                break;
+            case 'transcript':
+                if (m.is_final) {
+                    roomOrigEl.textContent = m.text||'—';
+                    roomOrigEl.style.opacity='1';
+                    roomTransEl.textContent='⏳'; roomTransEl.style.opacity='0.4';
+                } else {
+                    roomOrigEl.textContent = '🎤 ' + (m.text || t('soloRecording') + '...');
+                    roomOrigEl.style.opacity='0.7';
+                }
+                break;
+            case 'translation':
+                const langLabel = (m.lang_to||'').toUpperCase();
+                const line = langLabel ? `[${langLabel}] ${m.text}` : m.text;
+                if (roomTransEl.dataset.msgId === roomOrigEl.textContent) {
+                    roomTransEl.textContent += '\n' + line;
+                } else {
+                    roomTransEl.dataset.msgId = roomOrigEl.textContent;
+                    roomTransEl.textContent = line;
+                }
+                roomTransEl.style.opacity='1';
+                roomTransEl.style.whiteSpace='pre-line';
+                _hist(roomHistEl, roomOrigEl.textContent, roomTransEl.textContent, m.speaker);
+                break;
+        }
+    }
+
+    function renderParticipants() {
+        const ids = Object.keys(participants);
+        document.getElementById('roomPCount').textContent = `(${ids.length})`;
+        const el = document.getElementById('roomPList');
+        if (!ids.length) { el.innerHTML = `<div class="empty-state">${t('roomEmpty')}</div>`; return; }
+        el.innerHTML = ids.map(g => {
+            const p = participants[g], st = p.state||'listening';
+            const sl = t('state'+st.charAt(0).toUpperCase()+st.slice(1))||st;
+            let act = '';
+            if (st==='requesting') act = `<div class="request-actions"><button class="btn btn-sm btn-primary" onclick="hCmd('grant_speak','${g}')">✅</button><button class="btn btn-sm btn-ghost" onclick="hCmd('deny_speak','${g}')">✖</button></div>`;
+            else if (st==='speaking') act = `<button class="btn btn-sm btn-danger" onclick="hCmd('revoke_speak','${g}')">⏹</button>`;
+            const mi = st==='muted'?'🔊':'🔇', ma = st==='muted'?'unmute':'mute';
+            return `<div class="participant-item ${st} fade-in"><div class="p-dot ${st}"></div><div class="p-info"><div class="p-name">${_esc(p.display_name||'Guest')}</div><div class="p-lang">${p.language} · ${sl}</div>${act}</div><div class="p-actions"><button onclick="hCmd('${ma}','${g}')">${mi}</button><button onclick="hCmd('kick','${g}')">❌</button></div></div>`;
+        }).join('');
+    }
+
+    function hCmd(a, g) { if (roomWs?.readyState===WebSocket.OPEN) roomWs.send(JSON.stringify({action:a,guest_id:g})); }
+
+    async function roomToggleMic() {
+        if (roomMicActive) {
+            roomMicObj?.stop(); roomMicObj = null; roomMicActive = false;
+            document.getElementById('roomMicBtn').classList.remove('active');
+            roomSetStatus('roomStatusMicOff'); _resetV(roomVadEl);
+        } else {
+            try {
+                roomMicObj = await _mic('VoxRP', buf => {
+                    if (roomWs?.readyState===WebSocket.OPEN) roomWs.send(buf);
+                    _vad(roomVadEl, new Float32Array(buf));
+                });
+                roomMicActive = true;
+                document.getElementById('roomMicBtn').classList.add('active');
+                roomSetStatus('roomStatusSpeaking');
+            } catch(e) { console.error('Room mic err:',e); }
+        }
+    }
+
+    async function closeRoom() {
+        if (!roomId) return;
+        if (!confirm(t('confirmClose'))) return;
+        try { await fetch(`/room/${roomId}`,{method:'DELETE'}); } catch(e){}
+        roomMicObj?.stop(); roomMicObj=null; roomMicActive=false;
+        document.getElementById('roomMicBtn').classList.remove('active');
+        roomWs?.close(); roomWs=null; roomId=null; participants={};
+        sessionStorage.removeItem('vox_host_room');
+        sessionStorage.removeItem('vox_hist_room');
+        document.getElementById(curScreen).classList.remove('active');
+        navStack.length=0; curScreen='screenMenu';
+        document.getElementById('screenMenu').classList.add('active');
+        document.getElementById('backBtn').classList.remove('visible');
+    }
+
+    // =====================================================================
+    // Init
+    // =====================================================================
+    applyI18n(false);
+    // Восстановление комнаты после рефреша
+    const savedRoom = sessionStorage.getItem('vox_host_room');
+    if (savedRoom) {
+        try {
+            const sr = JSON.parse(savedRoom);
+            roomId = sr.room_id;
+            showScreen('screenRoom');
+            if (sr.qr) document.getElementById('roomQrImg').src = sr.qr;
+            document.getElementById('roomCode').textContent = roomId.toUpperCase();
+            document.getElementById('roomUrl').textContent = `${location.origin}/room/${roomId}`;
+            connectRoomWS();
+            // Восстановить историю
+            const hist = JSON.parse(sessionStorage.getItem('vox_hist_room') || '[]');
+            hist.reverse().forEach(h => {
+                const it = document.createElement('div'); it.className = 'history-item';
+                const who = h.speaker ? `<span style="color:var(--accent);font-weight:600;">${_esc(h.speaker)}</span> · ` : '';
+                it.innerHTML = `<div class="history-time">${who}${h.tm}</div><div class="history-original">${_esc(h.o)}</div><div class="history-translation">${_esc(h.tr)}</div>`;
+                roomHistEl.insertBefore(it, roomHistEl.firstChild);
+            });
+        } catch(e) { sessionStorage.removeItem('vox_host_room'); }
+    }
+    console.log('VOX v0.3.3 — Deepgram Streaming');
+    </script>
+    <!-- ── Review FAB Button ── -->
+<a class="review-fab" href="/review?source=host" target="_blank">
+    <span>⭐</span>
+    <span>Відгук</span>
+</a>
+</body>
+</html>

@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VOX — Залишити відгук</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#09080f;--surface:#15121f;--surface2:#1e1930;
+  --border:#2a2340;--border2:#3d3560;
+  --text:#f0eeff;--text2:#9b93c4;--text3:#5e5880;
+  --accent:#7c6aff;--accent2:#a594ff;
+  --accent-dim:rgba(124,106,255,.12);--accent-glow:rgba(124,106,255,.35);
+  --green:#2dd4a0;--red:#ff5f7e;--yellow:#f0c050;
+  --radius:16px;
+}
+html,body{min-height:100vh}
+body{
+  font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);
+  display:flex;align-items:center;justify-content:center;
+  padding:24px;position:relative;overflow:hidden;
+}
+body::before{
+  content:'';position:fixed;
+  width:700px;height:700px;
+  top:-200px;left:-150px;
+  background:radial-gradient(circle,rgba(124,106,255,.16) 0%,transparent 65%);
+  pointer-events:none;
+}
+body::after{
+  content:'';position:fixed;
+  width:500px;height:500px;
+  bottom:-150px;right:-100px;
+  background:radial-gradient(circle,rgba(160,100,255,.12) 0%,transparent 65%);
+  pointer-events:none;
+}
+
+.card{
+  position:relative;z-index:1;
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:24px;
+  padding:48px 40px;
+  width:100%;max-width:480px;
+  animation:fadeIn .5s ease;
+}
+@keyframes fadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+.back-btn{
+  display:inline-flex;align-items:center;gap:8px;
+  background:none;border:none;color:var(--text3);
+  font-family:'DM Sans',sans-serif;font-size:14px;
+  cursor:pointer;padding:0;margin-bottom:28px;
+  transition:color .2s;
+}
+.back-btn:hover{color:var(--text2)}
+
+.logo{
+  font-family:'Syne',sans-serif;font-size:28px;font-weight:800;
+  color:var(--accent);letter-spacing:4px;
+  text-align:center;margin-bottom:8px;
+}
+.title{
+  font-family:'Syne',sans-serif;font-size:22px;font-weight:700;
+  text-align:center;margin-bottom:6px;
+}
+.subtitle{color:var(--text2);font-size:14px;text-align:center;margin-bottom:32px;line-height:1.5}
+
+.source-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--accent-dim);color:var(--accent2);
+  font-size:12px;padding:5px 14px;border-radius:99px;
+  border:1px solid rgba(124,106,255,.3);
+  margin:0 auto 24px;display:table;
+}
+
+/* Stars */
+.star-wrap{margin-bottom:24px}
+.star-label{font-size:13px;font-weight:500;color:var(--text2);margin-bottom:10px}
+.stars{display:flex;gap:8px}
+.star{
+  font-size:36px;cursor:pointer;
+  filter:grayscale(1) opacity(.3);
+  transition:all .15s;user-select:none;
+}
+.star.active,.star:hover{filter:none;transform:scale(1.2)}
+
+/* Form */
+.form-group{margin-bottom:18px}
+.form-label{display:block;font-size:13px;font-weight:500;color:var(--text2);margin-bottom:8px}
+.form-input{
+  width:100%;
+  background:var(--surface2);border:1px solid var(--border2);
+  color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;
+  padding:13px 16px;border-radius:12px;outline:none;
+  transition:border .25s;
+}
+.form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.form-input::placeholder{color:var(--text3)}
+textarea.form-input{resize:vertical;min-height:120px}
+
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:480px){.form-row{grid-template-columns:1fr}}
+
+.submit-btn{
+  width:100%;padding:15px;border-radius:14px;border:none;
+  background:var(--accent);color:#fff;
+  font-family:'DM Sans',sans-serif;font-size:16px;font-weight:600;
+  cursor:pointer;transition:all .25s;margin-top:8px;
+  box-shadow:0 6px 24px var(--accent-glow);
+}
+.submit-btn:hover{background:var(--accent2);transform:translateY(-2px)}
+.submit-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+.form-error{
+  color:var(--red);font-size:13px;margin-top:14px;
+  padding:10px 14px;background:rgba(255,95,126,.1);
+  border-radius:8px;border:1px solid rgba(255,95,126,.2);
+  display:none;
+}
+.form-error.show{display:block}
+
+/* Success */
+.success-wrap{
+  text-align:center;padding:20px 0;
+  display:none;
+  animation:fadeIn .5s ease;
+}
+.success-icon{font-size:56px;margin-bottom:16px}
+.success-title{
+  font-family:'Syne',sans-serif;font-size:24px;font-weight:800;
+  margin-bottom:8px;
+}
+.success-desc{color:var(--text2);font-size:15px;line-height:1.6;margin-bottom:28px}
+.return-btn{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--accent);color:#fff;
+  font-family:'DM Sans',sans-serif;font-size:15px;font-weight:500;
+  padding:12px 28px;border-radius:12px;border:none;
+  cursor:pointer;text-decoration:none;
+  box-shadow:0 4px 16px var(--accent-glow);
+  transition:all .25s;
+}
+.return-btn:hover{background:var(--accent2);transform:translateY(-2px)}
+
+/* User banner */
+.user-banner{
+  background:var(--accent-dim);border:1px solid rgba(124,106,255,.25);
+  border-radius:10px;padding:10px 14px;margin-bottom:20px;
+  display:flex;align-items:center;gap:10px;font-size:14px;
+}
+.u-avatar{
+  width:30px;height:30px;border-radius:50%;background:var(--accent);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:#fff;
+  flex-shrink:0;
+}
+</style>
+</head>
+<body>
+<div class="card">
+  <button class="back-btn" onclick="goBack()">← Назад</button>
+  <div class="logo">VOX</div>
+
+  <!-- FORM -->
+  <div id="formWrap">
+    <div class="title">Залишити відгук</div>
+    <p class="subtitle">Ваша думка допоможе нам стати кращими.<br/>Це займе менше хвилини.</p>
+
+    <div class="source-pill" id="sourcePill">⭐ Відгук</div>
+
+    <!-- User banner (shows when logged in) -->
+    <div class="user-banner" id="userBanner" style="display:none">
+      <div class="u-avatar" id="userAvatarMini"></div>
+      <span>Відгук від <strong id="userNameMini"></strong></span>
+    </div>
+
+    <!-- Star rating -->
+    <div class="star-wrap">
+      <div class="star-label">Ваша оцінка *</div>
+      <div class="stars">
+        <span class="star" data-v="1" onclick="setStar(1)">★</span>
+        <span class="star" data-v="2" onclick="setStar(2)">★</span>
+        <span class="star" data-v="3" onclick="setStar(3)">★</span>
+        <span class="star" data-v="4" onclick="setStar(4)">★</span>
+        <span class="star" data-v="5" onclick="setStar(5)">★</span>
+      </div>
+    </div>
+
+    <!-- Review text -->
+    <div class="form-group">
+      <label class="form-label">Ваш відгук *</label>
+      <textarea class="form-input" id="reviewText" placeholder="Розкажіть про свій досвід..."></textarea>
+    </div>
+
+    <!-- Anon fields (hidden when logged in) -->
+    <div id="anonFields">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Ім'я (необов'язково)</label>
+          <input class="form-input" type="text" id="anonName" placeholder="Анонімно"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email (необов'язково)</label>
+          <input class="form-input" type="email" id="anonEmail" placeholder="your@email.com"/>
+        </div>
+      </div>
+    </div>
+
+    <button class="submit-btn" id="submitBtn" onclick="submitReview()">Надіслати відгук</button>
+    <div class="form-error" id="formError"></div>
+  </div>
+
+  <!-- SUCCESS -->
+  <div class="success-wrap" id="successWrap">
+    <div class="success-icon">🎉</div>
+    <div class="success-title">Дякуємо!</div>
+    <p class="success-desc">Ваш відгук отримано та буде опублікований після модерації. Ми цінуємо вашу думку!</p>
+    <a href="/" class="return-btn">← На головну</a>
+  </div>
+</div>
+
+<script>
+// ─── Read source from URL ───
+const params = new URLSearchParams(location.search);
+const reviewSource = params.get('source') || 'landing';
+
+// ─── Set pill text ───
+const pills = {host:'🎙 Відгук з Host App', landing:'🌐 Відгук з Landing Page'};
+document.getElementById('sourcePill').textContent = pills[reviewSource] || pills.landing;
+
+// ─── Auth ───
+const token = localStorage.getItem('vox_token');
+let currentUser = null;
+
+async function checkAuth(){
+  if(!token) return;
+  try{
+    const r = await fetch('/api/me',{headers:{Authorization:'Bearer '+token}});
+    if(r.ok){
+      currentUser = await r.json();
+      document.getElementById('userBanner').style.display='flex';
+      document.getElementById('userAvatarMini').textContent = currentUser.name[0].toUpperCase();
+      document.getElementById('userNameMini').textContent = currentUser.name;
+      document.getElementById('anonFields').style.display='none';
+    }
+  }catch(e){}
+}
+checkAuth();
+
+// ─── Stars ───
+let rating = 0;
+function setStar(n){
+  rating = n;
+  document.querySelectorAll('.star').forEach((s,i)=>{
+    s.classList.toggle('active', i < n);
+  });
+}
+
+// ─── Submit ───
+async function submitReview(){
+  const text = document.getElementById('reviewText').value.trim();
+  const errEl = document.getElementById('formError');
+  errEl.classList.remove('show');
+
+  if(!rating){errEl.textContent='Будь ласка, оберіть оцінку';errEl.classList.add('show');return;}
+  if(!text){errEl.textContent='Будь ласка, напишіть відгук';errEl.classList.add('show');return;}
+
+  const body = {rating, text, source: reviewSource};
+  if(!currentUser){
+    body.guest_name  = document.getElementById('anonName').value.trim()||null;
+    body.guest_email = document.getElementById('anonEmail').value.trim()||null;
+  }
+  const headers = {'Content-Type':'application/json'};
+  if(currentUser) headers['Authorization'] = 'Bearer '+token;
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled=true; btn.textContent='Надсилаємо...';
+
+  try{
+    const r = await fetch('/api/reviews',{method:'POST',headers,body:JSON.stringify(body)});
+    if(r.ok){
+      document.getElementById('formWrap').style.display='none';
+      document.getElementById('successWrap').style.display='block';
+    } else {
+      const d = await r.json();
+      errEl.textContent = d.detail||'Помилка сервера';
+      errEl.classList.add('show');
+    }
+  }catch(e){
+    errEl.textContent='Помилка мережі. Перевірте підключення.';
+    errEl.classList.add('show');
+  }
+  btn.disabled=false; btn.textContent='Надіслати відгук';
+}
+
+function goBack(){ history.length>1 ? history.back() : location.href='/'; }
+</script>
+</body>
+</html>

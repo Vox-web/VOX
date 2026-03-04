@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VOX — Переводчик</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* --- Заголовок --- */
+        .header {
+            text-align: center;
+            padding: 16px 0 8px;
+            position: relative;
+        }
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #7c6aff;
+            letter-spacing: 4px;
+        }
+        .header .subtitle {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        /* --- UI Language Switcher --- */
+        .ui-lang-switcher {
+            position: absolute;
+            top: 14px;
+            right: 0;
+            display: flex;
+            background: #111118;
+            border-radius: 10px;
+            padding: 3px;
+            gap: 2px;
+            border: 1px solid #1e1e2a;
+        }
+        .ui-lang-btn {
+            border: none;
+            background: transparent;
+            color: #555;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 5px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            letter-spacing: 0.5px;
+            position: relative;
+            z-index: 1;
+        }
+        .ui-lang-btn:hover {
+            color: #999;
+        }
+        .ui-lang-btn.active {
+            color: #e0e0e0;
+            background: #7c6aff22;
+            box-shadow: 0 0 8px rgba(124, 106, 255, 0.15);
+        }
+
+        /* --- Статус --- */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            background: #111118;
+            font-size: 13px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ff4444;
+            transition: background 0.3s;
+        }
+        .status-dot.connected { background: #ffa500; }
+        .status-dot.listening { background: #44ff44; animation: pulse 1.5s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* --- Выбор языка --- */
+        .lang-selector {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 12px;
+        }
+        .lang-selector label {
+            font-size: 13px;
+            color: #888;
+            transition: opacity 0.25s;
+        }
+        .lang-selector select {
+            background: #1a1a24;
+            color: #e0e0e0;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 15px;
+            outline: none;
+            cursor: pointer;
+        }
+        .lang-selector select:focus {
+            border-color: #7c6aff;
+        }
+
+        /* --- Главная кнопка --- */
+        .main-btn {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            border: 3px solid #333;
+            background: #1a1a24;
+            color: #e0e0e0;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 8px auto;
+            user-select: none;
+        }
+        .main-btn:hover {
+            border-color: #7c6aff;
+            background: #1e1e2e;
+        }
+        .main-btn.active {
+            border-color: #7c6aff;
+            background: #2a1a4a;
+            color: #7c6aff;
+            box-shadow: 0 0 30px rgba(124, 106, 255, 0.3);
+        }
+        .main-btn.active:hover {
+            background: #1a1a24;
+            border-color: #ff4444;
+            color: #ff6666;
+            box-shadow: none;
+        }
+
+        /* --- Карточки перевода --- */
+        .card {
+            background: #111118;
+            border-radius: 12px;
+            padding: 16px;
+            min-height: 60px;
+        }
+        .card-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #666;
+            margin-bottom: 8px;
+            transition: opacity 0.25s;
+        }
+        .card-text {
+            font-size: 16px;
+            line-height: 1.5;
+            min-height: 24px;
+            word-wrap: break-word;
+        }
+        .card.translation {
+            border-left: 3px solid #7c6aff;
+        }
+        .card.translation .card-text {
+            color: #c4b5ff;
+            font-size: 18px;
+        }
+        .card.original .card-text {
+            color: #888;
+        }
+
+        /* --- VAD индикатор --- */
+        .vad-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            height: 30px;
+        }
+        .vad-bar {
+            width: 3px;
+            height: 8px;
+            background: #333;
+            border-radius: 2px;
+            transition: height 0.1s, background 0.1s;
+        }
+        .vad-bar.active {
+            background: #7c6aff;
+        }
+
+        /* --- История --- */
+        .history {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #333 transparent;
+        }
+        .history-item {
+            background: #0d0d14;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 13px;
+        }
+        .history-time {
+            color: #555;
+            font-size: 11px;
+            margin-bottom: 4px;
+        }
+        .history-original {
+            color: #777;
+        }
+        .history-translation {
+            color: #b0a0ff;
+            margin-top: 2px;
+        }
+
+        /* --- Разделитель --- */
+        .divider {
+            height: 1px;
+            background: #1a1a24;
+            margin: 4px 0;
+        }
+
+        /* --- Прелоадер --- */
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #555;
+            font-size: 13px;
+        }
+
+        /* --- i18n fade transition --- */
+        .i18n-fade {
+            transition: opacity 0.25s ease;
+        }
+        .i18n-fade.fading {
+            opacity: 0;
+        }
+
+        /* ======== FIXED TOP NAV ======== */
+        .top-nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+            height: 52px;
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+            box-shadow: 0 1px 8px rgba(100,80,160,0.07);
+        }
+        .top-nav-logo {
+            font-size: 20px; font-weight: 700; color: var(--accent);
+            letter-spacing: 4px; font-family: -apple-system, sans-serif;
+            text-decoration: none;
+        }
+        .top-nav-right {
+            display: flex; align-items: center; gap: 8px;
+        }
+        .top-nav-btn {
+            display: flex; align-items: center; gap: 5px;
+            text-decoration: none; color: var(--text2);
+            font-size: 13px; font-weight: 500;
+            background: var(--surface2); border: 1px solid var(--border);
+            padding: 6px 12px; border-radius: 9px;
+            transition: all 0.2s; white-space: nowrap;
+        }
+        .top-nav-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+        .top-nav-btn.review-btn { background: rgba(240,165,0,0.10); border-color: rgba(240,165,0,0.3); color: #c47f00; }
+        .top-nav-btn.review-btn:hover { background: rgba(240,165,0,0.18); }
+
+        /* Push content below fixed nav */
+        .container { padding-top: calc(52px + 16px) !important; }
+
+        /* Hide old floating buttons */
+        .review-fab { display: none !important; }
+
+        @media (max-width: 400px) {
+            .top-nav-btn span.nav-label { display: none; }
+            .top-nav-btn { padding: 6px 9px; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="top-nav">
+        <a href="/landing" class="top-nav-logo">VOX</a>
+        <div class="top-nav-right">
+            <a href="/review?source=host" class="top-nav-btn review-btn" target="_blank">⭐ <span class="nav-label">Відгук</span></a>
+            <a href="/cabinet" class="top-nav-btn">👤 <span class="nav-label">Кабінет</span></a>
+            <a href="/host" class="top-nav-btn">🏠 <span class="nav-label">Назад</span></a>
+        </div>
+    </nav>
+    <div class="container">
+        <!-- Заголовок -->
+        <div class="header">
+            <div class="subtitle">Real-time AI Translation</div>
+
+            <!-- UI Language Switcher -->
+            <div class="ui-lang-switcher">
+                <button class="ui-lang-btn active" data-uilang="uk">UA</button>
+                <button class="ui-lang-btn" data-uilang="en">EN</button>
+                <button class="ui-lang-btn" data-uilang="de">DE</button>
+            </div>
+        </div>
+
+        <!-- Статус -->
+        <div class="status-bar">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText" class="i18n-fade">Не підключено</span>
+        </div>
+
+        <!-- Выбор языка -->
+        <div class="lang-selector">
+            <label class="i18n-fade" id="langLabel">Мова перекладу:</label>
+            <select id="langSelect">
+                <option value="uk" selected>🇺🇦 Українська</option>
+                <option value="ru">🇷🇺 Русский</option>
+                <option value="en">🇬🇧 English</option>
+                <option value="de">🇩🇪 Deutsch</option>
+                <option value="pl">🇵🇱 Polski</option>
+                <option value="fr">🇫🇷 Français</option>
+                <option value="zh">🇨🇳 中文</option>
+                <option value="es">🇪🇸 Español</option>
+                <option value="it">🇮🇹 Italiano</option>
+                <option value="pt">🇧🇷 Português</option>
+                <option value="ja">🇯🇵 日本語</option>
+                <option value="ko">🇰🇷 한국어</option>
+                <option value="ar">🇸🇦 العربية</option>
+                <option value="tr">🇹🇷 Türkçe</option>
+                <option value="hi">🇮🇳 हिन्दी</option>
+            </select>
+        </div>
+
+        <!-- VAD индикатор -->
+        <div class="vad-indicator" id="vadIndicator">
+            <div class="vad-bar"></div>
+            <div class="vad-bar"></div>
+            <div class="vad-bar"></div>
+            <div class="vad-bar"></div>
+            <div class="vad-bar"></div>
+            <div class="vad-bar"></div>
+            <div class="vad-bar"></div>
+            <div class="vad-bar"></div>
+            <div class="vad-bar"></div>
+        </div>
+
+        <!-- Кнопка -->
+        <button class="main-btn i18n-fade" id="mainBtn" onclick="toggleListening()">
+            СЛУХАТИ
+        </button>
+
+        <!-- Оригинал -->
+        <div class="card original">
+            <div class="card-label i18n-fade" id="labelOriginal">Оригінал</div>
+            <div class="card-text" id="originalText">—</div>
+        </div>
+
+        <!-- Перевод -->
+        <div class="card translation">
+            <div class="card-label i18n-fade" id="labelTranslation">Переклад</div>
+            <div class="card-text" id="translationText">—</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- История -->
+        <div class="card-label i18n-fade" style="padding: 0 4px;" id="labelHistory">Історія</div>
+        <div class="history" id="history"></div>
+    </div>
+
+    <script>
+    // =====================================================================
+    // VOX Solo Frontend
+    // =====================================================================
+
+    // =====================================================================
+    // i18n — UI translations
+    // =====================================================================
+    const UI_STRINGS = {
+        uk: {
+            statusDisconnected: 'Не підключено',
+            statusConnecting:   'Підключення...',
+            statusConnected:    'Підключено',
+            statusListening:    'Слухаю...',
+            statusStopped:      'Зупинено',
+            statusError:        'Помилка з\'єднання',
+            statusMicError:     'Мікрофон недоступний',
+            langLabel:          'Мова перекладу:',
+            btnListen:          'СЛУХАТИ',
+            btnStop:            'СТОП',
+            labelOriginal:      'Оригінал',
+            labelTranslation:   'Переклад',
+            labelHistory:       'Історія',
+            langTooltip:        (lang, conf) => `Мова: ${lang} (${conf}%)`,
+        },
+        en: {
+            statusDisconnected: 'Disconnected',
+            statusConnecting:   'Connecting...',
+            statusConnected:    'Connected',
+            statusListening:    'Listening...',
+            statusStopped:      'Stopped',
+            statusError:        'Connection error',
+            statusMicError:     'Microphone unavailable',
+            langLabel:          'Translate to:',
+            btnListen:          'LISTEN',
+            btnStop:            'STOP',
+            labelOriginal:      'Original',
+            labelTranslation:   'Translation',
+            labelHistory:       'History',
+            langTooltip:        (lang, conf) => `Language: ${lang} (${conf}%)`,
+        },
+        de: {
+            statusDisconnected: 'Nicht verbunden',
+            statusConnecting:   'Verbindung...',
+            statusConnected:    'Verbunden',
+            statusListening:    'Höre zu...',
+            statusStopped:      'Gestoppt',
+            statusError:        'Verbindungsfehler',
+            statusMicError:     'Mikrofon nicht verfügbar',
+            langLabel:          'Übersetzen in:',
+            btnListen:          'HÖREN',
+            btnStop:            'STOPP',
+            labelOriginal:      'Original',
+            labelTranslation:   'Übersetzung',
+            labelHistory:       'Verlauf',
+            langTooltip:        (lang, conf) => `Sprache: ${lang} (${conf}%)`,
+        },
+    };
+
+    let currentUILang = 'uk';
+
+    // Map internal status keys to i18n keys
+    const statusKeyMap = {
+        'disconnected_init': 'statusDisconnected',
+        'connecting':        'statusConnecting',
+        'connected':         'statusConnected',
+        'listening':         'statusListening',
+        'stopped':           'statusStopped',
+        'error':             'statusError',
+        'mic_error':         'statusMicError',
+    };
+
+    // Current semantic status (so we can re-translate on lang switch)
+    let currentStatusKey = 'disconnected_init';
+
+    function t(key) {
+        return UI_STRINGS[currentUILang][key] || UI_STRINGS['en'][key] || key;
+    }
+
+    /**
+     * Apply all UI strings — with a quick crossfade.
+     * Elements with class `i18n-fade` get opacity 0 → update → opacity 1.
+     */
+    function applyUILanguage(animate) {
+        const fadeEls = document.querySelectorAll('.i18n-fade');
+
+        function update() {
+            document.getElementById('langLabel').textContent        = t('langLabel');
+            document.getElementById('labelOriginal').textContent    = t('labelOriginal');
+            document.getElementById('labelTranslation').textContent = t('labelTranslation');
+            document.getElementById('labelHistory').textContent     = t('labelHistory');
+
+            // Button text depends on current state
+            mainBtn.textContent = isListening ? t('btnStop') : t('btnListen');
+
+            // Status text
+            statusText.textContent = t(statusKeyMap[currentStatusKey] || 'statusDisconnected');
+
+            document.documentElement.lang = currentUILang;
+        }
+
+        if (animate) {
+            fadeEls.forEach(el => el.classList.add('fading'));
+            setTimeout(() => {
+                update();
+                fadeEls.forEach(el => el.classList.remove('fading'));
+            }, 250);
+        } else {
+            update();
+        }
+    }
+
+    // --- UI Language Switcher click handler ---
+    document.querySelectorAll('.ui-lang-btn').forEach(b => b.classList.toggle('active', b.dataset.uilang === uiLang));
+    document.querySelectorAll('.ui-lang-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const lang = btn.dataset.uilang;
+            if (lang === currentUILang) return;
+
+            // Update active state
+            document.querySelectorAll('.ui-lang-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            currentUILang = lang;
+            applyUILanguage(true);
+        });
+    });
+
+    // --- Состояние ---
+    let isListening = false;
+    let ws = null;
+    let audioContext = null;
+    let audioWorkletNode = null;
+    let mediaStream = null;
+
+    // --- DOM ---
+    const mainBtn = document.getElementById('mainBtn');
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const originalText = document.getElementById('originalText');
+    const translationText = document.getElementById('translationText');
+    const langSelect = document.getElementById('langSelect');
+    const history = document.getElementById('history');
+    const vadBars = document.querySelectorAll('.vad-bar');
+
+    // --- Очередь аудио для воспроизведения ---
+    let playbackContext = null;
+    let audioQueue = [];
+    let isPlaying = false;
+
+    // =====================================================================
+    // WebSocket
+    // =====================================================================
+    function connectWebSocket() {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const url = `${protocol}//${location.host}/ws/solo`;
+
+        ws = new WebSocket(url);
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = () => {
+            setStatus('connected', 'connected');
+            console.log('WebSocket connected');
+        };
+
+        ws.onclose = () => {
+            setStatus('disconnected', 'disconnected_init');
+            console.log('WebSocket closed');
+            if (isListening) {
+                setTimeout(connectWebSocket, 2000);
+            }
+        };
+
+        ws.onerror = (e) => {
+            console.error('WebSocket error:', e);
+            setStatus('disconnected', 'error');
+        };
+
+        ws.onmessage = (event) => {
+            if (event.data instanceof ArrayBuffer) {
+                handleAudioMessage(event.data);
+            } else {
+                handleJsonMessage(JSON.parse(event.data));
+            }
+        };
+    }
+
+    function handleJsonMessage(msg) {
+        if (msg.type === 'transcript') {
+            originalText.textContent = msg.text || '—';
+            if (msg.language) {
+                originalText.title = t('langTooltip') !== undefined
+                    ? UI_STRINGS[currentUILang].langTooltip(msg.language, Math.round(msg.confidence * 100))
+                    : `${msg.language} (${Math.round(msg.confidence * 100)}%)`;
+            }
+        }
+        else if (msg.type === 'translation') {
+            translationText.textContent = msg.text || '—';
+            addToHistory(originalText.textContent, msg.text, msg.lang_from, msg.lang_to);
+        }
+    }
+
+    function handleAudioMessage(data) {
+        const prefix = new TextDecoder().decode(new Uint8Array(data, 0, 6));
+        if (prefix === 'AUDIO:') {
+            const audioData = data.slice(6);
+            playAudio(audioData);
+        }
+    }
+
+    // =====================================================================
+    // Воспроизведение аудио (TTS)
+    // =====================================================================
+    async function playAudio(mp3Bytes) {
+        audioQueue.push(mp3Bytes);
+        if (!isPlaying) {
+            processAudioQueue();
+        }
+    }
+
+    async function processAudioQueue() {
+        if (audioQueue.length === 0) {
+            isPlaying = false;
+            return;
+        }
+
+        isPlaying = true;
+        const mp3Bytes = audioQueue.shift();
+
+        try {
+            if (!playbackContext) {
+                playbackContext = new AudioContext();
+            }
+
+            const audioBuffer = await playbackContext.decodeAudioData(mp3Bytes.slice(0));
+            const source = playbackContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(playbackContext.destination);
+            source.onended = () => processAudioQueue();
+            source.start(0);
+        } catch (e) {
+            console.error('Audio playback error:', e);
+            processAudioQueue();
+        }
+    }
+
+    // =====================================================================
+    // Захват микрофона (AudioWorklet)
+    // =====================================================================
+    async function startMicrophone() {
+        try {
+            mediaStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    sampleRate: 16000,
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                }
+            });
+
+            audioContext = new AudioContext({ sampleRate: 16000 });
+
+            const workletCode = `
+                class VoxProcessor extends AudioWorkletProcessor {
+                    constructor() {
+                        super();
+                        this.buffer = [];
+                        this.CHUNK_SIZE = 512;
+                    }
+
+                    process(inputs, outputs, parameters) {
+                        const input = inputs[0];
+                        if (!input || !input[0]) return true;
+
+                        const samples = input[0];
+                        this.buffer.push(...samples);
+
+                        while (this.buffer.length >= this.CHUNK_SIZE) {
+                            const chunk = new Float32Array(this.buffer.splice(0, this.CHUNK_SIZE));
+                            this.port.postMessage(chunk.buffer, [chunk.buffer]);
+                        }
+
+                        return true;
+                    }
+                }
+
+                registerProcessor('vox-processor', VoxProcessor);
+            `;
+
+            const blob = new Blob([workletCode], { type: 'application/javascript' });
+            const url = URL.createObjectURL(blob);
+            await audioContext.audioWorklet.addModule(url);
+            URL.revokeObjectURL(url);
+
+            const source = audioContext.createMediaStreamSource(mediaStream);
+            audioWorkletNode = new AudioWorkletNode(audioContext, 'vox-processor');
+
+            audioWorkletNode.port.onmessage = (event) => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(event.data);
+                }
+                const chunk = new Float32Array(event.data);
+                animateVAD(chunk);
+            };
+
+            source.connect(audioWorkletNode);
+            audioWorkletNode.connect(audioContext.destination);
+
+        } catch (e) {
+            console.error('Microphone error:', e);
+            setStatus('disconnected', 'mic_error');
+            isListening = false;
+            mainBtn.classList.remove('active');
+            mainBtn.textContent = t('btnListen');
+        }
+    }
+
+    function stopMicrophone() {
+        if (audioWorkletNode) {
+            audioWorkletNode.disconnect();
+            audioWorkletNode = null;
+        }
+        if (audioContext) {
+            audioContext.close();
+            audioContext = null;
+        }
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(t => t.stop());
+            mediaStream = null;
+        }
+    }
+
+    // =====================================================================
+    // Управление
+    // =====================================================================
+    async function toggleListening() {
+        if (isListening) {
+            isListening = false;
+            mainBtn.classList.remove('active');
+            mainBtn.textContent = t('btnListen');
+            stopMicrophone();
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            setStatus('disconnected', 'stopped');
+            resetVAD();
+        } else {
+            isListening = true;
+            mainBtn.classList.add('active');
+            mainBtn.textContent = t('btnStop');
+            setStatus('connected', 'connecting');
+
+            connectWebSocket();
+
+            await new Promise(r => setTimeout(r, 500));
+            await startMicrophone();
+
+            if (isListening) {
+                setStatus('listening', 'listening');
+            }
+        }
+    }
+
+    // =====================================================================
+    // UI утилиты
+    // =====================================================================
+    function setStatus(state, semanticKey) {
+        statusDot.className = 'status-dot ' + state;
+        currentStatusKey = semanticKey || state;
+        statusText.textContent = t(statusKeyMap[currentStatusKey] || 'statusDisconnected');
+    }
+
+    function animateVAD(chunk) {
+        let sum = 0;
+        for (let i = 0; i < chunk.length; i++) {
+            sum += chunk[i] * chunk[i];
+        }
+        const rms = Math.sqrt(sum / chunk.length);
+        const level = Math.min(rms * 10, 1.0);
+
+        vadBars.forEach((bar, i) => {
+            const barLevel = Math.random() * level;
+            const height = 4 + barLevel * 22;
+            bar.style.height = height + 'px';
+            bar.classList.toggle('active', level > 0.02);
+        });
+    }
+
+    function resetVAD() {
+        vadBars.forEach(bar => {
+            bar.style.height = '8px';
+            bar.classList.remove('active');
+        });
+    }
+
+    function addToHistory(original, translation, langFrom, langTo) {
+        const now = new Date();
+        const time = now.toLocaleTimeString(currentUILang === 'de' ? 'de-DE' : currentUILang === 'en' ? 'en-GB' : 'uk-UA', { hour: '2-digit', minute: '2-digit' });
+
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        item.innerHTML = `
+            <div class="history-time">${time}</div>
+            <div class="history-original">${escapeHtml(original)}</div>
+            <div class="history-translation">${escapeHtml(translation)}</div>
+        `;
+
+        history.insertBefore(item, history.firstChild);
+
+        while (history.children.length > 20) {
+            history.removeChild(history.lastChild);
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // --- Смена языка перевода ---
+    langSelect.addEventListener('change', async () => {
+        const lang = langSelect.value;
+        try {
+            await fetch('/set-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target_lang: lang }),
+            });
+            console.log('Language set to:', lang);
+        } catch (e) {
+            console.error('Failed to set language:', e);
+        }
+    });
+
+    // --- Инициализация ---
+    applyUILanguage(false);
+    console.log('VOX Solo v0.1.0');
+    </script>
+</body>
+</html>

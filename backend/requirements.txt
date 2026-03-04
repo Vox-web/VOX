@@ -1,0 +1,29 @@
+# VOX — Dependencies
+# Этап 2.0: Deepgram Streaming + Solo + Web-комната
+
+# Web-сервер
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+websockets==12.0
+python-multipart==0.0.9
+python-dotenv==1.0.0
+
+# Транскрипция — Deepgram Nova-2 (через websockets, API-only)
+# Нет локальных моделей! torch/whisper/silero-vad УБРАНЫ (−500MB)
+
+# Аудио
+numpy==1.26.4
+soundfile==0.12.1
+
+# TTS fallback
+edge-tts==6.1.10
+
+# OpenAI (перевод + TTS)
+openai>=1.60.0
+setuptools>=69.0.0,<78
+
+# QR-код для комнат
+qrcode[pil]==7.4.2
+Pillow==10.4.0
+
+requests
