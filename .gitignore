@@ -32,3 +32,5 @@ vox_log.txt
 # OS
 .DS_Store
 Thumbs.db
+"*.db" 
+"backend/vox.db" 
