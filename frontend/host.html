@@ -40,8 +40,6 @@
 
         @media (max-width: 400px) {
             .container { padding: 10px; gap: 10px; }
-            .header { padding: 4px 0 2px; }
-            .header .subtitle { margin-top: 0; }
         }
 
         /* ======== Header ======== */
@@ -58,11 +56,13 @@
         }
 
         .back-btn {
-            position: absolute; top: 14px; left: 0;
-            background: none; border: none; color: var(--text2);
-            font-size: 20px; cursor: pointer; padding: 8px 14px;
-            border-radius: 10px; transition: all 0.2s; display: none;
-            min-width: 44px; min-height: 44px;
+            position: absolute; top: 10px; left: 0;
+            background: var(--surface2); border: 1px solid var(--border);
+            color: var(--text); font-size: 20px; cursor: pointer;
+            padding: 8px 14px; border-radius: 10px;
+            transition: all 0.2s; display: none;
+            z-index: 10; min-width: 44px; min-height: 44px;
+            display: none; align-items: center; justify-content: center;
         }
         .back-btn:hover { color: var(--text); background: var(--surface2); }
         .back-btn.visible { display: block; }
@@ -372,7 +372,7 @@
     <div class="container">
         <!-- HEADER -->
         <div class="header">
-            <button class="back-btn" id="backBtn" onclick="goBack()">←</button>
+            <button class="back-btn" id="backBtn" onclick="goBack()">&#8592;</button>
             <div class="subtitle i18n" id="subtitle">Real-time AI Translation</div>
             <div class="ui-lang-switcher">
                 <button class="ui-lang-btn active" data-uilang="uk">UA</button>
