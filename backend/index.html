@@ -84,6 +84,7 @@ nav{
   color:var(--text3);font-family:'DM Sans',sans-serif;
   font-size:12px;font-weight:600;letter-spacing:.5px;
   padding:5px 10px;border-radius:7px;cursor:pointer;
+  font-size:clamp(10px,1.1vw,12px);
   transition:all .25s;
 }
 .lang-btn:hover{color:var(--text2)}
@@ -92,13 +93,13 @@ nav{
 .nav-auth-btn{
   border:none;cursor:pointer;
   font-family:'DM Sans',sans-serif;
-  font-size:14px;font-weight:500;
-  padding:8px 20px;border-radius:10px;
+  font-size:clamp(11px,1.2vw,14px);font-weight:500;
+  padding:clamp(5px,0.6vw,8px) clamp(8px,1.2vw,20px);border-radius:10px;
   transition:all .25s;
 }
 .btn-login{background:transparent;color:var(--text2);border:1px solid var(--border2)}
 .btn-login:hover{color:var(--text);border-color:var(--accent)}
-.btn-register{background:var(--accent);color:#fff;box-shadow:0 4px 16px var(--accent-glow);flex-shrink:0;white-space:nowrap}
+.btn-register{background:var(--accent);color:#fff;box-shadow:0 4px 16px var(--accent-glow);white-space:nowrap;min-width:fit-content}
 .btn-register:hover{background:var(--accent2);transform:translateY(-1px)}
 @media(max-width:600px){
   .nav-auth-btn{
