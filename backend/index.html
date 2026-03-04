@@ -73,7 +73,7 @@ nav{
   font-size:22px;font-weight:800;
   color:var(--accent);letter-spacing:5px;
 }
-.nav-right{display:flex;align-items:center;gap:12px}
+.nav-right{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
 .lang-switch{
   display:flex;background:var(--surface);
   border:1px solid var(--border);border-radius:10px;
@@ -93,9 +93,10 @@ nav{
 .nav-auth-btn{
   border:none;cursor:pointer;
   font-family:'DM Sans',sans-serif;
-  font-size:clamp(11px,1.2vw,14px);font-weight:500;
-  padding:clamp(5px,0.6vw,8px) clamp(8px,1.2vw,20px);border-radius:10px;
+  font-size:14px;font-weight:500;
+  padding:8px 16px;border-radius:10px;
   transition:all .25s;
+  white-space:nowrap;
 }
 .btn-login{background:transparent;color:var(--text2);border:1px solid var(--border2)}
 .btn-login:hover{color:var(--text);border-color:var(--accent)}
