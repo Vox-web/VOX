@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VOX — Залишити відгук</title>
+<title>VOX — Review</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap"/>
 <style>
@@ -162,25 +162,25 @@ textarea.form-input{resize:vertical;min-height:120px}
 </head>
 <body>
 <div class="card">
-  <button class="back-btn" onclick="goBack()">← Назад</button>
+  <button class="back-btn" id="backBtn" onclick="goBack()">← Назад</button>
   <div class="logo">VOX</div>
 
   <!-- FORM -->
   <div id="formWrap">
-    <div class="title">Залишити відгук</div>
-    <p class="subtitle">Ваша думка допоможе нам стати кращими.<br/>Це займе менше хвилини.</p>
+    <div class="title" id="formTitle">Залишити відгук</div>
+    <p class="subtitle" id="formSubtitle">Ваша думка допоможе нам стати кращими.<br/>Це займе менше хвилини.</p>
 
     <div class="source-pill" id="sourcePill">⭐ Відгук</div>
 
     <!-- User banner (shows when logged in) -->
     <div class="user-banner" id="userBanner" style="display:none">
       <div class="u-avatar" id="userAvatarMini"></div>
-      <span>Відгук від <strong id="userNameMini"></strong></span>
+      <span id="userBannerText">Відгук від <strong id="userNameMini"></strong></span>
     </div>
 
     <!-- Star rating -->
     <div class="star-wrap">
-      <div class="star-label">Ваша оцінка *</div>
+      <div class="star-label" id="starLabel">Ваша оцінка *</div>
       <div class="stars">
         <span class="star" data-v="1" onclick="setStar(1)">★</span>
         <span class="star" data-v="2" onclick="setStar(2)">★</span>
@@ -192,7 +192,7 @@ textarea.form-input{resize:vertical;min-height:120px}
 
     <!-- Review text -->
     <div class="form-group">
-      <label class="form-label">Ваш відгук *</label>
+      <label class="form-label" id="reviewLabel">Ваш відгук *</label>
       <textarea class="form-input" id="reviewText" placeholder="Розкажіть про свій досвід..."></textarea>
     </div>
 
@@ -200,11 +200,11 @@ textarea.form-input{resize:vertical;min-height:120px}
     <div id="anonFields">
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Ім'я (необов'язково)</label>
+          <label class="form-label" id="nameLabel">Ім'я (необов'язково)</label>
           <input class="form-input" type="text" id="anonName" placeholder="Анонімно"/>
         </div>
         <div class="form-group">
-          <label class="form-label">Email (необов'язково)</label>
+          <label class="form-label" id="emailLabel">Email (необов'язково)</label>
           <input class="form-input" type="email" id="anonEmail" placeholder="your@email.com"/>
         </div>
       </div>
@@ -217,20 +217,106 @@ textarea.form-input{resize:vertical;min-height:120px}
   <!-- SUCCESS -->
   <div class="success-wrap" id="successWrap">
     <div class="success-icon">🎉</div>
-    <div class="success-title">Дякуємо!</div>
-    <p class="success-desc">Ваш відгук отримано та буде опублікований після модерації. Ми цінуємо вашу думку!</p>
-    <a href="/" class="return-btn">← На головну</a>
+    <div class="success-title" id="successTitle">Дякуємо!</div>
+    <p class="success-desc" id="successDesc">Ваш відгук отримано та буде опублікований після модерації. Ми цінуємо вашу думку!</p>
+    <a href="/" class="return-btn" id="returnBtn">← На головну</a>
   </div>
 </div>
 
 <script>
-// ─── Read source from URL ───
+// ─── URL params ───
 const params = new URLSearchParams(location.search);
 const reviewSource = params.get('source') || 'landing';
+const lang = params.get('lang') || 'uk';
 
-// ─── Set pill text ───
-const pills = {host:'🎙 Відгук з Host App', landing:'🌐 Відгук з Landing Page'};
-document.getElementById('sourcePill').textContent = pills[reviewSource] || pills.landing;
+// ─── i18n ───
+const I18N = {
+  uk: {
+    title: 'Залишити відгук',
+    subtitle: 'Ваша думка допоможе нам стати кращими.<br/>Це займе менше хвилини.',
+    starLabel: 'Ваша оцінка *',
+    reviewLabel: 'Ваш відгук *',
+    reviewPlaceholder: 'Розкажіть про свій досвід...',
+    nameLabel: "Ім'я (необов'язково)",
+    namePlaceholder: 'Анонімно',
+    emailLabel: 'Email (необов\'язково)',
+    submitBtn: 'Надіслати відгук',
+    submitting: 'Надсилаємо...',
+    errRating: 'Будь ласка, оберіть оцінку',
+    errText: 'Будь ласка, напишіть відгук',
+    errServer: 'Помилка сервера',
+    errNetwork: 'Помилка мережі. Перевірте підключення.',
+    successTitle: 'Дякуємо!',
+    successDesc: 'Ваш відгук отримано та буде опублікований після модерації. Ми цінуємо вашу думку!',
+    back: '← Назад',
+    home: '← На головну',
+    reviewFrom: 'Відгук від',
+    pills: { host: '🎙 Відгук з Host App', landing: '🌐 Відгук з Landing Page' },
+  },
+  en: {
+    title: 'Leave a Review',
+    subtitle: 'Your feedback helps us improve.<br/>It takes less than a minute.',
+    starLabel: 'Your rating *',
+    reviewLabel: 'Your review *',
+    reviewPlaceholder: 'Tell us about your experience...',
+    nameLabel: 'Name (optional)',
+    namePlaceholder: 'Anonymous',
+    emailLabel: 'Email (optional)',
+    submitBtn: 'Submit Review',
+    submitting: 'Submitting...',
+    errRating: 'Please select a rating',
+    errText: 'Please write your review',
+    errServer: 'Server error',
+    errNetwork: 'Network error. Check your connection.',
+    successTitle: 'Thank you!',
+    successDesc: 'Your review has been received and will be published after moderation. We appreciate your feedback!',
+    back: '← Back',
+    home: '← Home',
+    reviewFrom: 'Review from',
+    pills: { host: '🎙 Review from Host App', landing: '🌐 Review from Landing Page' },
+  },
+  de: {
+    title: 'Bewertung abgeben',
+    subtitle: 'Ihr Feedback hilft uns, besser zu werden.<br/>Es dauert weniger als eine Minute.',
+    starLabel: 'Ihre Bewertung *',
+    reviewLabel: 'Ihre Rezension *',
+    reviewPlaceholder: 'Erzählen Sie von Ihrer Erfahrung...',
+    nameLabel: 'Name (optional)',
+    namePlaceholder: 'Anonym',
+    emailLabel: 'E-Mail (optional)',
+    submitBtn: 'Bewertung senden',
+    submitting: 'Wird gesendet...',
+    errRating: 'Bitte wählen Sie eine Bewertung',
+    errText: 'Bitte schreiben Sie Ihre Rezension',
+    errServer: 'Serverfehler',
+    errNetwork: 'Netzwerkfehler. Überprüfen Sie Ihre Verbindung.',
+    successTitle: 'Danke!',
+    successDesc: 'Ihre Bewertung wurde empfangen und wird nach der Moderation veröffentlicht. Wir schätzen Ihr Feedback!',
+    back: '← Zurück',
+    home: '← Zur Startseite',
+    reviewFrom: 'Bewertung von',
+    pills: { host: '🎙 Bewertung aus Host App', landing: '🌐 Bewertung von Landing Page' },
+  },
+};
+
+const T = I18N[lang] || I18N.uk;
+
+// ─── Apply translations ───
+document.getElementById('backBtn').textContent         = T.back;
+document.getElementById('formTitle').textContent       = T.title;
+document.getElementById('formSubtitle').innerHTML      = T.subtitle;
+document.getElementById('starLabel').textContent       = T.starLabel;
+document.getElementById('reviewLabel').textContent     = T.reviewLabel;
+document.getElementById('reviewText').placeholder      = T.reviewPlaceholder;
+document.getElementById('nameLabel').textContent       = T.nameLabel;
+document.getElementById('anonName').placeholder        = T.namePlaceholder;
+document.getElementById('emailLabel').textContent      = T.emailLabel;
+document.getElementById('submitBtn').textContent       = T.submitBtn;
+document.getElementById('successTitle').textContent    = T.successTitle;
+document.getElementById('successDesc').textContent     = T.successDesc;
+document.getElementById('returnBtn').textContent       = T.home;
+document.getElementById('sourcePill').textContent      = T.pills[reviewSource] || T.pills.landing;
+document.documentElement.lang = lang;
 
 // ─── Auth ───
 const token = localStorage.getItem('vox_token');
@@ -245,6 +331,7 @@ async function checkAuth(){
       document.getElementById('userBanner').style.display='flex';
       document.getElementById('userAvatarMini').textContent = currentUser.name[0].toUpperCase();
       document.getElementById('userNameMini').textContent = currentUser.name;
+      document.getElementById('userBannerText').innerHTML = T.reviewFrom + ' <strong>' + currentUser.name + '</strong>';
       document.getElementById('anonFields').style.display='none';
     }
   }catch(e){}
@@ -266,8 +353,8 @@ async function submitReview(){
   const errEl = document.getElementById('formError');
   errEl.classList.remove('show');
 
-  if(!rating){errEl.textContent='Будь ласка, оберіть оцінку';errEl.classList.add('show');return;}
-  if(!text){errEl.textContent='Будь ласка, напишіть відгук';errEl.classList.add('show');return;}
+  if(!rating){ errEl.textContent=T.errRating; errEl.classList.add('show'); return; }
+  if(!text){   errEl.textContent=T.errText;   errEl.classList.add('show'); return; }
 
   const body = {rating, text, source: reviewSource};
   if(!currentUser){
@@ -278,7 +365,7 @@ async function submitReview(){
   if(currentUser) headers['Authorization'] = 'Bearer '+token;
 
   const btn = document.getElementById('submitBtn');
-  btn.disabled=true; btn.textContent='Надсилаємо...';
+  btn.disabled=true; btn.textContent=T.submitting;
 
   try{
     const r = await fetch('/api/reviews',{method:'POST',headers,body:JSON.stringify(body)});
@@ -287,14 +374,14 @@ async function submitReview(){
       document.getElementById('successWrap').style.display='block';
     } else {
       const d = await r.json();
-      errEl.textContent = d.detail||'Помилка сервера';
+      errEl.textContent = d.detail || T.errServer;
       errEl.classList.add('show');
     }
   }catch(e){
-    errEl.textContent='Помилка мережі. Перевірте підключення.';
+    errEl.textContent = T.errNetwork;
     errEl.classList.add('show');
   }
-  btn.disabled=false; btn.textContent='Надіслати відгук';
+  btn.disabled=false; btn.textContent=T.submitBtn;
 }
 
 function goBack(){ history.length>1 ? history.back() : location.href='/'; }
