@@ -241,6 +241,19 @@
         .room-code { font-size: 22px; font-weight: 700; color: var(--accent); letter-spacing: 3px; margin: 2px 0; }
         .room-url { font-size: 11px; color: var(--text2); word-break: break-all; }
 
+        .room-share-row {
+            display: flex; gap: 8px; justify-content: center; margin-top: 10px;
+        }
+        .room-share-btn {
+            display: flex; align-items: center; gap: 5px;
+            padding: 7px 14px; border-radius: 9px; border: 1px solid var(--border);
+            background: var(--surface2); color: var(--text2);
+            font-size: 13px; font-weight: 500; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .room-share-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .room-share-btn.copied { border-color: var(--green); color: var(--green); }
+
         .participant-list { display: flex; flex-direction: column; gap: 8px; }
         .participant-item {
             display: flex; align-items: center; gap: 10px;
@@ -515,6 +528,10 @@
                 <img id="roomQrImg" src="" alt="QR">
                 <div class="room-code" id="roomCode"></div>
                 <div class="room-url" id="roomUrl"></div>
+                <div class="room-share-row">
+                    <button class="room-share-btn" id="btnCopyUrl" onclick="copyRoomUrl()">📋 <span id="copyUrlLabel">Копіювати</span></button>
+                    <button class="room-share-btn" id="btnShareUrl" onclick="shareRoomUrl()">↗ <span id="shareUrlLabel">Поділитися</span></button>
+                </div>
             </div>
             <div class="card">
                 <div class="card-label">
@@ -590,6 +607,7 @@
             howtoToggle: 'Як користуватися?',
             howtoHtml: '<div class="section"><h4>🎧 Solo — Персональний переклад</h4><ol><li>Оберіть вашу мову та мову перекладу</li><li>Натисніть <b>СЛУХАТИ</b> — говоріть у мікрофон</li><li>Через 1-2 сек. почуєте переклад у навушниках</li><li>Натисніть <b>СТОП</b> щоб зупинити</li></ol></div><div class="section"><h4>👥 Кімната — Груповий переклад</h4><ol><li>Натисніть «Створити кімнату» та оберіть мову</li><li>Покажіть QR-код учасникам — вони сканують телефоном</li><li>Кожен учасник обирає свою мову і чує переклад</li><li>Учасник натискає «Хочу сказати» щоб отримати слово</li><li>Ви керуєте: даєте слово, заглушуєте, відключаєте</li></ol></div>',
             navReview: 'Відгук', navCabinet: 'Кабінет',
+            btnCopy: 'Копіювати', btnCopied: 'Скопійовано!', btnShare: 'Поділитися',
         },
         en: {
             subtitle: 'Real-time AI Translation',
@@ -620,6 +638,7 @@
             howtoToggle: 'How does it work?',
             howtoHtml: '<div class="section"><h4>🎧 Solo — Personal Translation</h4><ol><li>Select your language and translation language</li><li>Press <b>LISTEN</b> — speak into the microphone</li><li>In 1-2 sec. you\'ll hear the translation in your earphones</li><li>Press <b>STOP</b> to end</li></ol></div><div class="section"><h4>👥 Room — Group Translation</h4><ol><li>Press "Create Room" and select your language</li><li>Show the QR code to participants — they scan with their phone</li><li>Each participant selects their language and hears translation</li><li>Participant presses "I want to speak" to request the floor</li><li>You control everything: grant speech, mute, disconnect</li></ol></div>',
             navReview: 'Review', navCabinet: 'Cabinet',
+            btnCopy: 'Copy link', btnCopied: 'Copied!', btnShare: 'Share',
         },
         de: {
             subtitle: 'KI-Übersetzung in Echtzeit',
@@ -650,6 +669,7 @@
             howtoToggle: 'Wie funktioniert es?',
             howtoHtml: '<div class="section"><h4>🎧 Solo — Persönliche Übersetzung</h4><ol><li>Wählen Sie Ihre Sprache und die Übersetzungssprache</li><li>Drücken Sie <b>HÖREN</b> — sprechen Sie ins Mikrofon</li><li>In 1-2 Sek. hören Sie die Übersetzung im Kopfhörer</li><li>Drücken Sie <b>STOPP</b> zum Beenden</li></ol></div><div class="section"><h4>👥 Raum — Gruppenübersetzung</h4><ol><li>Drücken Sie «Raum erstellen» und wählen Sie Ihre Sprache</li><li>Zeigen Sie den QR-Code den Teilnehmern — sie scannen mit dem Handy</li><li>Jeder Teilnehmer wählt seine Sprache und hört die Übersetzung</li><li>Teilnehmer drückt «Ich möchte sprechen» um das Wort zu erhalten</li><li>Sie steuern alles: Wort erteilen, stummschalten, trennen</li></ol></div>',
             navReview: 'Bewertung', navCabinet: 'Kabinett',
+            btnCopy: 'Link kopieren', btnCopied: 'Kopiert!', btnShare: 'Teilen',
         },
     };
 
@@ -669,6 +689,10 @@
             const cab = document.getElementById('navCabinetLabel');
             if(r) r.textContent = I18N[uiLang].navReview;
             if(cab) cab.textContent = I18N[uiLang].navCabinet;
+            const cp = document.getElementById('copyUrlLabel');
+            const sh = document.getElementById('shareUrlLabel');
+            if(cp) cp.textContent = t('btnCopy');
+            if(sh) sh.textContent = t('btnShare');
             const st = document.getElementById('roomStatusText');
             if(st) st.textContent = t(_curRoomStatusKey);
         }
@@ -913,6 +937,28 @@
         const dot=document.getElementById('roomStatusDot'), txt=document.getElementById('roomStatusText');
         dot.className = 'status-dot ' + (k.includes('Speaking')||k.includes('Listening')?'listening': k.includes('Connected')||k.includes('Connecting')||k.includes('MicOff')?'connected':'');
         txt.textContent = t(k);
+    }
+
+    function copyRoomUrl() {
+        const url = document.getElementById('roomUrl').textContent;
+        if (!url) return;
+        navigator.clipboard.writeText(url).then(() => {
+            const btn = document.getElementById('btnCopyUrl');
+            const lbl = document.getElementById('copyUrlLabel');
+            lbl.textContent = t('btnCopied');
+            btn.classList.add('copied');
+            setTimeout(() => { lbl.textContent = t('btnCopy'); btn.classList.remove('copied'); }, 2000);
+        });
+    }
+
+    function shareRoomUrl() {
+        const url = document.getElementById('roomUrl').textContent;
+        if (!url) return;
+        if (navigator.share) {
+            navigator.share({ title: 'VOX Room', url });
+        } else {
+            copyRoomUrl();
+        }
     }
 
     async function createRoom() {
