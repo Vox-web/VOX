@@ -233,7 +233,7 @@ async def get_status():
 
 @app.get("/api/config")
 async def api_config():
-    """Публичная конфигурация для клиентских страниц."""
+    """Публичная конфигурация для клиентских страниц. BASE_URL из .env."""
     base_url = os.getenv("BASE_URL", "").rstrip("/")
     return JSONResponse({
         "landing_url": f"{base_url}/landing" if base_url else "/landing",
@@ -919,6 +919,131 @@ async def admin_get_users(authorization: Optional[str] = Header(None)):
     return get_all_users()
 
 
+# ===========================================================================
+# PWA — manifest.json, service worker, icons
+# ===========================================================================
+
+@app.get("/manifest.json")
+async def serve_manifest():
+    """
+    Динамический манифест PWA.
+    BASE_URL берётся из .env, поэтому при смене домена ничего менять не нужно.
+    """
+    base_url = os.getenv("BASE_URL", "").rstrip("/")
+    return JSONResponse({
+        "name": "VOX — AI Translation",
+        "short_name": "VOX",
+        "description": "Real-time AI multilingual translation",
+        "start_url": "/host",
+        "display": "standalone",
+        "background_color": "#09080f",
+        "theme_color": "#7c6aff",
+        "orientation": "portrait-primary",
+        "icons": [
+            {
+                "src": f"{base_url}/icons/icon-192.png",
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any maskable"
+            },
+            {
+                "src": f"{base_url}/icons/icon-512.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any maskable"
+            }
+        ],
+        "shortcuts": [
+            {
+                "name": "Solo Translation",
+                "short_name": "Solo",
+                "url": "/host",
+                "icons": [{"src": f"{base_url}/icons/icon-192.png", "sizes": "192x192"}]
+            },
+            {
+                "name": "Create Room",
+                "short_name": "Room",
+                "url": "/host",
+                "icons": [{"src": f"{base_url}/icons/icon-192.png", "sizes": "192x192"}]
+            }
+        ]
+    }, headers={"Content-Type": "application/manifest+json"})
+
+
+@app.get("/sw.js")
+async def serve_sw():
+    """Service Worker для PWA."""
+    sw_path = FRONTEND_DIR / "sw.js"
+    if sw_path.exists():
+        return FileResponse(sw_path, media_type="application/javascript")
+    # Минимальный SW если файл не найден
+    sw_code = """
+self.addEventListener('install', e => self.skipWaiting());
+self.addEventListener('activate', e => clients.claim());
+self.addEventListener('fetch', e => e.respondWith(fetch(e.request)));
+"""
+    from fastapi.responses import Response
+    return Response(content=sw_code, media_type="application/javascript")
+
+
+@app.get("/icons/icon-{size}.png")
+async def serve_icon(size: str):
+    """
+    Иконки PWA.
+    Сначала ищет файл в frontend/icons/icon-{size}.png
+    Если нет — генерирует дефолтную иконку VOX на лету (Pillow).
+    
+    Чтобы использовать свою иконку:
+      Положи файл в  frontend/icons/icon-192.png  и  frontend/icons/icon-512.png
+    """
+    icons_dir = FRONTEND_DIR / "icons"
+    icon_path = icons_dir / f"icon-{size}.png"
+    if icon_path.exists():
+        return FileResponse(icon_path, media_type="image/png")
+
+    # Генерируем дефолтную иконку
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        import io
+
+        px = int(size) if size.isdigit() else 192
+
+        img = Image.new("RGBA", (px, px), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        # Фон — скруглённый фиолетовый прямоугольник
+        radius = px // 5
+        draw.rounded_rectangle([0, 0, px, px], radius=radius,
+                                fill=(124, 106, 255, 255))
+
+        # Блик сверху-слева
+        draw.ellipse([-px//3, -px//3, px//1.5, px//1.5],
+                     fill=(160, 148, 255, 40))
+
+        # Текст VOX
+        font_size = px // 3
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+        except Exception:
+            font = ImageFont.load_default()
+
+        text = "VOX"
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        draw.text(((px - tw) / 2, (px - th) / 2 - bbox[1] // 2),
+                  text, fill=(255, 255, 255, 255), font=font)
+
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        from fastapi.responses import Response
+        return Response(content=buf.read(), media_type="image/png")
+
+    except Exception as e:
+        logger.warning(f"Icon generation failed: {e}")
+        raise HTTPException(status_code=404, detail="Icon not found. Place icon-192.png and icon-512.png in frontend/icons/")
+
+
 # ---------------------------------------------------------------------------
 # Запуск
 # ---------------------------------------------------------------------------
@@ -933,4 +1058,3 @@ if __name__ == "__main__":
         reload=True,
         log_level="info",
     )
-    

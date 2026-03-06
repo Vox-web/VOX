@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙</text></svg>">
     <title>VOX — Real-Time Translation</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="VOX">
+    <meta name="theme-color" content="#7c6aff">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512.png">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html { overflow-x: hidden; }
@@ -203,6 +214,34 @@
             background: var(--accent-dim); border-radius: 20px;
             padding: 3px 9px; border: 1px solid rgba(124,106,255,0.2);
             white-space: nowrap;
+        }
+
+        /* ======== PWA Install button ======== */
+        .pwa-install-btn {
+            display: none; /* показывается JS-ом */
+            align-items: center; justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 13px 20px;
+            border-radius: var(--radius);
+            border: 1.5px dashed var(--accent);
+            background: var(--accent-dim);
+            color: var(--accent);
+            font-size: 14px; font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+        .pwa-install-btn:hover {
+            background: rgba(124,106,255,0.18);
+            border-style: solid;
+        }
+        .pwa-install-btn .pwa-icon { font-size: 20px; }
+        .pwa-installed-note {
+            display: none;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text2);
+            padding: 8px;
         }
 
         /* ======== How-to ======== */
@@ -438,7 +477,15 @@
                 <span class="arrow">▼</span>
             </button>
             <div class="howto-content" id="howtoContent"></div>
-        </div>
+
+            <!-- PWA Install -->
+            <button class="pwa-install-btn" id="pwaInstallBtn" onclick="pwaInstall()">
+                <span class="pwa-icon">📲</span>
+                <span class="i18n" id="pwaInstallLabel">Додати на головний екран</span>
+            </button>
+            <div class="pwa-installed-note" id="pwaInstalledNote">
+                <span class="i18n" id="pwaInstalledLabel">✅ Додаток встановлено</span>
+            </div>
 
         <!-- SCREEN: SOLO -->
         <div class="screen" id="screenSolo">
@@ -627,7 +674,9 @@
             stateSpeaking: 'Говорить', stateMuted: 'Заглушений',
             confirmClose: 'Закрити кімнату? Всі учасники будуть відключені.',
             howtoToggle: 'Як користуватися?',
-            howtoHtml: '<div class="section"><h4>🎧 Solo — Персональний переклад</h4><ol><li>Оберіть вашу мову та мову перекладу</li><li>Натисніть <b>СЛУХАТИ</b> — говоріть у мікрофон</li><li>Через 1-2 сек. почуєте переклад у навушниках</li><li>Натисніть <b>СТОП</b> щоб зупинити</li></ol></div><div class="section"><h4>👥 Кімната — Груповий переклад</h4><ol><li>Натисніть «Створити кімнату» та оберіть мову</li><li>Покажіть QR-код учасникам — вони сканують телефоном</li><li>Кожен учасник обирає свою мову і чує переклад</li><li>Учасник натискає «Хочу сказати» щоб отримати слово</li><li>Ви керуєте: даєте слово, заглушуєте, відключаєте</li></ol></div>',
+howtoHtml: '<div class="section"><h4>🎧 Solo — Персональний переклад</h4><ol><li>Оберіть вашу мову та мову перекладу</li><li>Натисніть <b>СЛУХАТИ</b> — говоріть у мікрофон</li><li>Через 1-2 сек. почуєте переклад у навушниках</li><li>Натисніть <b>СТОП</b> щоб зупинити</li></ol></div><div class="section"><h4>👥 Кімната — Груповий переклад</h4><ol><li>Натисніть «Створити кімнату» та оберіть мову</li><li>Покажіть QR-код учасникам — вони сканують телефоном</li><li>Кожен учасник обирає свою мову і чує переклад</li><li>Учасник натискає «Хочу сказати» щоб отримати слово</li><li>Ви керуєте: даєте слово, заглушуєте, відключаєте</li></ol></div>',
+            pwaInstallLabel: 'Додати на головний екран',
+            pwaInstalledLabel: '✅ Додаток встановлено',
             navReview: 'Відгук', navCabinet: 'Кабінет',
             btnCopy: 'Копіювати', btnCopied: 'Скопійовано!', btnShare: 'Поділитися',
         },
@@ -661,6 +710,8 @@
             confirmClose: 'Close this room? All participants will be disconnected.',
             howtoToggle: 'How does it work?',
             howtoHtml: '<div class="section"><h4>🎧 Solo — Personal Translation</h4><ol><li>Select your language and translation language</li><li>Press <b>LISTEN</b> — speak into the microphone</li><li>In 1-2 sec. you\'ll hear the translation in your earphones</li><li>Press <b>STOP</b> to end</li></ol></div><div class="section"><h4>👥 Room — Group Translation</h4><ol><li>Press "Create Room" and select your language</li><li>Show the QR code to participants — they scan with their phone</li><li>Each participant selects their language and hears translation</li><li>Participant presses "I want to speak" to request the floor</li><li>You control everything: grant speech, mute, disconnect</li></ol></div>',
+            pwaInstallLabel: 'Add to Home Screen',
+            pwaInstalledLabel: '✅ App installed',
             navReview: 'Review', navCabinet: 'Cabinet',
             btnCopy: 'Copy link', btnCopied: 'Copied!', btnShare: 'Share',
         },
@@ -694,6 +745,8 @@
             confirmClose: 'Raum schließen? Alle Teilnehmer werden getrennt.',
             howtoToggle: 'Wie funktioniert es?',
             howtoHtml: '<div class="section"><h4>🎧 Solo — Persönliche Übersetzung</h4><ol><li>Wählen Sie Ihre Sprache und die Übersetzungssprache</li><li>Drücken Sie <b>HÖREN</b> — sprechen Sie ins Mikrofon</li><li>In 1-2 Sek. hören Sie die Übersetzung im Kopfhörer</li><li>Drücken Sie <b>STOPP</b> zum Beenden</li></ol></div><div class="section"><h4>👥 Raum — Gruppenübersetzung</h4><ol><li>Drücken Sie «Raum erstellen» und wählen Sie Ihre Sprache</li><li>Zeigen Sie den QR-Code den Teilnehmern — sie scannen mit dem Handy</li><li>Jeder Teilnehmer wählt seine Sprache und hört die Übersetzung</li><li>Teilnehmer drückt «Ich möchte sprechen» um das Wort zu erhalten</li><li>Sie steuern alles: Wort erteilen, stummschalten, trennen</li></ol></div>',
+            pwaInstallLabel: 'Zum Startbildschirm hinzufügen',
+            pwaInstalledLabel: '✅ App installiert',
             navReview: 'Bewertung', navCabinet: 'Kabinett',
             btnCopy: 'Link kopieren', btnCopied: 'Kopiert!', btnShare: 'Teilen',
         },
@@ -728,6 +781,11 @@
             if(sh) sh.textContent = t('btnShare');
             const st = document.getElementById('roomStatusText');
             if(st) st.textContent = t(_curRoomStatusKey);
+            // PWA labels
+            const pil = document.getElementById('pwaInstallLabel');
+            const pin = document.getElementById('pwaInstalledLabel');
+            if(pil) pil.textContent = t('pwaInstallLabel');
+            if(pin) pin.textContent = t('pwaInstalledLabel');
         }
         if (animate) {
             els.forEach(el => el.classList.add('fading'));
@@ -1147,6 +1205,67 @@
         } catch(e) { sessionStorage.removeItem('vox_host_room'); }
     }
     console.log('VOX v0.3.3 — Deepgram Streaming');
+
+    // =========================================================================
+    // PWA — Service Worker + Install Prompt
+    // =========================================================================
+
+    // 1. Регистрация Service Worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('✅ SW registered', reg.scope))
+                .catch(err => console.log('⚠️ SW failed:', err));
+        });
+    }
+
+    // 2. Перехват события установки (Android Chrome / Edge)
+    let _deferredPrompt = null;
+    const installBtn  = document.getElementById('pwaInstallBtn');
+    const installedNote = document.getElementById('pwaInstalledNote');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        _deferredPrompt = e;
+        // Показываем кнопку только на экране меню
+        if (installBtn) installBtn.style.display = 'flex';
+    });
+
+    window.addEventListener('appinstalled', () => {
+        _deferredPrompt = null;
+        if (installBtn) installBtn.style.display = 'none';
+        if (installedNote) installedNote.style.display = 'block';
+        setTimeout(() => { if (installedNote) installedNote.style.display = 'none'; }, 4000);
+    });
+
+    async function pwaInstall() {
+        if (!_deferredPrompt) {
+            // iOS Safari: показать инструкцию вручную
+            const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+            if (isIOS) {
+                const msgs = {
+                    uk: 'iOS: Натисніть «Поділитися» (📤) → «На екран «Початок»»',
+                    en: 'iOS: Tap Share (📤) → «Add to Home Screen»',
+                    de: 'iOS: «Teilen» (📤) → «Zum Home-Bildschirm»',
+                };
+                alert(msgs[uiLang] || msgs.en);
+            }
+            return;
+        }
+        _deferredPrompt.prompt();
+        const { outcome } = await _deferredPrompt.userChoice;
+        console.log('PWA install outcome:', outcome);
+        _deferredPrompt = null;
+        if (installBtn) installBtn.style.display = 'none';
+    }
+
+    // iOS: показать кнопку с инструкцией (Safari не даёт beforeinstallprompt)
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isInStandalone = window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone;
+    if (isIOS && !isInStandalone && installBtn) {
+        installBtn.style.display = 'flex';
+    }
     </script>
     <!-- ── Review FAB Button ── -->
 <a class="review-fab" href="/review?source=host" target="_blank">
