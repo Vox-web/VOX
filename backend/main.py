@@ -231,6 +231,15 @@ async def get_status():
     })
 
 
+@app.get("/api/config")
+async def api_config():
+    """Публичная конфигурация для клиентских страниц."""
+    base_url = os.getenv("BASE_URL", "").rstrip("/")
+    return JSONResponse({
+        "landing_url": f"{base_url}/landing" if base_url else "/landing",
+    })
+
+
 # ===========================================================================
 # REST: Solo конфигурация
 # ===========================================================================
@@ -924,4 +933,3 @@ if __name__ == "__main__":
         reload=True,
         log_level="info",
     )
-

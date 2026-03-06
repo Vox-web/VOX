@@ -7,6 +7,8 @@
     <title>VOX — Real-Time Translation</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { overflow-x: hidden; }
+        body { overflow-x: hidden; }
 
         :root {
             --bg: #f4f2f7;
@@ -45,14 +47,17 @@
         /* ======== Header ======== */
         .header {
             text-align: center; padding: 12px 0 4px; position: relative;
+            min-height: 44px;
         }
         .header h1 {
-            font-size: 28px; font-weight: 700;
-            color: var(--accent); letter-spacing: 4px;
+            font-size: clamp(20px, 6vw, 28px); font-weight: 700;
+            color: var(--accent); letter-spacing: clamp(2px, 1vw, 4px);
         }
         .header .subtitle {
             font-size: 12px; color: var(--text2); margin-top: 2px;
             transition: opacity 0.25s;
+            padding: 0 80px; /* avoid overlap with abs-positioned lang switcher */
+            word-break: break-word; overflow-wrap: break-word;
         }
 
        /* стало: */
@@ -192,6 +197,13 @@
         .menu-icon { font-size: 32px; flex-shrink: 0; }
         .menu-option h3 { font-size: 17px; margin-bottom: 2px; }
         .menu-option p { font-size: 12px; color: var(--text2); }
+        .mode-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+        .mode-chips span {
+            font-size: 11px; color: var(--accent);
+            background: var(--accent-dim); border-radius: 20px;
+            padding: 3px 9px; border: 1px solid rgba(124,106,255,0.2);
+            white-space: nowrap;
+        }
 
         /* ======== How-to ======== */
         .howto-toggle {
@@ -209,9 +221,9 @@
             font-size: 13px; line-height: 1.7; color: var(--text2);
         }
         .howto-content.open { max-height: 600px; padding: 16px; }
-        .howto-content h4 { color: var(--text); margin: 0 0 8px; font-size: 14px; }
+        .howto-content h4 { color: var(--text); margin: 0 0 8px; font-size: 14px; word-break: break-word; }
         .howto-content ol { margin: 0; padding-left: 20px; }
-        .howto-content ol li { margin-bottom: 6px; }
+        .howto-content ol li { margin-bottom: 6px; word-break: break-word; overflow-wrap: break-word; font-size: 13px; }
         .howto-content .section { margin-bottom: 14px; }
         .howto-content .section:last-child { margin-bottom: 0; }
 
@@ -238,7 +250,7 @@
         /* ======== Room specifics ======== */
         .qr-section { text-align: center; }
         .qr-section img { width: 170px; height: 170px; border-radius: 8px; margin: 6px 0; }
-        .room-code { font-size: 22px; font-weight: 700; color: var(--accent); letter-spacing: 3px; margin: 2px 0; }
+        .room-code { font-size: clamp(16px, 5vw, 22px); font-weight: 700; color: var(--accent); letter-spacing: clamp(1px, 0.5vw, 3px); margin: 2px 0; word-break: break-all; }
         .room-url { font-size: 11px; color: var(--text2); word-break: break-all; }
 
         .room-share-row {
@@ -404,6 +416,10 @@
                 <div>
                     <h3 class="i18n" id="menuSoloTitle">Solo</h3>
                     <p class="i18n" id="menuSoloDesc">Персональний режим — один слухач</p>
+                    <div class="mode-chips" id="menuSoloChips">
+                        <span>🎤 Speak → hear translation</span>
+                        <span>🔒 Private</span>
+                    </div>
                 </div>
             </div>
             <div class="menu-option" onclick="showScreen('screenRoomSetup')">
@@ -411,6 +427,10 @@
                 <div>
                     <h3 class="i18n" id="menuRoomTitle">Кімната</h3>
                     <p class="i18n" id="menuRoomDesc">Мультимовна кімната для груп</p>
+                    <div class="mode-chips" id="menuRoomChips">
+                        <span>📱 QR for guests</span>
+                        <span>🌍 Up to 15 languages</span>
+                    </div>
                 </div>
             </div>
             <button class="howto-toggle" onclick="toggleHowTo()">
@@ -581,6 +601,8 @@
         uk: {
             subtitle: 'Переклад мови в реальному часі',
             menuSoloTitle: 'Solo', menuSoloDesc: 'Персональний режим — один слухач',
+            menuSoloChips: ['🎤 Говоріть → чуєте переклад', '🔒 Приватно'],
+            menuRoomChips: ['📱 QR для гостей', '🌍 До 15 мов'],
             menuRoomTitle: 'Кімната', menuRoomDesc: 'Мультимовна кімната для груп',
             soloLangLabel: 'Мова перекладу:',
             soloSrcLangLabel: 'Ваша мова:',
@@ -612,6 +634,8 @@
         en: {
             subtitle: 'Real-time AI Translation',
             menuSoloTitle: 'Solo', menuSoloDesc: 'Personal mode — one listener, one speaker',
+            menuSoloChips: ['🎤 Speak → hear translation', '🔒 Private'],
+            menuRoomChips: ['📱 QR for guests', '🌍 Up to 15 languages'],
             menuRoomTitle: 'Room', menuRoomDesc: 'Multi-language room for groups',
             soloLangLabel: 'Translate to:',
             soloSrcLangLabel: 'Your language:',
@@ -643,6 +667,8 @@
         de: {
             subtitle: 'KI-Übersetzung in Echtzeit',
             menuSoloTitle: 'Solo', menuSoloDesc: 'Persönlicher Modus — ein Zuhörer',
+            menuSoloChips: ['🎤 Sprechen → Übersetzung hören', '🔒 Privat'],
+            menuRoomChips: ['📱 QR für Gäste', '🌍 Bis zu 15 Sprachen'],
             menuRoomTitle: 'Raum', menuRoomDesc: 'Mehrsprachiger Raum für Gruppen',
             soloLangLabel: 'Übersetzen in:',
             soloSrcLangLabel: 'Ihre Sprache:',
@@ -685,6 +711,13 @@
             soloSetStatus(curSoloKey);
             document.documentElement.lang = uiLang;
             document.getElementById('howtoContent').innerHTML = t('howtoHtml');
+            // Update mode chips
+            const soloChipsEl = document.getElementById('menuSoloChips');
+            const roomChipsEl = document.getElementById('menuRoomChips');
+            const soloChips = I18N[uiLang]?.menuSoloChips;
+            const roomChips = I18N[uiLang]?.menuRoomChips;
+            if (soloChipsEl && soloChips) soloChipsEl.innerHTML = soloChips.map(c=>`<span>${c}</span>`).join('');
+            if (roomChipsEl && roomChips) roomChipsEl.innerHTML = roomChips.map(c=>`<span>${c}</span>`).join('');
             const r = document.getElementById('navReviewLabel');
             const cab = document.getElementById('navCabinetLabel');
             if(r) r.textContent = I18N[uiLang].navReview;

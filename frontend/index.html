@@ -124,6 +124,11 @@ nav{
   }
   #navGuest{gap:5px}
 }
+@media(max-width:380px){
+  .nav-auth-btn{padding:5px 8px;font-size:11px}
+  .lang-btn{padding:3px 5px;font-size:10px}
+  .nav-logo{font-size:16px;letter-spacing:1px}
+}
 
 .nav-user{
   display:none;align-items:center;gap:8px;min-width:0;
@@ -204,6 +209,7 @@ main{position:relative;z-index:1}
   max-width:600px;margin:0 auto 48px;
   font-size:17px;line-height:1.7;
   color:var(--text2);
+  word-break:break-word;overflow-wrap:break-word;
   animation:fadeUp .8s ease .4s both;
 }
 .hero-cta{
@@ -278,6 +284,7 @@ main{position:relative;z-index:1}
 .section-desc{
   color:var(--text2);font-size:17px;line-height:1.7;
   max-width:560px;
+  word-break:break-word;overflow-wrap:break-word;
 }
 
 /* ── FEATURES ── */
@@ -355,6 +362,7 @@ main{position:relative;z-index:1}
 .review-text{
   font-size:15px;line-height:1.7;color:var(--text2);
   margin-bottom:20px;font-style:italic;
+  word-break:break-word;overflow-wrap:break-word;
 }
 .review-author{
   display:flex;align-items:center;gap:12px;
@@ -580,6 +588,21 @@ footer{
   .section{padding:72px 16px}
   .modal{padding:28px 20px}
   .dashboard-card{padding:28px 20px}
+  .btn-primary,.btn-secondary{
+    padding:13px 20px;font-size:15px;width:100%;justify-content:center;
+  }
+  .hero-cta{flex-direction:column;align-items:center;gap:12px;padding:0 8px}
+  .hero-desc{font-size:15px;padding:0 4px}
+  .hero h1{letter-spacing:-1px}
+  .section-title{letter-spacing:-0.5px}
+  .dashboard-actions{flex-direction:column}
+  .dash-btn{width:100%;justify-content:center}
+  .features-grid{grid-template-columns:1fr}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+  .steps{grid-template-columns:1fr;gap:20px}
+  .langs-wrap{gap:8px}
+  .lang-chip{font-size:13px;padding:8px 14px}
+  .footer-inner{flex-direction:column;gap:20px}
 }
 </style>
 </head>

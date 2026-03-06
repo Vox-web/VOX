@@ -7,6 +7,8 @@
     <title>VOX — Room</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { overflow-x: hidden; }
+        body { overflow-x: hidden; }
 
         :root {
             --bg: #f4f2f7;
@@ -46,10 +48,10 @@
 
         .header { text-align: center; padding: 12px 0 4px; }
         .header h1 {
-            font-size: 28px; font-weight: 700;
-            color: var(--accent); letter-spacing: 4px;
+            font-size: clamp(20px, 6vw, 28px); font-weight: 700;
+            color: var(--accent); letter-spacing: clamp(2px, 1vw, 4px);
         }
-        .header .subtitle { font-size: 12px; color: var(--text2); margin-top: 2px; }
+        .header .subtitle { font-size: 12px; color: var(--text2); margin-top: 2px; word-break: break-word; }
 
         .screen { display: none; flex-direction: column; gap: 14px; }
         .screen.active { display: flex; }
@@ -198,6 +200,28 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        /* ======== Guest join hint ======== */
+        .join-hint {
+            background: var(--accent-dim);
+            border: 1px solid rgba(124,106,255,0.25);
+            border-radius: var(--radius);
+            padding: 14px 16px;
+        }
+        .join-hint-title {
+            font-size: 13px; font-weight: 700; color: var(--accent);
+            margin-bottom: 10px;
+        }
+        .join-hint ol {
+            margin: 0; padding-left: 18px;
+        }
+        .join-hint ol li {
+            font-size: 13px; color: var(--text2);
+            margin-bottom: 6px; line-height: 1.4;
+            word-break: break-word; overflow-wrap: break-word;
+        }
+        .join-hint ol li:last-child { margin-bottom: 0; }
+        .join-hint ol li b { color: var(--text); }
+
         /* ======== FIXED TOP NAV ======== */
         .top-nav {
             position: fixed; top: 0; left: 0; right: 0; z-index: 300;
@@ -258,6 +282,9 @@
         <!-- SCREEN 1: Join -->
         <!-- ============================================================ -->
         <div class="screen active" id="screenJoin">
+            <!-- Quick-start hint (filled by i18n) -->
+            <div class="join-hint" id="joinHint"></div>
+
             <div class="card">
                 <div class="card-label" id="joinTitle">Join Room</div>
 
@@ -356,10 +383,24 @@
     <div class="overlay" id="overlayKicked">
         <h2>❌</h2>
         <p id="kickedMsg">You have been removed from the room</p>
+        <a id="kickedLandingLink" href="/landing" style="
+            margin-top:12px;display:inline-flex;align-items:center;gap:6px;
+            background:var(--accent);color:#fff;text-decoration:none;
+            font-family:-apple-system,sans-serif;font-size:14px;font-weight:600;
+            padding:10px 20px;border-radius:10px;
+            box-shadow:0 4px 16px rgba(124,106,255,0.35);
+        " id="goLandingKicked">← VOX</a>
     </div>
     <div class="overlay" id="overlayClosed">
         <h2>🔴</h2>
         <p id="closedMsg">The room has been closed</p>
+        <a href="/landing" style="
+            margin-top:12px;display:inline-flex;align-items:center;gap:6px;
+            background:var(--accent);color:#fff;text-decoration:none;
+            font-family:-apple-system,sans-serif;font-size:14px;font-weight:600;
+            padding:10px 20px;border-radius:10px;
+            box-shadow:0 4px 16px rgba(124,106,255,0.35);
+        " id="goLandingClosed">← VOX</a>
     </div>
     
 
@@ -370,6 +411,8 @@
     const GUEST_I18N = {
         en: {
             joinTitle: 'Join Room', langLabel: 'Your language:', btnJoin: 'Join',
+            joinHintTitle: '👋 Welcome! Here\'s what to do:',
+            joinHintSteps: ['Select <b>your language</b> from the dropdown', 'Enter your name (optional)', 'Tap <b>Join</b> — allow microphone access when asked', 'You\'ll hear translations in your language automatically', 'To speak: tap <b>"I want to speak"</b> and wait for the host to approve'],
             statusConnected: 'Connected', statusDisconnected: 'Disconnected',
             handRaise: '🖐 I want to speak', handWaiting: '⏳ Waiting for approval...',
             speakNow: '🎤 SPEAK NOW', btnDone: '✅ Done',
@@ -385,6 +428,8 @@
         },
         uk: {
             joinTitle: 'Приєднатися', langLabel: 'Ваша мова:', btnJoin: 'Увійти',
+            joinHintTitle: '👋 Ласкаво просимо! Що робити:',
+            joinHintSteps: ['Оберіть <b>свою мову</b> зі списку', "Введіть ім'я (необов'язково)", 'Натисніть <b>Увійти</b> — дозвольте доступ до мікрофона', 'Ви автоматично будете чути переклад на свою мову', 'Щоб говорити: натисніть <b>«Хочу сказати»</b> і чекайте дозволу'],
             statusConnected: 'Підключено', statusDisconnected: 'Відключено',
             handRaise: '🖐 Хочу сказати', handWaiting: '⏳ Очікую дозволу...',
             speakNow: '🎤 ГОВОРІТЬ', btnDone: '✅ Готово',
@@ -400,6 +445,8 @@
         },
         de: {
             joinTitle: 'Raum beitreten', langLabel: 'Ihre Sprache:', btnJoin: 'Beitreten',
+            joinHintTitle: '👋 Willkommen! So geht\'s:',
+            joinHintSteps: ['Wählen Sie <b>Ihre Sprache</b> aus der Liste', 'Geben Sie Ihren Namen ein (optional)', 'Tippen Sie auf <b>Beitreten</b> — erlauben Sie den Mikrofonzugriff', 'Sie hören die Übersetzung automatisch in Ihrer Sprache', 'Um zu sprechen: tippen Sie auf <b>„Ich möchte sprechen"</b> und warten Sie'],
             statusConnected: 'Verbunden', statusDisconnected: 'Getrennt',
             handRaise: '🖐 Ich möchte sprechen', handWaiting: '⏳ Warte auf Genehmigung...',
             speakNow: '🎤 SPRECHEN SIE', btnDone: '✅ Fertig',
@@ -415,6 +462,8 @@
         },
         ru: {
             joinTitle: 'Присоединиться', langLabel: 'Ваш язык:', btnJoin: 'Войти',
+            joinHintTitle: '👋 Добро пожаловать! Что делать:',
+            joinHintSteps: ['Выберите <b>свой язык</b> из списка', 'Введите имя (необязательно)', 'Нажмите <b>Войти</b> — разрешите доступ к микрофону', 'Вы будете автоматически слышать перевод на свой язык', 'Чтобы говорить: нажмите <b>«Хочу сказать»</b> и ждите разрешения'],
             statusConnected: 'Подключено', statusDisconnected: 'Отключено',
             handRaise: '🖐 Хочу сказать', handWaiting: '⏳ Ожидаю разрешения...',
             speakNow: '🎤 ГОВОРИТЕ', btnDone: '✅ Готово',
@@ -430,6 +479,8 @@
         },
         pl: {
             joinTitle: 'Dołącz do pokoju', langLabel: 'Twój język:', btnJoin: 'Dołącz',
+            joinHintTitle: '👋 Witaj! Co robić:',
+            joinHintSteps: ['Wybierz <b>swój język</b> z listy', 'Wpisz imię (opcjonalnie)', 'Kliknij <b>Dołącz</b> — zezwól na dostęp do mikrofonu', 'Będziesz automatycznie słyszeć tłumaczenie w swoim języku', 'Aby mówić: kliknij <b>„Chcę mówić"</b> i czekaj na zgodę'],
             statusConnected: 'Połączono', statusDisconnected: 'Rozłączono',
             handRaise: '🖐 Chcę mówić', handWaiting: '⏳ Czekam na zgodę...',
             speakNow: '🎤 MÓWI TERAZ', btnDone: '✅ Gotowe',
@@ -445,6 +496,8 @@
         },
         fr: {
             joinTitle: 'Rejoindre la salle', langLabel: 'Votre langue :', btnJoin: 'Rejoindre',
+            joinHintTitle: '👋 Bienvenue ! Que faire :',
+            joinHintSteps: ['Choisissez <b>votre langue</b> dans la liste', 'Entrez votre nom (optionnel)', 'Appuyez sur <b>Rejoindre</b> — autorisez le microphone', 'Vous entendrez la traduction automatiquement', 'Pour parler : appuyez sur <b>«Je veux parler»</b>'],
             statusConnected: 'Connecté', statusDisconnected: 'Déconnecté',
             handRaise: '🖐 Je veux parler', handWaiting: '⏳ En attente...',
             speakNow: '🎤 PARLEZ', btnDone: '✅ Terminé',
@@ -457,6 +510,8 @@
         },
         zh: {
             joinTitle: '加入房间', langLabel: '您的语言：', btnJoin: '加入',
+            joinHintTitle: '👋 欢迎！操作步骤：',
+            joinHintSteps: ['从列表中选择<b>您的语言</b>', '输入您的姓名（可选）', '点击<b>加入</b>并允许麦克风访问', '您将自动听到翻译', '发言请点击<b>"我想发言"</b>并等待批准'],
             statusConnected: '已连接', statusDisconnected: '已断开',
             handRaise: '🖐 我想发言', handWaiting: '⏳ 等待批准...',
             speakNow: '🎤 请说', btnDone: '✅ 完成',
@@ -469,6 +524,8 @@
         },
         es: {
             joinTitle: 'Unirse a la sala', langLabel: 'Tu idioma:', btnJoin: 'Unirse',
+            joinHintTitle: '👋 ¡Bienvenido! Qué hacer:',
+            joinHintSteps: ['Selecciona <b>tu idioma</b> de la lista', 'Escribe tu nombre (opcional)', 'Toca <b>Unirse</b> y permite el micrófono', 'Escucharás la traducción automáticamente', 'Para hablar: toca <b>"Quiero hablar"</b>'],
             statusConnected: 'Conectado', statusDisconnected: 'Desconectado',
             handRaise: '🖐 Quiero hablar', handWaiting: '⏳ Esperando aprobación...',
             speakNow: '🎤 HABLE AHORA', btnDone: '✅ Listo',
@@ -481,6 +538,8 @@
         },
         it: {
             joinTitle: 'Entra nella stanza', langLabel: 'La tua lingua:', btnJoin: 'Entra',
+            joinHintTitle: '👋 Benvenuto! Cosa fare:',
+            joinHintSteps: ['Seleziona <b>la tua lingua</b>', 'Inserisci il tuo nome (opzionale)', 'Tocca <b>Entra</b> e consenti il microfono', 'Sentirai la traduzione automaticamente', 'Per parlare: tocca <b>"Voglio parlare"</b>'],
             statusConnected: 'Connesso', statusDisconnected: 'Disconnesso',
             handRaise: '🖐 Voglio parlare', handWaiting: '⏳ In attesa...',
             speakNow: '🎤 PARLA ORA', btnDone: '✅ Fatto',
@@ -493,6 +552,8 @@
         },
         pt: {
             joinTitle: 'Entrar na sala', langLabel: 'Seu idioma:', btnJoin: 'Entrar',
+            joinHintTitle: '👋 Bem-vindo! O que fazer:',
+            joinHintSteps: ['Selecione <b>seu idioma</b> da lista', 'Digite seu nome (opcional)', 'Toque em <b>Entrar</b> e permita o microfone', 'Você ouvirá a tradução automaticamente', 'Para falar: toque em <b>"Quero falar"</b>'],
             statusConnected: 'Conectado', statusDisconnected: 'Desconectado',
             handRaise: '🖐 Quero falar', handWaiting: '⏳ Aguardando aprovação...',
             speakNow: '🎤 FALE AGORA', btnDone: '✅ Pronto',
@@ -505,6 +566,8 @@
         },
         ja: {
             joinTitle: 'ルームに参加', langLabel: '言語：', btnJoin: '参加',
+            joinHintTitle: '👋 ようこそ！操作手順：',
+            joinHintSteps: ['リストから<b>言語</b>を選択', '名前を入力（任意）', '<b>参加</b>をタップしてマイクを許可', '自動的に翻訳が聞こえます', '発言するには<b>「発言したい」</b>をタップして承認を待つ'],
             statusConnected: '接続済み', statusDisconnected: '切断',
             handRaise: '🖐 発言したい', handWaiting: '⏳ 承認待ち...',
             speakNow: '🎤 話してください', btnDone: '✅ 完了',
@@ -517,6 +580,8 @@
         },
         ko: {
             joinTitle: '방 참가', langLabel: '언어:', btnJoin: '참가',
+            joinHintTitle: '👋 환영합니다! 사용 방법:',
+            joinHintSteps: ['목록에서 <b>언어</b> 선택', '이름 입력 (선택사항)', '<b>참가</b> 탭 후 마이크 허용', '번역이 자동으로 들립니다', '발언하려면 <b>"발언하고 싶습니다"</b> 탭 후 승인 대기'],
             statusConnected: '연결됨', statusDisconnected: '연결 끊김',
             handRaise: '🖐 발언하고 싶습니다', handWaiting: '⏳ 승인 대기 중...',
             speakNow: '🎤 말씀하세요', btnDone: '✅ 완료',
@@ -529,6 +594,8 @@
         },
         ar: {
             joinTitle: 'انضم إلى الغرفة', langLabel: 'لغتك:', btnJoin: 'انضم',
+            joinHintTitle: '👋 مرحباً! ماذا تفعل:',
+            joinHintSteps: ['اختر <b>لغتك</b> من القائمة', 'أدخل اسمك (اختياري)', 'اضغط <b>انضم</b> وأذن للميكروفون', 'ستسمع الترجمة تلقائياً', 'للتحدث: اضغط <b>"أريد التحدث"</b>'],
             statusConnected: 'متصل', statusDisconnected: 'غير متصل',
             handRaise: '🖐 أريد التحدث', handWaiting: '⏳ في انتظار الموافقة...',
             speakNow: '🎤 تحدث الآن', btnDone: '✅ انتهيت',
@@ -541,6 +608,8 @@
         },
         tr: {
             joinTitle: 'Odaya katıl', langLabel: 'Diliniz:', btnJoin: 'Katıl',
+            joinHintTitle: '👋 Hoş geldiniz! Ne yapmalı:',
+            joinHintSteps: ['Listeden <b>dilinizi</b> seçin', 'Adınızı girin (isteğe bağlı)', '<b>Katıl</b> tuşuna basın ve mikrofona izin verin', 'Çeviriyi otomatik olarak duyacaksınız', 'Konuşmak için: <b>"Konuşmak istiyorum"</b> tuşuna basın'],
             statusConnected: 'Bağlandı', statusDisconnected: 'Bağlantı kesildi',
             handRaise: '🖐 Konuşmak istiyorum', handWaiting: '⏳ Onay bekleniyor...',
             speakNow: '🎤 KONUŞUN', btnDone: '✅ Bitti',
@@ -553,6 +622,8 @@
         },
         hi: {
             joinTitle: 'कमरे में शामिल हों', langLabel: 'आपकी भाषा:', btnJoin: 'शामिल हों',
+            joinHintTitle: '👋 स्वागत है! क्या करें:',
+            joinHintSteps: ['सूची से <b>अपनी भाषा</b> चुनें', 'नाम दर्ज करें (वैकल्पिक)', '<b>शामिल हों</b> दबाएं और माइक की अनुमति दें', 'आपको स्वचालित रूप से अनुवाद सुनाई देगा', 'बोलने के लिए: <b>"मैं बोलना चाहता हूँ"</b> दबाएं'],
             statusConnected: 'जुड़ा हुआ', statusDisconnected: 'डिस्कनेक्ट',
             handRaise: '🖐 मैं बोलना चाहता हूँ', handWaiting: '⏳ अनुमति की प्रतीक्षा...',
             speakNow: '🎤 अब बोलिए', btnDone: '✅ हो गया',
@@ -598,6 +669,16 @@
     const pathParts = window.location.pathname.split('/');
     roomId = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
     document.getElementById('roomLabel').textContent = `Room: ${roomId.toUpperCase()}`;
+
+    // Load landing URL from server config (uses BASE_URL from .env)
+    (async () => {
+        try {
+            const cfg = await fetch('/api/config').then(r => r.json());
+            const url = cfg.landing_url || '/landing';
+            const links = ['goLandingKicked', 'goLandingClosed'];
+            links.forEach(id => { const el = document.getElementById(id); if(el) el.href = url; });
+        } catch(e) {}
+    })();
     // Восстановление сессии после обновления страницы
     const savedSession = sessionStorage.getItem(`vox_guest_${roomId}`);
     if (savedSession) {
@@ -642,6 +723,17 @@
         document.getElementById('kickedMsg').textContent = t('kickedMsg');
         document.getElementById('closedMsg').textContent = t('closedMsg');
         updateHandButton();
+        // Render join hint
+        const hintEl = document.getElementById('joinHint');
+        if (hintEl) {
+            const title = t('joinHintTitle');
+            const steps = t('joinHintSteps');
+            if (Array.isArray(steps)) {
+                hintEl.innerHTML = `<div class="join-hint-title">${title}</div><ol>${steps.map(s=>`<li>${s}</li>`).join('')}</ol>`;
+            } else {
+                hintEl.style.display = 'none';
+            }
+        }
     }
 
     // Update i18n when language changes on join screen
