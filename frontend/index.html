@@ -604,7 +604,10 @@ footer{
     <div id="navUser" class="nav-user" style="position:relative">
       <span class="nav-user-name" id="navUserName"></span>
       <div class="nav-user-avatar" id="navAvatar" onclick="event.stopPropagation();toggleProfilePanel()"></div>
-      <div id="profilePanel" style="display:none;position:absolute;top:46px;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:20px;width:280px;z-index:200;box-shadow:0 16px 48px rgba(0,0,0,.5)">
+    </div>
+  </div>
+  <!-- Profile panel — вынесен за пределы nav-right чтобы overflow:hidden не обрезал -->
+  <div id="profilePanel" style="display:none;position:fixed;top:70px;right:16px;background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:20px;width:280px;z-index:200;box-shadow:0 16px 48px rgba(0,0,0,.5)">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">
           <div style="width:44px;height:44px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:18px;color:#fff;flex-shrink:0" id="profileAvatarBig"></div>
           <div>
@@ -628,8 +631,6 @@ footer{
         </div>
         <button onclick="alert(t('prof_billing_soon'))" style="width:100%;padding:11px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px;box-shadow:0 4px 16px var(--accent-glow)" data-i18n="prof_topup">💳 Поповнити баланс</button>
         <button onclick="logout();toggleProfilePanel()" style="width:100%;padding:9px;border-radius:10px;border:1px solid var(--border2);background:transparent;color:var(--text3);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer" data-i18n="nav_logout">Вийти</button>
-      </div>
-    </div>
   </div>
 </nav>
 
