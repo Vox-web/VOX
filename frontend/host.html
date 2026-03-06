@@ -5,21 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙</text></svg>">
     <title>VOX — Real-Time Translation</title>
-
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="VOX">
     <meta name="theme-color" content="#7c6aff">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
-    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png">
-    <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512.png">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        html { overflow-x: hidden; }
-        body { overflow-x: hidden; }
 
         :root {
             --bg: #f4f2f7;
@@ -58,17 +52,14 @@
         /* ======== Header ======== */
         .header {
             text-align: center; padding: 12px 0 4px; position: relative;
-            min-height: 44px;
         }
         .header h1 {
-            font-size: clamp(20px, 6vw, 28px); font-weight: 700;
-            color: var(--accent); letter-spacing: clamp(2px, 1vw, 4px);
+            font-size: 28px; font-weight: 700;
+            color: var(--accent); letter-spacing: 4px;
         }
         .header .subtitle {
             font-size: 12px; color: var(--text2); margin-top: 2px;
             transition: opacity 0.25s;
-            padding: 0 80px; /* avoid overlap with abs-positioned lang switcher */
-            word-break: break-word; overflow-wrap: break-word;
         }
 
        /* стало: */
@@ -208,41 +199,6 @@
         .menu-icon { font-size: 32px; flex-shrink: 0; }
         .menu-option h3 { font-size: 17px; margin-bottom: 2px; }
         .menu-option p { font-size: 12px; color: var(--text2); }
-        .mode-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
-        .mode-chips span {
-            font-size: 11px; color: var(--accent);
-            background: var(--accent-dim); border-radius: 20px;
-            padding: 3px 9px; border: 1px solid rgba(124,106,255,0.2);
-            white-space: nowrap;
-        }
-
-        /* ======== PWA Install button ======== */
-        .pwa-install-btn {
-            display: none; /* показывается JS-ом */
-            align-items: center; justify-content: center;
-            gap: 10px;
-            width: 100%;
-            padding: 13px 20px;
-            border-radius: var(--radius);
-            border: 1.5px dashed var(--accent);
-            background: var(--accent-dim);
-            color: var(--accent);
-            font-size: 14px; font-weight: 600;
-            cursor: pointer;
-            transition: all 0.25s;
-        }
-        .pwa-install-btn:hover {
-            background: rgba(124,106,255,0.18);
-            border-style: solid;
-        }
-        .pwa-install-btn .pwa-icon { font-size: 20px; }
-        .pwa-installed-note {
-            display: none;
-            text-align: center;
-            font-size: 12px;
-            color: var(--text2);
-            padding: 8px;
-        }
 
         /* ======== How-to ======== */
         .howto-toggle {
@@ -260,10 +216,16 @@
             font-size: 13px; line-height: 1.7; color: var(--text2);
         }
         .howto-content.open { max-height: 600px; padding: 16px; }
-        .howto-content h4 { color: var(--text); margin: 0 0 8px; font-size: 14px; word-break: break-word; }
+        .howto-content h4 { color: var(--text); margin: 0 0 8px; font-size: 14px; }
         .howto-content ol { margin: 0; padding-left: 20px; }
-        .howto-content ol li { margin-bottom: 6px; word-break: break-word; overflow-wrap: break-word; font-size: 13px; }
+        .howto-content ol li { margin-bottom: 6px; }
         .howto-content .section { margin-bottom: 14px; }
+        /* PWA Install */
+        .pwa-btn { display: none; width: 100%; padding: 13px; border-radius: 10px;
+            border: 1.5px dashed var(--accent); background: var(--accent-dim);
+            color: var(--accent); font-size: 14px; font-weight: 600; cursor: pointer;
+            transition: all .2s; }
+        .pwa-btn:hover { background: rgba(124,106,255,.2); border-style: solid; }
         .howto-content .section:last-child { margin-bottom: 0; }
 
         /* ======== Solo big btn ======== */
@@ -289,7 +251,7 @@
         /* ======== Room specifics ======== */
         .qr-section { text-align: center; }
         .qr-section img { width: 170px; height: 170px; border-radius: 8px; margin: 6px 0; }
-        .room-code { font-size: clamp(16px, 5vw, 22px); font-weight: 700; color: var(--accent); letter-spacing: clamp(1px, 0.5vw, 3px); margin: 2px 0; word-break: break-all; }
+        .room-code { font-size: 22px; font-weight: 700; color: var(--accent); letter-spacing: 3px; margin: 2px 0; }
         .room-url { font-size: 11px; color: var(--text2); word-break: break-all; }
 
         .room-share-row {
@@ -455,10 +417,6 @@
                 <div>
                     <h3 class="i18n" id="menuSoloTitle">Solo</h3>
                     <p class="i18n" id="menuSoloDesc">Персональний режим — один слухач</p>
-                    <div class="mode-chips" id="menuSoloChips">
-                        <span>🎤 Speak → hear translation</span>
-                        <span>🔒 Private</span>
-                    </div>
                 </div>
             </div>
             <div class="menu-option" onclick="showScreen('screenRoomSetup')">
@@ -466,10 +424,6 @@
                 <div>
                     <h3 class="i18n" id="menuRoomTitle">Кімната</h3>
                     <p class="i18n" id="menuRoomDesc">Мультимовна кімната для груп</p>
-                    <div class="mode-chips" id="menuRoomChips">
-                        <span>📱 QR for guests</span>
-                        <span>🌍 Up to 15 languages</span>
-                    </div>
                 </div>
             </div>
             <button class="howto-toggle" onclick="toggleHowTo()">
@@ -477,15 +431,8 @@
                 <span class="arrow">▼</span>
             </button>
             <div class="howto-content" id="howtoContent"></div>
-
-            <!-- PWA Install -->
-            <button class="pwa-install-btn" id="pwaInstallBtn" onclick="pwaInstall()">
-                <span class="pwa-icon">📲</span>
-                <span class="i18n" id="pwaInstallLabel">Додати на головний екран</span>
-            </button>
-            <div class="pwa-installed-note" id="pwaInstalledNote">
-                <span class="i18n" id="pwaInstalledLabel">✅ Додаток встановлено</span>
-            </div>
+            <button class="pwa-btn" id="pwaInstallBtn" onclick="pwaInstall()">📲 <span id="pwaInstallLabel">Додати на головний екран</span></button>
+        </div>
 
         <!-- SCREEN: SOLO -->
         <div class="screen" id="screenSolo">
@@ -648,8 +595,6 @@
         uk: {
             subtitle: 'Переклад мови в реальному часі',
             menuSoloTitle: 'Solo', menuSoloDesc: 'Персональний режим — один слухач',
-            menuSoloChips: ['🎤 Говоріть → чуєте переклад', '🔒 Приватно'],
-            menuRoomChips: ['📱 QR для гостей', '🌍 До 15 мов'],
             menuRoomTitle: 'Кімната', menuRoomDesc: 'Мультимовна кімната для груп',
             soloLangLabel: 'Мова перекладу:',
             soloSrcLangLabel: 'Ваша мова:',
@@ -674,17 +619,13 @@
             stateSpeaking: 'Говорить', stateMuted: 'Заглушений',
             confirmClose: 'Закрити кімнату? Всі учасники будуть відключені.',
             howtoToggle: 'Як користуватися?',
-howtoHtml: '<div class="section"><h4>🎧 Solo — Персональний переклад</h4><ol><li>Оберіть вашу мову та мову перекладу</li><li>Натисніть <b>СЛУХАТИ</b> — говоріть у мікрофон</li><li>Через 1-2 сек. почуєте переклад у навушниках</li><li>Натисніть <b>СТОП</b> щоб зупинити</li></ol></div><div class="section"><h4>👥 Кімната — Груповий переклад</h4><ol><li>Натисніть «Створити кімнату» та оберіть мову</li><li>Покажіть QR-код учасникам — вони сканують телефоном</li><li>Кожен учасник обирає свою мову і чує переклад</li><li>Учасник натискає «Хочу сказати» щоб отримати слово</li><li>Ви керуєте: даєте слово, заглушуєте, відключаєте</li></ol></div>',
-            pwaInstallLabel: 'Додати на головний екран',
-            pwaInstalledLabel: '✅ Додаток встановлено',
+            howtoHtml: '<div class="section"><h4>🎧 Solo — Персональний переклад</h4><ol><li>Оберіть вашу мову та мову перекладу</li><li>Натисніть <b>СЛУХАТИ</b> — говоріть у мікрофон</li><li>Через 1-2 сек. почуєте переклад у навушниках</li><li>Натисніть <b>СТОП</b> щоб зупинити</li></ol></div><div class="section"><h4>👥 Кімната — Груповий переклад</h4><ol><li>Натисніть «Створити кімнату» та оберіть мову</li><li>Покажіть QR-код учасникам — вони сканують телефоном</li><li>Кожен учасник обирає свою мову і чує переклад</li><li>Учасник натискає «Хочу сказати» щоб отримати слово</li><li>Ви керуєте: даєте слово, заглушуєте, відключаєте</li></ol></div>',
             navReview: 'Відгук', navCabinet: 'Кабінет',
             btnCopy: 'Копіювати', btnCopied: 'Скопійовано!', btnShare: 'Поділитися',
         },
         en: {
             subtitle: 'Real-time AI Translation',
             menuSoloTitle: 'Solo', menuSoloDesc: 'Personal mode — one listener, one speaker',
-            menuSoloChips: ['🎤 Speak → hear translation', '🔒 Private'],
-            menuRoomChips: ['📱 QR for guests', '🌍 Up to 15 languages'],
             menuRoomTitle: 'Room', menuRoomDesc: 'Multi-language room for groups',
             soloLangLabel: 'Translate to:',
             soloSrcLangLabel: 'Your language:',
@@ -710,16 +651,12 @@ howtoHtml: '<div class="section"><h4>🎧 Solo — Персональний пе
             confirmClose: 'Close this room? All participants will be disconnected.',
             howtoToggle: 'How does it work?',
             howtoHtml: '<div class="section"><h4>🎧 Solo — Personal Translation</h4><ol><li>Select your language and translation language</li><li>Press <b>LISTEN</b> — speak into the microphone</li><li>In 1-2 sec. you\'ll hear the translation in your earphones</li><li>Press <b>STOP</b> to end</li></ol></div><div class="section"><h4>👥 Room — Group Translation</h4><ol><li>Press "Create Room" and select your language</li><li>Show the QR code to participants — they scan with their phone</li><li>Each participant selects their language and hears translation</li><li>Participant presses "I want to speak" to request the floor</li><li>You control everything: grant speech, mute, disconnect</li></ol></div>',
-            pwaInstallLabel: 'Add to Home Screen',
-            pwaInstalledLabel: '✅ App installed',
             navReview: 'Review', navCabinet: 'Cabinet',
             btnCopy: 'Copy link', btnCopied: 'Copied!', btnShare: 'Share',
         },
         de: {
             subtitle: 'KI-Übersetzung in Echtzeit',
             menuSoloTitle: 'Solo', menuSoloDesc: 'Persönlicher Modus — ein Zuhörer',
-            menuSoloChips: ['🎤 Sprechen → Übersetzung hören', '🔒 Privat'],
-            menuRoomChips: ['📱 QR für Gäste', '🌍 Bis zu 15 Sprachen'],
             menuRoomTitle: 'Raum', menuRoomDesc: 'Mehrsprachiger Raum für Gruppen',
             soloLangLabel: 'Übersetzen in:',
             soloSrcLangLabel: 'Ihre Sprache:',
@@ -745,8 +682,6 @@ howtoHtml: '<div class="section"><h4>🎧 Solo — Персональний пе
             confirmClose: 'Raum schließen? Alle Teilnehmer werden getrennt.',
             howtoToggle: 'Wie funktioniert es?',
             howtoHtml: '<div class="section"><h4>🎧 Solo — Persönliche Übersetzung</h4><ol><li>Wählen Sie Ihre Sprache und die Übersetzungssprache</li><li>Drücken Sie <b>HÖREN</b> — sprechen Sie ins Mikrofon</li><li>In 1-2 Sek. hören Sie die Übersetzung im Kopfhörer</li><li>Drücken Sie <b>STOPP</b> zum Beenden</li></ol></div><div class="section"><h4>👥 Raum — Gruppenübersetzung</h4><ol><li>Drücken Sie «Raum erstellen» und wählen Sie Ihre Sprache</li><li>Zeigen Sie den QR-Code den Teilnehmern — sie scannen mit dem Handy</li><li>Jeder Teilnehmer wählt seine Sprache und hört die Übersetzung</li><li>Teilnehmer drückt «Ich möchte sprechen» um das Wort zu erhalten</li><li>Sie steuern alles: Wort erteilen, stummschalten, trennen</li></ol></div>',
-            pwaInstallLabel: 'Zum Startbildschirm hinzufügen',
-            pwaInstalledLabel: '✅ App installiert',
             navReview: 'Bewertung', navCabinet: 'Kabinett',
             btnCopy: 'Link kopieren', btnCopied: 'Kopiert!', btnShare: 'Teilen',
         },
@@ -764,13 +699,6 @@ howtoHtml: '<div class="section"><h4>🎧 Solo — Персональний пе
             soloSetStatus(curSoloKey);
             document.documentElement.lang = uiLang;
             document.getElementById('howtoContent').innerHTML = t('howtoHtml');
-            // Update mode chips
-            const soloChipsEl = document.getElementById('menuSoloChips');
-            const roomChipsEl = document.getElementById('menuRoomChips');
-            const soloChips = I18N[uiLang]?.menuSoloChips;
-            const roomChips = I18N[uiLang]?.menuRoomChips;
-            if (soloChipsEl && soloChips) soloChipsEl.innerHTML = soloChips.map(c=>`<span>${c}</span>`).join('');
-            if (roomChipsEl && roomChips) roomChipsEl.innerHTML = roomChips.map(c=>`<span>${c}</span>`).join('');
             const r = document.getElementById('navReviewLabel');
             const cab = document.getElementById('navCabinetLabel');
             if(r) r.textContent = I18N[uiLang].navReview;
@@ -781,11 +709,6 @@ howtoHtml: '<div class="section"><h4>🎧 Solo — Персональний пе
             if(sh) sh.textContent = t('btnShare');
             const st = document.getElementById('roomStatusText');
             if(st) st.textContent = t(_curRoomStatusKey);
-            // PWA labels
-            const pil = document.getElementById('pwaInstallLabel');
-            const pin = document.getElementById('pwaInstalledLabel');
-            if(pil) pil.textContent = t('pwaInstallLabel');
-            if(pin) pin.textContent = t('pwaInstalledLabel');
         }
         if (animate) {
             els.forEach(el => el.classList.add('fading'));
@@ -1204,68 +1127,34 @@ howtoHtml: '<div class="section"><h4>🎧 Solo — Персональний пе
             });
         } catch(e) { sessionStorage.removeItem('vox_host_room'); }
     }
-    console.log('VOX v0.3.3 — Deepgram Streaming');
-
-    // =========================================================================
-    // PWA — Service Worker + Install Prompt
-    // =========================================================================
-
-    // 1. Регистрация Service Worker
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('✅ SW registered', reg.scope))
-                .catch(err => console.log('⚠️ SW failed:', err));
-        });
-    }
-
-    // 2. Перехват события установки (Android Chrome / Edge)
+    // PWA
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
     let _deferredPrompt = null;
-    const installBtn  = document.getElementById('pwaInstallBtn');
-    const installedNote = document.getElementById('pwaInstalledNote');
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        _deferredPrompt = e;
-        // Показываем кнопку только на экране меню
-        if (installBtn) installBtn.style.display = 'flex';
+    const _pwaBtn = document.getElementById('pwaInstallBtn');
+    const _pwaLabels = { uk:'Додати на головний екран', en:'Add to Home Screen', de:'Zum Startbildschirm hinzufügen' };
+    window.addEventListener('beforeinstallprompt', e => {
+        e.preventDefault(); _deferredPrompt = e;
+        if (_pwaBtn) { _pwaBtn.style.display = 'block'; }
     });
-
     window.addEventListener('appinstalled', () => {
         _deferredPrompt = null;
-        if (installBtn) installBtn.style.display = 'none';
-        if (installedNote) installedNote.style.display = 'block';
-        setTimeout(() => { if (installedNote) installedNote.style.display = 'none'; }, 4000);
+        if (_pwaBtn) _pwaBtn.style.display = 'none';
     });
-
     async function pwaInstall() {
-        if (!_deferredPrompt) {
-            // iOS Safari: показать инструкцию вручную
-            const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-            if (isIOS) {
-                const msgs = {
-                    uk: 'iOS: Натисніть «Поділитися» (📤) → «На екран «Початок»»',
-                    en: 'iOS: Tap Share (📤) → «Add to Home Screen»',
-                    de: 'iOS: «Teilen» (📤) → «Zum Home-Bildschirm»',
-                };
-                alert(msgs[uiLang] || msgs.en);
-            }
-            return;
+        if (_deferredPrompt) {
+            _deferredPrompt.prompt();
+            await _deferredPrompt.userChoice;
+            _deferredPrompt = null;
+            if (_pwaBtn) _pwaBtn.style.display = 'none';
+        } else if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
+            alert({ uk:'Натисніть 📤 → «На екран «Початок»»', en:'Tap Share 📤 → «Add to Home Screen»', de:'Tippen Sie 📤 → «Zum Home-Bildschirm»' }[uiLang] || 'Tap Share 📤 → Add to Home Screen');
         }
-        _deferredPrompt.prompt();
-        const { outcome } = await _deferredPrompt.userChoice;
-        console.log('PWA install outcome:', outcome);
-        _deferredPrompt = null;
-        if (installBtn) installBtn.style.display = 'none';
     }
+    // iOS show button
+    if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !window.navigator.standalone && _pwaBtn)
+        _pwaBtn.style.display = 'block';
 
-    // iOS: показать кнопку с инструкцией (Safari не даёт beforeinstallprompt)
-    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    const isInStandalone = window.matchMedia('(display-mode: standalone)').matches
-        || window.navigator.standalone;
-    if (isIOS && !isInStandalone && installBtn) {
-        installBtn.style.display = 'flex';
-    }
+    console.log('VOX v0.3.3 — Deepgram Streaming');
     </script>
     <!-- ── Review FAB Button ── -->
 <a class="review-fab" href="/review?source=host" target="_blank">
