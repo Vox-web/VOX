@@ -478,15 +478,15 @@
     </nav>
     <div class="billing-modal-overlay" id="topupModalOverlay" onclick="closeTopupModal(event)">
         <div class="billing-modal">
-            <h3>💳 Поповнити баланс</h3>
-            <div class="bal-current">Поточний баланс: <strong id="topupCurrentBal">$0.00</strong></div>
+            <h3>💳 <span id="topupTitle">Поповнити баланс</span></h3>
+            <div class="bal-current"><span id="topupBalLabel">Поточний баланс</span>: <strong id="topupCurrentBal">$0.00</strong></div>
             <div class="topup-grid">
-                <button class="topup-btn" onclick="doTopup(5)">$5<small>~100 хв Solo</small></button>
-                <button class="topup-btn" onclick="doTopup(10)">$10<small>~200 хв Solo</small></button>
-                <button class="topup-btn" onclick="doTopup(20)">$20<small>~400 хв Solo</small></button>
-                <button class="topup-btn" onclick="doTopup(50)">$50<small>~1000 хв Solo</small></button>
+                <button class="topup-btn" onclick="doTopup(5)">$5<small>~100 <span class="topup-min-label">хв Solo</span></small></button>
+                <button class="topup-btn" onclick="doTopup(10)">$10<small>~200 <span class="topup-min-label">хв Solo</span></small></button>
+                <button class="topup-btn" onclick="doTopup(20)">$20<small>~400 <span class="topup-min-label">хв Solo</span></small></button>
+                <button class="topup-btn" onclick="doTopup(50)">$50<small>~1000 <span class="topup-min-label">хв Solo</span></small></button>
             </div>
-            <button class="modal-close" onclick="closeTopupModal(null)">Закрити</button>
+            <button class="modal-close" onclick="closeTopupModal(null)"><span id="topupClose">Закрити</span></button>
         </div>
     </div>
     <div class="vox-toast" id="voxToast"></div>
@@ -720,6 +720,8 @@
             howtoHtml: '<div class="section"><h4>🎧 Solo — Персональний переклад</h4><ol><li>Оберіть вашу мову та мову перекладу</li><li>Натисніть <b>СЛУХАТИ</b> — говоріть у мікрофон</li><li>Через 1-2 сек. почуєте переклад у навушниках</li><li>Натисніть <b>СТОП</b> щоб зупинити</li></ol></div><div class="section"><h4>👥 Кімната — Груповий переклад</h4><ol><li>Натисніть «Створити кімнату» та оберіть мову</li><li>Покажіть QR-код учасникам — вони сканують телефоном</li><li>Кожен учасник обирає свою мову і чує переклад</li><li>Учасник натискає «Хочу сказати» щоб отримати слово</li><li>Ви керуєте: даєте слово, заглушуєте, відключаєте</li></ol></div>',
             navReview: 'Відгук', navCabinet: 'Кабінет',
             btnCopy: 'Копіювати', btnCopied: 'Скопійовано!', btnShare: 'Поділитися',
+            pwaInstallLabel: 'Додати на головний екран',
+            topupTitle: 'Поповнити баланс', topupBalLabel: 'Поточний баланс', topupMinLabel: 'хв Solo', topupClose: 'Закрити',
         },
         en: {
             subtitle: 'Real-time AI Translation',
@@ -755,6 +757,8 @@
             howtoHtml: '<div class="section"><h4>🎧 Solo — Personal Translation</h4><ol><li>Select your language and translation language</li><li>Press <b>LISTEN</b> — speak into the microphone</li><li>In 1-2 sec. you\'ll hear the translation in your earphones</li><li>Press <b>STOP</b> to end</li></ol></div><div class="section"><h4>👥 Room — Group Translation</h4><ol><li>Press "Create Room" and select your language</li><li>Show the QR code to participants — they scan with their phone</li><li>Each participant selects their language and hears translation</li><li>Participant presses "I want to speak" to request the floor</li><li>You control everything: grant speech, mute, disconnect</li></ol></div>',
             navReview: 'Review', navCabinet: 'Cabinet',
             btnCopy: 'Copy link', btnCopied: 'Copied!', btnShare: 'Share',
+            pwaInstallLabel: 'Add to Home Screen',
+            topupTitle: 'Top Up Balance', topupBalLabel: 'Current balance', topupMinLabel: 'min Solo', topupClose: 'Close',
         },
         de: {
             subtitle: 'KI-Übersetzung in Echtzeit',
@@ -790,6 +794,8 @@
             howtoHtml: '<div class="section"><h4>🎧 Solo — Persönliche Übersetzung</h4><ol><li>Wählen Sie Ihre Sprache und die Übersetzungssprache</li><li>Drücken Sie <b>HÖREN</b> — sprechen Sie ins Mikrofon</li><li>In 1-2 Sek. hören Sie die Übersetzung im Kopfhörer</li><li>Drücken Sie <b>STOPP</b> zum Beenden</li></ol></div><div class="section"><h4>👥 Raum — Gruppenübersetzung</h4><ol><li>Drücken Sie «Raum erstellen» und wählen Sie Ihre Sprache</li><li>Zeigen Sie den QR-Code den Teilnehmern — sie scannen mit dem Handy</li><li>Jeder Teilnehmer wählt seine Sprache und hört die Übersetzung</li><li>Teilnehmer drückt «Ich möchte sprechen» um das Wort zu erhalten</li><li>Sie steuern alles: Wort erteilen, stummschalten, trennen</li></ol></div>',
             navReview: 'Bewertung', navCabinet: 'Kabinett',
             btnCopy: 'Link kopieren', btnCopied: 'Kopiert!', btnShare: 'Teilen',
+            pwaInstallLabel: 'Zum Startbildschirm hinzufügen',
+            topupTitle: 'Guthaben aufladen', topupBalLabel: 'Aktuelles Guthaben', topupMinLabel: 'Min Solo', topupClose: 'Schließen',
         },
     };
 
@@ -813,6 +819,13 @@
             const sh = document.getElementById('shareUrlLabel');
             if(cp) cp.textContent = t('btnCopy');
             if(sh) sh.textContent = t('btnShare');
+            const topupTitleEl = document.getElementById('topupTitle');
+            const topupBalLabelEl = document.getElementById('topupBalLabel');
+            const topupCloseEl = document.getElementById('topupClose');
+            if(topupTitleEl) topupTitleEl.textContent = t('topupTitle');
+            if(topupBalLabelEl) topupBalLabelEl.textContent = t('topupBalLabel');
+            if(topupCloseEl) topupCloseEl.textContent = t('topupClose');
+            document.querySelectorAll('.topup-min-label').forEach(el => el.textContent = t('topupMinLabel'));
             const st = document.getElementById('roomStatusText');
             if(st) st.textContent = t(_curRoomStatusKey);
         }
