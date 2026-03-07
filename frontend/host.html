@@ -696,6 +696,7 @@
             soloStatusConnected: 'Підключено', soloStatusListening: 'Слухаю...',
             soloStatusStopped: 'Зупинено', soloStatusMicError: 'Мікрофон недоступний',
             soloStatusError: "Помилка з'єднання",
+            soloStatusFallback: '⚠️ Офлайн-режим (низька якість)',
             soloBtnListen: 'СЛУХАТИ', soloBtnStop: 'СТОП',
             soloLabelOrig: 'Оригінал', soloLabelTrans: 'Переклад', soloLabelHist: 'Історія',
             soloRecording: 'Записую',
@@ -730,6 +731,7 @@
             soloStatusConnected: 'Connected', soloStatusListening: 'Listening...',
             soloStatusStopped: 'Stopped', soloStatusMicError: 'Microphone unavailable',
             soloStatusError: 'Connection error',
+            soloStatusFallback: '⚠️ Offline mode (low quality)',
             soloBtnListen: 'LISTEN', soloBtnStop: 'STOP',
             soloLabelOrig: 'Original', soloLabelTrans: 'Translation', soloLabelHist: 'History',
             soloRecording: 'Recording',
@@ -764,6 +766,7 @@
             soloStatusConnected: 'Verbunden', soloStatusListening: 'Höre zu...',
             soloStatusStopped: 'Gestoppt', soloStatusMicError: 'Mikrofon nicht verfügbar',
             soloStatusError: 'Verbindungsfehler',
+            soloStatusFallback: '⚠️ Offline-Modus (niedrige Qualität)',
             soloBtnListen: 'HÖREN', soloBtnStop: 'STOPP',
             soloLabelOrig: 'Original', soloLabelTrans: 'Übersetzung', soloLabelHist: 'Verlauf',
             soloRecording: 'Aufnahme',
@@ -951,6 +954,98 @@
     // SOLO
     // =====================================================================
     let soloListening=false, soloWs=null, soloMic=null, curSoloKey='soloStatusDisconnected';
+    let _wsRetries=0, _fallbackActive=false, _fallbackRecognition=null;
+
+    // Карта мов для Web Speech API
+    const _speechLangMap = {
+        uk:'uk-UA', ru:'ru-RU', en:'en-US', de:'de-DE', pl:'pl-PL',
+        fr:'fr-FR', es:'es-ES', it:'it-IT', pt:'pt-BR', zh:'zh-CN',
+        ja:'ja-JP', ko:'ko-KR', ar:'ar-SA', tr:'tr-TR', hi:'hi-IN'
+    };
+
+    async function _myMemoryTranslate(text, srcLang, tgtLang) {
+        // MyMemory: безкоштовний API, не потребує ключа
+        const sl = srcLang === 'auto' ? 'en' : srcLang;
+        const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sl}|${tgtLang}`;
+        try {
+            const r = await fetch(url);
+            const d = await r.json();
+            return d?.responseData?.translatedText || null;
+        } catch(e) { return null; }
+    }
+
+    function soloStartFallback() {
+        if (_fallbackActive) return;
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) {
+            soloSetStatus('soloStatusError');
+            soloOrigEl.textContent = '❌ Fallback недоступний у цьому браузері';
+            return;
+        }
+        _fallbackActive = true;
+        soloSetStatus('soloStatusFallback');
+
+        const srcLang = document.getElementById('soloSrcLangSelect').value;
+        const tgtLang = document.getElementById('soloLangSelect').value;
+        const speechLang = srcLang === 'auto' ? 'uk-UA' : (_speechLangMap[srcLang] || 'uk-UA');
+
+        _fallbackRecognition = new SpeechRec();
+        _fallbackRecognition.lang = speechLang;
+        _fallbackRecognition.continuous = true;
+        _fallbackRecognition.interimResults = true;
+
+        _fallbackRecognition.onresult = async (ev) => {
+            let interim = '', final = '';
+            for (let i = ev.resultIndex; i < ev.results.length; i++) {
+                const res = ev.results[i];
+                if (res.isFinal) final += res[0].transcript;
+                else interim += res[0].transcript;
+            }
+            if (interim) {
+                soloOrigEl.textContent = '🎤 ' + interim;
+                soloOrigEl.style.opacity = '0.7';
+            }
+            if (final && final.trim()) {
+                soloOrigEl.textContent = final;
+                soloOrigEl.style.opacity = '1';
+                soloTransEl.textContent = '⏳';
+                soloTransEl.style.opacity = '0.4';
+                const translated = await _myMemoryTranslate(final.trim(), srcLang, tgtLang);
+                if (translated) {
+                    soloTransEl.textContent = translated;
+                    soloTransEl.style.opacity = '1';
+                    _hist(soloHistEl, final.trim(), translated);
+                }
+            }
+        };
+
+        _fallbackRecognition.onerror = (ev) => {
+            if (ev.error === 'network') {
+                soloOrigEl.textContent = '❌ Немає інтернету. Переклад недоступний.';
+            }
+        };
+
+        _fallbackRecognition.onend = () => {
+            // Автоматично перезапустити якщо ще слухаємо
+            if (soloListening && _fallbackActive) {
+                try { _fallbackRecognition.start(); } catch(e) {}
+            }
+        };
+
+        try {
+            _fallbackRecognition.start();
+        } catch(e) {
+            soloSetStatus('soloStatusError');
+            _fallbackActive = false;
+        }
+    }
+
+    function soloStopFallback() {
+        if (!_fallbackActive) return;
+        _fallbackActive = false;
+        try { _fallbackRecognition?.stop(); } catch(e) {}
+        _fallbackRecognition = null;
+    }
     let _emptyFinalCount = 0;
     const soloVadEl=document.getElementById('soloVad'), soloOrigEl=document.getElementById('soloOriginal'),
           soloTransEl=document.getElementById('soloTranslation'), soloHistEl=document.getElementById('soloHistory');
@@ -967,6 +1062,8 @@
         soloWs = new WebSocket(`${p}//${location.host}/ws/solo`);
         soloWs.binaryType = 'arraybuffer';
         soloWs.onopen = () => {
+            _wsRetries = 0;
+            soloStopFallback(); // якщо fallback був активний — вимкнути
             soloSetStatus('soloStatusConnected');
             const srcLang = document.getElementById('soloSrcLangSelect').value;
             const tgtLang = document.getElementById('soloLangSelect').value;
@@ -976,11 +1073,24 @@
                 target_lang: tgtLang,
             }));
         };
-        soloWs.onclose = () => { soloSetStatus('soloStatusDisconnected'); if (soloListening) setTimeout(soloConnectWS,500); };
+        soloWs.onclose = () => {
+            soloSetStatus('soloStatusDisconnected');
+            if (soloListening) {
+                _wsRetries = (_wsRetries||0) + 1;
+                if (_wsRetries <= 3) {
+                    setTimeout(soloConnectWS, 500);
+                } else {
+                    // Після 3 невдалих спроб — запустити fallback
+                    soloStartFallback();
+                }
+            }
+        };
         window.addEventListener('online', () => {
             if (soloListening && (!soloWs || soloWs.readyState === WebSocket.CLOSED)) soloConnectWS();
         });
-        soloWs.onerror = () => soloSetStatus('soloStatusError');
+        soloWs.onerror = () => {
+            soloSetStatus('soloStatusError');
+        };
         soloWs.onmessage = e => {
             if (e.data instanceof ArrayBuffer) _audioMsg(e.data);
             else { const m = JSON.parse(e.data);
@@ -1041,6 +1151,8 @@
     function soloStop() {
         soloListening = false;
         _emptyFinalCount = 0;
+        _wsRetries = 0;
+        soloStopFallback();
         document.getElementById('soloBtn').classList.remove('active');
         document.getElementById('soloBtn').textContent = t('soloBtnListen');
         soloMic?.stop(); soloMic = null;
