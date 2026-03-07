@@ -633,7 +633,7 @@ footer{
           </div>
         </div>
         <!-- Кнопка поповнення -->
-        <button onclick="window.location.href='/host?topup=1'" style="width:100%;padding:11px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px;box-shadow:0 4px 16px rgba(124,106,255,.3);transition:background .2s" onmouseover="this.style.background='var(--accent2)'" onmouseout="this.style.background='var(--accent)'">💳 Поповнити баланс</button>
+        <button onclick="window.location.href='/host?topup=1'" style="width:100%;padding:11px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px;box-shadow:0 4px 16px rgba(124,106,255,.3);transition:background .2s" onmouseover="this.style.background='var(--accent2)'" onmouseout="this.style.background='var(--accent)'">💳 <span data-i18n="dash_topup">Поповнити баланс</span></button>
         <button onclick="logout();toggleProfilePanel()" style="width:100%;padding:9px;border-radius:10px;border:1px solid var(--border2);background:transparent;color:var(--text3);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all .2s" onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)'" onmouseout="this.style.color='var(--text3)';this.style.borderColor='var(--border2)'">👋 Вийти</button>
       </div>
     </div>
@@ -703,27 +703,27 @@ footer{
         </button>
         <button class="dash-btn dash-btn-outline" onclick="openTopupModal()">
           <span>💳</span>
-          <span>Поповнити баланс</span>
+          <span data-i18n="dash_topup">Поповнити баланс</span>
         </button>
       </div>
       <!-- Білінг-блок з реальними даними -->
       <div style="margin-top:24px;background:rgba(124,106,255,.06);border:1px solid rgba(124,106,255,.2);border-radius:14px;padding:20px 22px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-          <span style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">💰 Баланс рахунку</span>
+          <span style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:1px" data-i18n="dash_balance_label">💰 <span data-i18n="dash_balance_label">Баланс рахунку</span></span>
           <span style="font-size:20px;font-weight:700;color:var(--green)" id="dashBalance">…</span>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
           <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center">
             <div style="font-size:18px;font-weight:700;color:var(--accent2)" id="dashMinutes">—</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:2px">хв перекладу</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px" data-i18n="dash_min_label">хв перекладу</div>
           </div>
           <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center">
             <div style="font-size:18px;font-weight:700;color:var(--yellow)" id="dashRate">$0.05</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:2px">за хвилину</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px" data-i18n="dash_rate_label">за хвилину</div>
           </div>
         </div>
         <button onclick="openTopupModal()" style="width:100%;padding:10px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:background .2s" onmouseover="this.style.background='var(--accent2)'" onmouseout="this.style.background='var(--accent)'">
-          💳 Поповнити баланс
+          💳 <span data-i18n="dash_topup">Поповнити баланс</span>
         </button>
       </div>
     </div>
@@ -883,7 +883,7 @@ footer{
 <div class="modal-overlay" id="modalTopup" onclick="if(event.target===this)closeModal('modalTopup')" style="z-index:600">
   <div class="modal" style="max-width:380px">
     <button class="modal-close" onclick="closeModal('modalTopup')">✕</button>
-    <h2 style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:6px">💳 Поповнити баланс</h2>
+    <h2 style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:6px"><span data-i18n="dash_topup_title">💳 Поповнити баланс</span></h2>
     <p style="color:var(--text3);font-size:14px;margin-bottom:24px">Оберіть суму поповнення. Кошти одразу зараховуються на рахунок.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px" id="topupGrid">
       <button onclick="doTopup(5)"  class="topup-amount-btn">$5<span>≈ 100 хв</span></button>
@@ -1034,6 +1034,7 @@ uk:{
   dash_sub:"Готовий почати розмову? Відкрий хост-панель та підключай гостей.",
   dash_go_host:"Перейти до VOX Host", dash_leave_review:"Залишити відгук", dash_billing:"Білінг (незабаром)",
   billing_title:"Платіжна інформація", billing_desc:"Безкоштовний план · Білінг буде доступний у наступному оновленні",
+  dash_topup:"Поповнити баланс", dash_balance_label:"💰 Баланс рахунку", dash_min_label:"хв перекладу", dash_rate_label:"за хвилину", dash_topup_title:"💳 Поповнити баланс",
 },
 en:{
   nav_login:"Login", nav_register:"Sign Up", nav_logout:"Logout",
@@ -1078,6 +1079,7 @@ en:{
   dash_sub:"Ready to start a conversation? Open the host panel and connect guests.",
   dash_go_host:"Go to VOX Host", dash_leave_review:"Leave a review", dash_billing:"Billing (coming soon)",
   billing_title:"Payment information", billing_desc:"Free plan · Billing will be available in the next update",
+  dash_topup:"Top up balance", dash_balance_label:"💰 Account balance", dash_min_label:"min of translation", dash_rate_label:"per minute", dash_topup_title:"💳 Top up balance",
 },
 de:{
   nav_login:"Anmelden", nav_register:"Registrieren", nav_logout:"Abmelden",
@@ -1122,6 +1124,7 @@ de:{
   dash_sub:"Bereit ein Gespräch zu starten? Öffnen Sie das Host-Panel und verbinden Sie Gäste.",
   dash_go_host:"Zu VOX Host gehen", dash_leave_review:"Bewertung hinterlassen", dash_billing:"Abrechnung (demnächst)",
   billing_title:"Zahlungsinformationen", billing_desc:"Kostenloser Plan · Abrechnung im nächsten Update verfügbar",
+  dash_topup:"Guthaben aufladen", dash_balance_label:"💰 Kontostand", dash_min_label:"Min. Übersetzung", dash_rate_label:"pro Minute", dash_topup_title:"💳 Guthaben aufladen",
 }};
 
 let currentLang = localStorage.getItem('vox_ui_lang') || 'uk';
@@ -1232,7 +1235,7 @@ async function doTopup(amount){
     const r = await fetch('/api/create-checkout',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-      body:JSON.stringify({amount_usd:amount})
+      body:JSON.stringify({amount:amount})
     });
     const d = await r.json();
     if(d.url) window.location.href = d.url;
