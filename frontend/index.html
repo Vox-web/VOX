@@ -604,30 +604,26 @@ footer{
     <div id="navUser" class="nav-user" style="position:relative">
       <span class="nav-user-name" id="navUserName"></span>
       <div class="nav-user-avatar" id="navAvatar" onclick="event.stopPropagation();toggleProfilePanel()"></div>
-      <div id="profilePanel" style="display:none;position:absolute;top:46px;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:20px;width:280px;z-index:200;box-shadow:0 16px 48px rgba(0,0,0,.5)">
+      <div id="profilePanel" style="display:none;position:absolute;top:46px;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:20px;width:290px;z-index:200;box-shadow:0 16px 48px rgba(0,0,0,.5)">
+        <!-- Шапка -->
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">
           <div style="width:44px;height:44px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:18px;color:#fff;flex-shrink:0" id="profileAvatarBig"></div>
-          <div>
-            <div style="font-weight:600;font-size:15px;color:var(--text)" id="profileName"></div>
-            <div style="font-size:12px;color:var(--text3)" id="profileEmail"></div>
+          <div style="min-width:0">
+            <div style="font-weight:600;font-size:15px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="profileName"></div>
+            <div style="font-size:12px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="profileEmail"></div>
           </div>
         </div>
-        <div style="margin-bottom:12px">
-          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px" data-i18n="prof_plan_label">Поточний тариф</div>
-          <div style="background:var(--accent-dim);border:1px solid rgba(124,106,255,.3);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
-            <span style="color:var(--accent2);font-weight:600">🆓 Free</span>
-            <span style="font-size:12px;color:var(--text3)">0 / 60 хв</span>
-          </div>
-        </div>
+        <!-- Баланс -->
         <div style="margin-bottom:16px">
-          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px" data-i18n="prof_limits_label">Залишок лімітів</div>
-          <div style="background:var(--surface2);border-radius:8px;overflow:hidden;height:6px;margin-bottom:6px">
-            <div style="width:0%;height:100%;background:var(--accent);border-radius:8px"></div>
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">💰 Баланс</div>
+          <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center">
+            <span style="color:var(--green);font-weight:700;font-size:18px" id="profileBalance">…</span>
+            <span style="font-size:11px;color:var(--text3)" id="profileMinutes">—</span>
           </div>
-          <div style="font-size:12px;color:var(--text3)" data-i18n="prof_limits_desc">60 хв транскрипції · 0 використано</div>
         </div>
-        <button onclick="alert(t('prof_billing_soon'))" style="width:100%;padding:11px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px;box-shadow:0 4px 16px var(--accent-glow)" data-i18n="prof_topup">💳 Поповнити баланс</button>
-        <button onclick="logout();toggleProfilePanel()" style="width:100%;padding:9px;border-radius:10px;border:1px solid var(--border2);background:transparent;color:var(--text3);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer" data-i18n="nav_logout">Вийти</button>
+        <!-- Кнопка поповнення -->
+        <button onclick="window.location.href='/host?topup=1'" style="width:100%;padding:11px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px;box-shadow:0 4px 16px rgba(124,106,255,.3);transition:background .2s" onmouseover="this.style.background='var(--accent2)'" onmouseout="this.style.background='var(--accent)'">💳 Поповнити баланс</button>
+        <button onclick="logout();toggleProfilePanel()" style="width:100%;padding:9px;border-radius:10px;border:1px solid var(--border2);background:transparent;color:var(--text3);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all .2s" onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)'" onmouseout="this.style.color='var(--text3)';this.style.borderColor='var(--border2)'">👋 Вийти</button>
       </div>
     </div>
   </div>
@@ -656,7 +652,7 @@ footer{
       </a>
     </div>
     <!-- Бонусний CTA — $3 при реєстрації -->
-    <div style="margin-top:14px;text-align:center">
+    <div id="bonusCta" style="margin-top:14px;text-align:center">
       <button onclick="openModal('auth','register')"
         style="display:inline-flex;align-items:center;gap:8px;
                background:linear-gradient(135deg,rgba(45,212,160,.12),rgba(45,212,160,.06));
@@ -1130,11 +1126,32 @@ function updateNavForUser(){
   document.getElementById('profileAvatarBig').textContent = currentUser.name[0].toUpperCase();
   document.getElementById('profileName').textContent = currentUser.name;
   document.getElementById('profileEmail').textContent = currentUser.email || '';
+  // Hide bonus CTA — user is already registered
+  const bonusBtn = document.getElementById('bonusCta');
+  if(bonusBtn) bonusBtn.style.display='none';
+  // Load balance from billing API
+  loadProfileBalance();
   // Show dashboard
   const dash = document.getElementById('dashboard');
   dash.style.display='block';
   document.getElementById('dashGreeting').textContent = t('dash_greeting').replace('!','') + ', ' + currentUser.name + '!';
   document.getElementById('anonFields').style.display='none';
+}
+
+async function loadProfileBalance(){
+  try{
+    const token = getToken();
+    if(!token) return;
+    const r = await fetch('/api/balance', {headers:{Authorization:'Bearer '+token}});
+    if(!r.ok) return;
+    const d = await r.json();
+    const bal = (d.balance||0).toFixed(2);
+    const mins = d.est_minutes != null ? Math.floor(d.est_minutes)+'хв' : '—';
+    const balEl = document.getElementById('profileBalance');
+    const minEl = document.getElementById('profileMinutes');
+    if(balEl) balEl.textContent = '$'+bal;
+    if(minEl) minEl.textContent = '≈ '+mins+' перекладу';
+  }catch(e){}
 }
 
 function updateNavForGuest(){
