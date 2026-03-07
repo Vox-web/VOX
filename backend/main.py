@@ -361,31 +361,13 @@ async def kick_participant(room_id: str, guest_id: str):
 @app.post("/api/deepgram-token")
 async def get_deepgram_token(authorization: Optional[str] = Header(None)):
     """
-    Генерує короткочасний Deepgram JWT (TTL=30с) для прямого WS з браузера.
-    Аудіо більше не проксується через Railway — тільки текст транскриптів.
+    Повертає Deepgram API key для прямого WS-підключення з браузера.
+    TODO: замінити на /v1/auth/grant коли буде Deepgram Member plan.
     """
-    import httpx
     dg_key = os.getenv("DEEPGRAM_API_KEY")
     if not dg_key:
         raise HTTPException(500, "DEEPGRAM_API_KEY не задан")
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            "https://api.deepgram.com/v1/auth/grant",
-            headers={"Authorization": f"Token {dg_key}"},
-            json={"ttl_seconds": 60},
-            timeout=5.0,
-        )
-    if resp.status_code != 200:
-        logger.error(f"Deepgram /auth/grant failed: {resp.status_code} {resp.text}")
-        raise HTTPException(502, "Не вдалося отримати Deepgram токен")
-
-    data = resp.json()
-    token = data.get("access_token") or data.get("token")
-    if not token:
-        raise HTTPException(502, f"Unexpected Deepgram response: {data}")
-
-    return JSONResponse({"token": token})
+    return JSONResponse({"token": dg_key})
 
 
 # ===========================================================================
