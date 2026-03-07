@@ -953,7 +953,7 @@
     async function _mic(name, onChunk) {
         const st = await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
         const cx = new AudioContext({sampleRate:16000});
-        const code = `class ${name} extends AudioWorkletProcessor{constructor(){super();this.b=[];}process(i){const c=i[0]?.[0];if(!c)return true;this.b.push(...c);while(this.b.length>=512){const ch=new Float32Array(this.b.splice(0,512));this.port.postMessage(ch.buffer,[ch.buffer]);}return true;}}registerProcessor('${name}',${name});`;
+        const code = `class ${name} extends AudioWorkletProcessor{constructor(){super();this.b=[];}process(i){const c=i[0]?.[0];if(!c)return true;this.b.push(...c);while(this.b.length>=2048){const ch=new Float32Array(this.b.splice(0,2048));this.port.postMessage(ch.buffer,[ch.buffer]);}return true;}}registerProcessor('${name}',${name});`;
         const bl = new Blob([code],{type:'application/javascript'}); const u = URL.createObjectURL(bl);
         await cx.audioWorklet.addModule(u); URL.revokeObjectURL(u);
         const src = cx.createMediaStreamSource(st);
@@ -1096,14 +1096,21 @@
         txt.textContent = t(k);
     }
 
+    let _soloPingInterval = null;
     function soloConnectWS() {
         const p = location.protocol==='https:'?'wss:':'ws:';
-        soloWs = new WebSocket(`${p}//${location.host}/ws/solo`);
+        const _tok = localStorage.getItem('vox_token') || '';
+        soloWs = new WebSocket(`${p}//${location.host}/ws/solo${_tok ? '?token=' + encodeURIComponent(_tok) : ''}`);
         soloWs.binaryType = 'arraybuffer';
         soloWs.onopen = async () => {
             _wsRetries = 0;
             soloStopFallback(); // якщо fallback був активний — вимкнути
             soloSetStatus('soloStatusConnected');
+            // Keepalive: ping кожні 15 сек щоб WS не рвався при згаснутому екрані
+            clearInterval(_soloPingInterval);
+            _soloPingInterval = setInterval(() => {
+                if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(JSON.stringify({type:'ping'}));
+            }, 15000);
             // Якщо мікрофон був зупинений під час fallback — перезапустити
             if (soloListening && !soloMic) {
                 try {
@@ -1123,6 +1130,7 @@
             }));
         };
         soloWs.onclose = () => {
+            clearInterval(_soloPingInterval); _soloPingInterval = null;
             soloSetStatus('soloStatusDisconnected');
             if (soloListening) {
                 _wsRetries = (_wsRetries||0) + 1;
@@ -1143,6 +1151,7 @@
         soloWs.onmessage = e => {
             if (e.data instanceof ArrayBuffer) _audioMsg(e.data);
             else { const m = JSON.parse(e.data);
+                _handleBillingWsMsg(m);
                 if (m.type==='transcript') {
                     if (m.is_final) {
                         if (m.text && m.text.trim()) {

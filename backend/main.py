@@ -16,7 +16,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -359,9 +359,18 @@ async def kick_participant(room_id: str, guest_id: str):
 # WebSocket: Solo режим
 # ===========================================================================
 @app.websocket("/ws/solo")
-async def websocket_solo(ws: WebSocket):
+async def websocket_solo(ws: WebSocket, token: str = Query(default="")):
     await ws.accept()
-    logger.info("🔌 WebSocket подключён (Solo)")
+    logger.info("🔌 WebSocket підключено (Solo)")
+
+    # Billing: resolve user from token
+    from billing_db import deduct_session_cost as _deduct, get_user_balance as _get_balance
+    _user = get_user_by_token(token) if token else None
+    _user_id = _user["id"] if _user else None
+    if _user_id:
+        logger.info(f"💳 Solo: user_id={_user_id} (billing active)")
+    else:
+        logger.info("💳 Solo: anonymous session (no billing)")
 
     dg = DeepgramTranscriber()
     dg_started = False
@@ -419,7 +428,29 @@ async def websocket_solo(ws: WebSocket):
                 logger.error(f"Solo result error: {e}")
                 break
 
+    async def billing_tick():
+        """Списувати $0.05/хв, при нульовому балансі — закрити сесію."""
+        if not _user_id:
+            return
+        while True:
+            await asyncio.sleep(60)
+            try:
+                new_balance = _deduct(_user_id, "solo", 0)
+                logger.info(f"💸 Solo billing tick: user={_user_id} balance={new_balance:.4f}")
+                if new_balance <= 0:
+                    await ws.send_json({"type": "session_ended", "reason": "no_balance"})
+                    await ws.close()
+                    return
+                elif new_balance <= 0.10:
+                    minutes_left = max(1, round(new_balance / 0.05))
+                    await ws.send_json({"type": "balance_warning", "minutes_left": minutes_left})
+            except asyncio.CancelledError:
+                return
+            except Exception as e:
+                logger.warning(f"Solo billing tick error: {e}")
+
     result_task = asyncio.create_task(handle_results())
+    billing_task = asyncio.create_task(billing_tick())
 
     try:
         while True:
@@ -433,6 +464,8 @@ async def websocket_solo(ws: WebSocket):
                     msg = json.loads(message["text"])
                     if msg.get("type") == "tts_done":
                         tts_playing = False
+                    elif msg.get("type") == "ping":
+                        pass  # keepalive — нічого не робимо
                     elif msg.get("type") == "config":
                         new_lang = msg.get("source_lang")
                         if new_lang:
@@ -448,8 +481,7 @@ async def websocket_solo(ws: WebSocket):
                     pass
 
             if "bytes" in message and message["bytes"]:
-                if tts_playing:
-                    continue
+                # Мікрофон завжди активний — echo cancellation на рівні браузера (AEC)
                 if not dg_started:
                     src = session_config.get("source_lang")
                     logger.info(f"🎤 Solo lazy start: language={src or 'multi'}")
@@ -458,11 +490,12 @@ async def websocket_solo(ws: WebSocket):
                 await dg.send_audio(message["bytes"])
 
     except WebSocketDisconnect:
-        logger.info("🔌 WebSocket отключён (Solo)")
+        logger.info("🔌 WebSocket відключено (Solo)")
     except Exception as e:
-        logger.error(f"❌ Ошибка WebSocket Solo: {e}", exc_info=True)
+        logger.error(f"❌ Помилка WebSocket Solo: {e}", exc_info=True)
     finally:
         result_task.cancel()
+        billing_task.cancel()
         try:
             await result_task
         except (asyncio.CancelledError, Exception):
