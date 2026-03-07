@@ -931,7 +931,26 @@ async def admin_delete_review(
 @app.get("/api/admin/users")
 async def admin_get_users(authorization: Optional[str] = Header(None)):
     _check_admin(authorization)
-    return get_all_users()
+    users = get_all_users()
+    try:
+        from billing_db import _conn as _billing_conn
+        con = _billing_conn()
+        cur = con.cursor()
+        for u in users:
+            cur.execute("SELECT balance, is_email_verified FROM users WHERE id=?", (u["id"],))
+            row = cur.fetchone()
+            if row:
+                u["balance"] = float(row["balance"] or 0)
+                u["is_email_verified"] = bool(row["is_email_verified"])
+            else:
+                u["balance"] = 0.0
+                u["is_email_verified"] = False
+        con.close()
+    except Exception as _e:
+        logger.warning(f"admin_get_users billing: {_e}")
+        for u in users:
+            u.setdefault("balance", 0.0)
+    return users
 
 
 # ===========================================================================

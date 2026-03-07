@@ -1004,6 +1004,9 @@
             soloOrigEl.textContent = '❌ Fallback недоступний у цьому браузері';
             return;
         }
+        // Звільнити мікрофон від AudioWorklet перед передачею Web Speech API
+        soloMic?.stop(); soloMic = null;
+        soloWs?.close(); soloWs = null;
         _fallbackActive = true;
         soloSetStatus('soloStatusFallback');
 
@@ -1084,10 +1087,20 @@
         const p = location.protocol==='https:'?'wss:':'ws:';
         soloWs = new WebSocket(`${p}//${location.host}/ws/solo`);
         soloWs.binaryType = 'arraybuffer';
-        soloWs.onopen = () => {
+        soloWs.onopen = async () => {
             _wsRetries = 0;
             soloStopFallback(); // якщо fallback був активний — вимкнути
             soloSetStatus('soloStatusConnected');
+            // Якщо мікрофон був зупинений під час fallback — перезапустити
+            if (soloListening && !soloMic) {
+                try {
+                    soloMic = await _mic('VoxSP', buf => {
+                        if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(buf);
+                        _vad(soloVadEl, new Float32Array(buf));
+                    });
+                    if (soloListening) soloSetStatus('soloStatusListening');
+                } catch(e) { soloSetStatus('soloStatusMicError'); }
+            }
             const srcLang = document.getElementById('soloSrcLangSelect').value;
             const tgtLang = document.getElementById('soloLangSelect').value;
             soloWs.send(JSON.stringify({
