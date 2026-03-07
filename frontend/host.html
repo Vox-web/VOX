@@ -220,7 +220,6 @@
         .howto-content ol { margin: 0; padding-left: 20px; }
         .howto-content ol li { margin-bottom: 6px; }
         .howto-content .section { margin-bottom: 14px; }
-        /* PWA Install */
         .pwa-btn { display: none; width: 100%; padding: 13px; border-radius: 10px;
             border: 1.5px dashed var(--accent); background: var(--accent-dim);
             color: var(--accent); font-size: 14px; font-weight: 600; cursor: pointer;
@@ -605,6 +604,7 @@
             soloBtnListen: 'СЛУХАТИ', soloBtnStop: 'СТОП',
             soloLabelOrig: 'Оригінал', soloLabelTrans: 'Переклад', soloLabelHist: 'Історія',
             soloRecording: 'Записую',
+            soloNoSpeech: '⚠️ Мова не розпізнається. Перевірте мову джерела або гучність.',
             roomSetupTitle: 'Налаштування кімнати', roomHostLangLabel: 'Ваша мова:',
             btnCreateRoom: 'Створити кімнату', roomQrLabel: 'Скануйте для входу',
             roomCostNote: 'Вартість: $0.05/хв × кількість гостей. При 3 гостях — ~$0.15/хв',
@@ -636,6 +636,7 @@
             soloBtnListen: 'LISTEN', soloBtnStop: 'STOP',
             soloLabelOrig: 'Original', soloLabelTrans: 'Translation', soloLabelHist: 'History',
             soloRecording: 'Recording',
+            soloNoSpeech: '⚠️ Speech not recognized. Check source language or volume.',
             roomSetupTitle: 'Room Settings', roomHostLangLabel: 'Your language:',
             btnCreateRoom: 'Create Room', roomQrLabel: 'Scan to join',
             roomCostNote: 'Cost: $0.05/min × number of guests. With 3 guests — ~$0.15/min',
@@ -667,6 +668,7 @@
             soloBtnListen: 'HÖREN', soloBtnStop: 'STOPP',
             soloLabelOrig: 'Original', soloLabelTrans: 'Übersetzung', soloLabelHist: 'Verlauf',
             soloRecording: 'Aufnahme',
+            soloNoSpeech: '⚠️ Sprache nicht erkannt. Quellsprache oder Lautstärke prüfen.',
             roomSetupTitle: 'Raumeinstellungen', roomHostLangLabel: 'Ihre Sprache:',
             btnCreateRoom: 'Raum erstellen', roomQrLabel: 'Scannen zum Beitreten',
             roomCostNote: 'Kosten: $0.05/Min × Anzahl der Gäste. Bei 3 Gästen — ~$0.15/Min',
@@ -825,6 +827,7 @@
             }
             const b = await pbCtx.decodeAudioData(m.slice(0));
             const s = pbCtx.createBufferSource(); s.buffer=b; s.connect(pbCtx.destination);
+            s.playbackRate.value = aQ.length >= 5 ? 1.5 : aQ.length >= 3 ? 1.3 : aQ.length >= 1 ? 1.15 : 1.0;
             s.onended = ()=>_pQ(); s.start(0);
         } catch(e) { console.error('Play err:',e); _pQ(); }
     }
@@ -847,6 +850,7 @@
     // SOLO
     // =====================================================================
     let soloListening=false, soloWs=null, soloMic=null, curSoloKey='soloStatusDisconnected';
+    let _emptyFinalCount = 0;
     const soloVadEl=document.getElementById('soloVad'), soloOrigEl=document.getElementById('soloOriginal'),
           soloTransEl=document.getElementById('soloTranslation'), soloHistEl=document.getElementById('soloHistory');
 
@@ -878,13 +882,30 @@
             else { const m = JSON.parse(e.data);
                 if (m.type==='transcript') {
                     if (m.is_final) {
-                        soloOrigEl.textContent = m.text||'—';
-                        soloOrigEl.style.opacity = '1';
-                        soloTransEl.textContent = '⏳';
-                        soloTransEl.style.opacity = '0.4';
+                        if (m.text && m.text.trim()) {
+                            _emptyFinalCount = 0;
+                            soloOrigEl.textContent = m.text;
+                            soloOrigEl.style.opacity = '1';
+                            soloOrigEl.style.color = '';
+                            soloTransEl.textContent = '⏳';
+                            soloTransEl.style.opacity = '0.4';
+                        } else {
+                            _emptyFinalCount++;
+                            if (_emptyFinalCount >= 3) {
+                                soloOrigEl.textContent = t('soloNoSpeech');
+                                soloOrigEl.style.opacity = '1';
+                                soloOrigEl.style.color = 'var(--yellow)';
+                            }
+                        }
                     } else {
-                        soloOrigEl.textContent = '🎤 ' + (m.text || t('soloRecording') + '...');
-                        soloOrigEl.style.opacity = '0.7';
+                        if (m.text && m.text.trim()) {
+                            soloOrigEl.style.color = '';
+                            soloOrigEl.textContent = '🎤 ' + m.text;
+                            soloOrigEl.style.opacity = '0.7';
+                        } else {
+                            soloOrigEl.textContent = '🎤 ' + t('soloRecording') + '...';
+                            soloOrigEl.style.opacity = '0.7';
+                        }
                     }
                 }
                 else if (m.type==='translation') {
@@ -915,12 +936,21 @@
 
     function soloStop() {
         soloListening = false;
+        _emptyFinalCount = 0;
         document.getElementById('soloBtn').classList.remove('active');
         document.getElementById('soloBtn').textContent = t('soloBtnListen');
         soloMic?.stop(); soloMic = null;
-        soloWs?.close(); soloWs = null;
-        soloSetStatus('soloStatusStopped');
         _resetV(soloVadEl);
+        soloSetStatus('soloStatusStopped');
+        if (aQ.length > 0 || aPlaying) {
+            const _waitAndClose = () => {
+                if (aQ.length > 0 || aPlaying) { setTimeout(_waitAndClose, 200); return; }
+                soloWs?.close(); soloWs = null;
+            };
+            _waitAndClose();
+        } else {
+            soloWs?.close(); soloWs = null;
+        }
     }
 
     document.getElementById('soloLangSelect').addEventListener('change', async e => {
@@ -1131,10 +1161,9 @@
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
     let _deferredPrompt = null;
     const _pwaBtn = document.getElementById('pwaInstallBtn');
-    const _pwaLabels = { uk:'Додати на головний екран', en:'Add to Home Screen', de:'Zum Startbildschirm hinzufügen' };
     window.addEventListener('beforeinstallprompt', e => {
         e.preventDefault(); _deferredPrompt = e;
-        if (_pwaBtn) { _pwaBtn.style.display = 'block'; }
+        if (_pwaBtn) _pwaBtn.style.display = 'block';
     });
     window.addEventListener('appinstalled', () => {
         _deferredPrompt = null;
@@ -1150,7 +1179,6 @@
             alert({ uk:'Натисніть 📤 → «На екран «Початок»»', en:'Tap Share 📤 → «Add to Home Screen»', de:'Tippen Sie 📤 → «Zum Home-Bildschirm»' }[uiLang] || 'Tap Share 📤 → Add to Home Screen');
         }
     }
-    // iOS show button
     if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !window.navigator.standalone && _pwaBtn)
         _pwaBtn.style.display = 'block';
 
