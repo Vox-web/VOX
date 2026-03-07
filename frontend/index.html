@@ -626,7 +626,7 @@ footer{
         </div>
         <!-- Баланс -->
         <div style="margin-bottom:16px">
-          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">💰 Баланс</div>
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px" data-i18n="prof_balance_label">💰 Баланс</div>
           <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center">
             <span style="color:var(--green);font-weight:700;font-size:18px" id="profileBalance">…</span>
             <span style="font-size:11px;color:var(--text3)" id="profileMinutes">—</span>
@@ -634,8 +634,8 @@ footer{
         </div>
         <!-- Кнопка поповнення -->
         <button onclick="openTopupModal()" style="width:100%;padding:11px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px;box-shadow:0 4px 16px rgba(124,106,255,.3);transition:background .2s" onmouseover="this.style.background='var(--accent2)'" onmouseout="this.style.background='var(--accent)'">💳 <span data-i18n="dash_topup">Поповнити баланс</span></button>
-        <button onclick="logout();toggleProfilePanel()" style="width:100%;padding:9px;border-radius:10px;border:1px solid var(--border2);background:transparent;color:var(--text3);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all .2s" onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)'" onmouseout="this.style.color='var(--text3)';this.style.borderColor='var(--border2)'">👋 Вийти</button>
-      </div>
+        <button onclick="logout();toggleProfilePanel()" style="width:100%;padding:9px;border-radius:10px;border:1px solid var(--border2);background:transparent;color:var(--text3);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all .2s" onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)'" onmouseout="this.style.color='var(--text3)';this.style.borderColor='var(--border2)'">👋 <span data-i18n="nav_logout">Вийти</span></button>
+      </div> 
     </div>
   </div>
 </nav>
@@ -840,7 +840,7 @@ footer{
         <span style="font-size:24px">✅</span>
         <div style="text-align:left">
           <div style="font-weight:600;color:var(--green);font-size:15px" id="ctaAuthedName"></div>
-          <div style="font-size:13px;color:var(--text3);margin-top:2px">Ви авторизовані · <a href="/host" style="color:var(--accent2);text-decoration:none">Перейти до VOX Host →</a></div>
+          <div style="font-size:13px;color:var(--text3);margin-top:2px"><span data-i18n="cta_authed_label">Ви авторизовані</span> · <a href="/host" style="color:var(--accent2);text-decoration:none" data-i18n="cta_go_host">Перейти до VOX Host →</a></div>
         </div>
       </div>
     </div>
@@ -1035,6 +1035,8 @@ uk:{
   dash_go_host:"Перейти до VOX Host", dash_leave_review:"Залишити відгук", dash_billing:"Білінг (незабаром)",
   billing_title:"Платіжна інформація", billing_desc:"Безкоштовний план · Білінг буде доступний у наступному оновленні",
   dash_topup:"Поповнити баланс", dash_balance_label:"💰 Баланс рахунку", dash_min_label:"хв перекладу", dash_rate_label:"за хвилину", dash_topup_title:"💳 Поповнити баланс",
+  prof_balance_label:"💰 Баланс", cta_authed_label:"Ви авторизовані", cta_go_host:"Перейти до VOX Host →",
+  
 },
 en:{
   nav_login:"Login", nav_register:"Sign Up", nav_logout:"Logout",
@@ -1080,6 +1082,8 @@ en:{
   dash_go_host:"Go to VOX Host", dash_leave_review:"Leave a review", dash_billing:"Billing (coming soon)",
   billing_title:"Payment information", billing_desc:"Free plan · Billing will be available in the next update",
   dash_topup:"Top up balance", dash_balance_label:"💰 Account balance", dash_min_label:"min of translation", dash_rate_label:"per minute", dash_topup_title:"💳 Top up balance",
+  prof_balance_label:"💰 Balance", cta_authed_label:"You are logged in", cta_go_host:"Go to VOX Host →",
+  
 },
 de:{
   nav_login:"Anmelden", nav_register:"Registrieren", nav_logout:"Abmelden",
@@ -1125,6 +1129,8 @@ de:{
   dash_go_host:"Zu VOX Host gehen", dash_leave_review:"Bewertung hinterlassen", dash_billing:"Abrechnung (demnächst)",
   billing_title:"Zahlungsinformationen", billing_desc:"Kostenloser Plan · Abrechnung im nächsten Update verfügbar",
   dash_topup:"Guthaben aufladen", dash_balance_label:"💰 Kontostand", dash_min_label:"Min. Übersetzung", dash_rate_label:"pro Minute", dash_topup_title:"💳 Guthaben aufladen",
+  prof_balance_label:"💰 Guthaben", cta_authed_label:"Sie sind angemeldet", cta_go_host:"Zu VOX Host →",
+  
 }};
 
 let currentLang = localStorage.getItem('vox_ui_lang') || 'uk';
