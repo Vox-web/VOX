@@ -1096,33 +1096,111 @@
         txt.textContent = t(k);
     }
 
+    // ── Solo: пряме підключення до Deepgram з браузера ──────────────────────
+    // Архітектура: Телефон → Deepgram (аудіо напряму, ~150ms)
+    //              Телефон → VOX WS (тільки текст транскрипту → переклад+TTS)
     let _soloPingInterval = null;
+    let _dgWs = null; // пряме з'єднання браузер → Deepgram
+
+    async function _getDgToken() {
+        try {
+            const r = await fetch('/api/deepgram-token', { method: 'POST' });
+            if (!r.ok) throw new Error('token fetch failed');
+            const d = await r.json();
+            return d.token;
+        } catch(e) { console.error('DG token error:', e); return null; }
+    }
+
+    async function _connectDg(srcLang) {
+        // Закрити попереднє з'єднання якщо є
+        if (_dgWs && _dgWs.readyState !== WebSocket.CLOSED) {
+            _dgWs.onmessage = null; _dgWs.close();
+        }
+        const token = await _getDgToken();
+        if (!token) return false;
+
+        const lang = (!srcLang || srcLang === 'auto') ? 'multi' : srcLang;
+        const params = new URLSearchParams({
+            model: 'nova-2',
+            interim_results: 'true',
+            utterance_end_ms: '1000',
+            endpointing: '150',
+            encoding: 'linear16',
+            sample_rate: '16000',
+            channels: '1',
+            punctuate: 'true',
+            language: lang,
+            token: token,
+        });
+        _dgWs = new WebSocket(`wss://api.deepgram.com/v1/listen?${params}`);
+        _dgWs.binaryType = 'arraybuffer';
+
+        return new Promise((resolve) => {
+            _dgWs.onopen = () => { console.log('🎤 Deepgram direct connected'); resolve(true); };
+            _dgWs.onerror = () => resolve(false);
+            _dgWs.onclose = () => {
+                // Авто-перепідключення якщо сесія ще активна
+                if (soloListening) setTimeout(() => _connectDg(document.getElementById('soloSrcLangSelect').value), 1000);
+            };
+            _dgWs.onmessage = (ev) => {
+                try {
+                    const d = JSON.parse(ev.data);
+                    if (d.type !== 'Results') return;
+                    const alt = d.channel?.alternatives?.[0];
+                    if (!alt) return;
+                    const text = (alt.transcript || '').trim();
+                    const isFinal = d.is_final || false;
+                    const speechFinal = d.speech_final || false;
+                    const detectedLang = d.channel?.detected_language || srcLang || 'uk';
+
+                    if (!text) return;
+
+                    // Показати на екрані
+                    if (!isFinal) {
+                        soloOrigEl.style.color = '';
+                        soloOrigEl.textContent = '🎤 ' + text;
+                        soloOrigEl.style.opacity = '0.7';
+                    } else if (isFinal && !speechFinal) {
+                        soloOrigEl.textContent = text;
+                        soloOrigEl.style.opacity = '0.9';
+                    }
+
+                    // Надіслати транскрипт на VOX сервер для перекладу
+                    if (soloWs?.readyState === WebSocket.OPEN) {
+                        soloWs.send(JSON.stringify({
+                            type: 'transcript',
+                            text: text,
+                            is_final: speechFinal,
+                            language: detectedLang,
+                            confidence: alt.confidence || 0,
+                        }));
+                    }
+
+                    if (speechFinal && text) {
+                        soloOrigEl.textContent = text;
+                        soloOrigEl.style.opacity = '1';
+                        soloOrigEl.style.color = '';
+                        soloTransEl.textContent = '⏳';
+                        soloTransEl.style.opacity = '0.4';
+                        _emptyFinalCount = 0;
+                    }
+                } catch(e) {}
+            };
+            setTimeout(() => resolve(false), 5000); // таймаут підключення
+        });
+    }
+
     function soloConnectWS() {
         const p = location.protocol==='https:'?'wss:':'ws:';
         soloWs = new WebSocket(`${p}//${location.host}/ws/solo`);
         soloWs.binaryType = 'arraybuffer';
-        soloWs.onopen = async () => {
+        soloWs.onopen = () => {
             _wsRetries = 0;
-            soloStopFallback(); // якщо fallback був активний — вимкнути
-            soloSetStatus('soloStatusConnected');
-            // Auth: токен передається першим повідомленням (не в URL — безпечніше)
+            soloStopFallback();
+            // Auth токен першим повідомленням
             const _tok = localStorage.getItem('vox_token') || '';
             soloWs.send(JSON.stringify({type: 'auth', token: _tok}));
-            // Keepalive: ping кожні 15 сек щоб WS не рвався при згаснутому екрані
-            clearInterval(_soloPingInterval);
-            _soloPingInterval = setInterval(() => {
-                if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(JSON.stringify({type:'ping'}));
-            }, 15000);
-            // Якщо мікрофон був зупинений під час fallback — перезапустити
-            if (soloListening && !soloMic) {
-                try {
-                    soloMic = await _mic('VoxSP', buf => {
-                        if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(buf);
-                        _vad(soloVadEl, new Float32Array(buf));
-                    });
-                    if (soloListening) soloSetStatus('soloStatusListening');
-                } catch(e) { soloSetStatus('soloStatusMicError'); }
-            }
+            // Config
             const srcLang = document.getElementById('soloSrcLangSelect').value;
             const tgtLang = document.getElementById('soloLangSelect').value;
             soloWs.send(JSON.stringify({
@@ -1130,64 +1208,37 @@
                 source_lang: srcLang === 'auto' ? null : srcLang,
                 target_lang: tgtLang,
             }));
+            // Keepalive
+            clearInterval(_soloPingInterval);
+            _soloPingInterval = setInterval(() => {
+                if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(JSON.stringify({type:'ping'}));
+            }, 15000);
         };
         soloWs.onclose = () => {
             clearInterval(_soloPingInterval); _soloPingInterval = null;
             soloSetStatus('soloStatusDisconnected');
             if (soloListening) {
                 _wsRetries = (_wsRetries||0) + 1;
-                if (_wsRetries <= 3) {
-                    setTimeout(soloConnectWS, 500);
-                } else {
-                    // Після 3 невдалих спроб — запустити fallback
-                    soloStartFallback();
-                }
+                if (_wsRetries <= 3) setTimeout(soloConnectWS, 500);
+                else soloStartFallback();
             }
         };
         window.addEventListener('online', () => {
             if (soloListening && (!soloWs || soloWs.readyState === WebSocket.CLOSED)) soloConnectWS();
         });
-        soloWs.onerror = () => {
-            soloSetStatus('soloStatusError');
-        };
+        soloWs.onerror = () => soloSetStatus('soloStatusError');
         soloWs.onmessage = e => {
-            if (e.data instanceof ArrayBuffer) _audioMsg(e.data);
-            else { const m = JSON.parse(e.data);
+            if (e.data instanceof ArrayBuffer) { _audioMsg(e.data); return; }
+            try {
+                const m = JSON.parse(e.data);
                 _handleBillingWsMsg(m);
-                if (m.type==='transcript') {
-                    if (m.is_final) {
-                        if (m.text && m.text.trim()) {
-                            _emptyFinalCount = 0;
-                            soloOrigEl.textContent = m.text;
-                            soloOrigEl.style.opacity = '1';
-                            soloOrigEl.style.color = '';
-                            soloTransEl.textContent = '⏳';
-                            soloTransEl.style.opacity = '0.4';
-                        } else {
-                            _emptyFinalCount++;
-                            if (_emptyFinalCount >= 3) {
-                                soloOrigEl.textContent = t('soloNoSpeech');
-                                soloOrigEl.style.opacity = '1';
-                                soloOrigEl.style.color = 'var(--yellow)';
-                            }
-                        }
-                    } else {
-                        if (m.text && m.text.trim()) {
-                            soloOrigEl.style.color = '';
-                            soloOrigEl.textContent = '🎤 ' + m.text;
-                            soloOrigEl.style.opacity = '0.7';
-                        } else {
-                            soloOrigEl.textContent = '🎤 ' + t('soloRecording') + '...';
-                            soloOrigEl.style.opacity = '0.7';
-                        }
-                    }
-                }
-                else if (m.type==='translation') {
-                    soloTransEl.textContent = m.text||'—';
+                if (m.type === 'translation') {
+                    soloTransEl.textContent = m.text || '—';
                     soloTransEl.style.opacity = '1';
                     _hist(soloHistEl, soloOrigEl.textContent, m.text);
                 }
-            }
+                // transcript echo від сервера ігноруємо — вже показали напряму з Deepgram
+            } catch(e) {}
         };
     }
 
@@ -1197,15 +1248,27 @@
         document.getElementById('soloBtn').classList.add('active');
         document.getElementById('soloBtn').textContent = t('soloBtnStop');
         soloSetStatus('soloStatusConnecting');
+
+        const srcLang = document.getElementById('soloSrcLangSelect').value;
+
+        // Паралельно підключаємо VOX WS і Deepgram напряму
         soloConnectWS();
-        await new Promise(r => setTimeout(r, 400));
+        const dgOk = await _connectDg(srcLang);
+
+        if (!dgOk) {
+            console.warn('Deepgram direct failed, falling back to proxy mic');
+        }
+
         try {
             soloMic = await _mic('VoxSP', buf => {
-                if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(buf);
+                // Аудіо → Deepgram напряму (якщо підключено)
+                if (_dgWs?.readyState === WebSocket.OPEN) {
+                    _dgWs.send(buf);
+                }
                 _vad(soloVadEl, new Float32Array(buf));
             });
             if (soloListening) soloSetStatus('soloStatusListening');
-        } catch(e) { console.error('Mic err:',e); soloSetStatus('soloStatusMicError'); soloStop(); }
+        } catch(e) { console.error('Mic err:', e); soloSetStatus('soloStatusMicError'); soloStop(); }
     }
 
     function soloStop() {
@@ -1218,6 +1281,9 @@
         soloMic?.stop(); soloMic = null;
         _resetV(soloVadEl);
         soloSetStatus('soloStatusStopped');
+        // Закрити Deepgram WS
+        if (_dgWs) { _dgWs.onclose = null; _dgWs.close(); _dgWs = null; }
+        // Закрити VOX WS (після відтворення аудіо)
         if (aQ.length > 0 || aPlaying) {
             const _waitAndClose = () => {
                 if (aQ.length > 0 || aPlaying) { setTimeout(_waitAndClose, 200); return; }
@@ -1242,6 +1308,8 @@
         if (soloWs?.readyState === WebSocket.OPEN) {
             soloWs.send(JSON.stringify({type:'config', source_lang: v === 'auto' ? null : v}));
         }
+        // Перепідключити Deepgram з новою мовою (якщо сесія активна)
+        if (soloListening) await _connectDg(v);
     });
 
     // =====================================================================
