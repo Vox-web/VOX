@@ -25,6 +25,8 @@ from fastapi import WebSocket
 
 logger = logging.getLogger("vox.room")
 
+GRACE_PERIOD_SECONDS = 30  # час очікування перед закриттям кімнати після дропу хоста
+
 
 # ---------------------------------------------------------------------------
 # Модели данных
@@ -64,9 +66,11 @@ class Room:
     host_language: str
     host_websocket: Optional[WebSocket] = None
     participants: dict[str, Participant] = field(default_factory=dict)
-    active_speaker: Optional[str] = None   # guest_id или None (= хост / никто)
+    active_speaker: Optional[str] = None   # guest_id або None (= хост / ніхто)
     created_at: datetime = field(default_factory=datetime.utcnow)
     max_participants: int = 10
+    host_disconnected_at: Optional[datetime] = None   # час дропу хоста (grace period)
+    _close_task: Optional[asyncio.Task] = field(default=None, repr=False, compare=False)
 
     def to_dict(self) -> dict:
         return {
@@ -166,6 +170,69 @@ class RoomManager:
         qr = self._generate_qr_code(room_id)
         logger.info(f"🏠 Комната '{room_id}' создана (хост: {host_language})")
         return room, qr
+
+    # =======================================================================
+    # Grace period — хост тимчасово відключився
+    # =======================================================================
+
+    async def set_host_disconnected(self, room_id: str):
+        """
+        Хост дропнув з'єднання. Запускає grace period замість миттєвого закриття.
+        Учасники отримують повідомлення що хост тимчасово відключився.
+        """
+        room = self.rooms.get(room_id)
+        if not room:
+            return
+        room.host_disconnected_at = datetime.utcnow()
+        room.host_websocket = None
+
+        for p in room.participants.values():
+            if p.websocket and self._is_ws_open(p.websocket):
+                try:
+                    await p.websocket.send_json({"type": "host_reconnecting"})
+                except Exception:
+                    pass
+
+        if room._close_task and not room._close_task.done():
+            room._close_task.cancel()
+        room._close_task = asyncio.create_task(self._delayed_close(room_id))
+        logger.info(f"⏳ Хост дропнув '{room_id}', grace period {GRACE_PERIOD_SECONDS}s")
+
+    async def _delayed_close(self, room_id: str):
+        """Закрити кімнату після grace period якщо хост не повернувся."""
+        try:
+            await asyncio.sleep(GRACE_PERIOD_SECONDS)
+            room = self.rooms.get(room_id)
+            if room and room.host_disconnected_at is not None:
+                logger.info(f"⏰ Grace period закінчився, закриваємо '{room_id}'")
+                await self.close_room(room_id)
+        except asyncio.CancelledError:
+            pass
+
+    def host_reconnected(self, room_id: str, new_ws) -> bool:
+        """
+        Хост перепідключився в межах grace period.
+        Скасовує таймер, відновлює кімнату.
+        """
+        room = self.rooms.get(room_id)
+        if not room:
+            return False
+        if room._close_task and not room._close_task.done():
+            room._close_task.cancel()
+            room._close_task = None
+        room.host_websocket = new_ws
+        room.host_disconnected_at = None
+        asyncio.create_task(self._notify_all_participants(room, {"type": "host_reconnected"}))
+        logger.info(f"✅ Хост повернувся до '{room_id}'")
+        return True
+
+    async def _notify_all_participants(self, room: Room, message: dict):
+        for p in room.participants.values():
+            if p.websocket and self._is_ws_open(p.websocket):
+                try:
+                    await p.websocket.send_json(message)
+                except Exception:
+                    pass
 
     async def close_room(self, room_id: str):
         """Закрыть комнату, уведомить всех, закрыть WebSocket'ы."""

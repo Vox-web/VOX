@@ -356,7 +356,41 @@ async def kick_participant(room_id: str, guest_id: str):
 
 
 # ===========================================================================
-# WebSocket: Solo режим (Phase 3 proxy: аудіо → Railway → Deepgram)
+# REST: Deepgram тимчасовий токен для прямого підключення з браузера
+# ===========================================================================
+@app.post("/api/deepgram-token")
+async def get_deepgram_token(authorization: Optional[str] = Header(None)):
+    """
+    Генерує короткочасний Deepgram JWT (TTL=30с) для прямого WS з браузера.
+    Аудіо більше не проксується через Railway — тільки текст транскриптів.
+    """
+    import httpx
+    dg_key = os.getenv("DEEPGRAM_API_KEY")
+    if not dg_key:
+        raise HTTPException(500, "DEEPGRAM_API_KEY не задан")
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://api.deepgram.com/v1/auth/grant",
+            headers={"Authorization": f"Token {dg_key}"},
+            json={"ttl_seconds": 60},
+            timeout=5.0,
+        )
+    if resp.status_code != 200:
+        logger.error(f"Deepgram /auth/grant failed: {resp.status_code} {resp.text}")
+        raise HTTPException(502, "Не вдалося отримати Deepgram токен")
+
+    data = resp.json()
+    token = data.get("access_token") or data.get("token")
+    if not token:
+        raise HTTPException(502, f"Unexpected Deepgram response: {data}")
+
+    return JSONResponse({"token": token})
+
+
+# ===========================================================================
+# WebSocket: Solo режим (приймає тільки текст транскриптів від браузера)
+# Аудіо іде напряму Телефон → Deepgram, тут тільки переклад + TTS
 # ===========================================================================
 @app.websocket("/ws/solo")
 async def websocket_solo(ws: WebSocket):
@@ -373,12 +407,6 @@ async def websocket_solo(ws: WebSocket):
             if first.get("type") == "auth":
                 _user = get_user_by_token(first.get("token", ""))
                 _user_id = _user["id"] if _user else None
-            # Якщо перше повідомлення — config, зберігаємо його теж
-            elif first.get("type") == "config":
-                if first.get("source_lang"):
-                    session_config["source_lang"] = first["source_lang"]
-                if first.get("target_lang"):
-                    session_config["target_lang"] = first["target_lang"]
     except (asyncio.TimeoutError, Exception):
         pass
 
@@ -386,6 +414,8 @@ async def websocket_solo(ws: WebSocket):
         logger.info(f"💳 Solo: user_id={_user_id} (billing active)")
     else:
         logger.info("💳 Solo: anonymous session (no billing)")
+
+    tts_playing = False
 
     async def billing_tick():
         if not _user_id:
@@ -409,66 +439,6 @@ async def websocket_solo(ws: WebSocket):
 
     billing_task = asyncio.create_task(billing_tick())
 
-    # Запускаємо Deepgram транскрайбер (сервер → Deepgram, Phase 3 proxy)
-    dg = DeepgramTranscriber()
-    src_lang = session_config.get("source_lang") or "uk"
-    await dg.start(language=src_lang)
-
-    async def handle_results():
-        """Читає транскрипти від Deepgram і відправляє переклад + TTS клієнту."""
-        while True:
-            try:
-                result = await dg.results.get()
-            except asyncio.CancelledError:
-                break
-
-            try:
-                await ws.send_json({
-                    "type": "transcript",
-                    "text": result.text,
-                    "is_final": result.is_final,
-                    "language": result.language,
-                    "confidence": result.confidence,
-                })
-
-                if result.is_final and result.text.strip():
-                    source_lang = result.language or session_config.get("source_lang") or "uk"
-                    target_lang = session_config["target_lang"]
-
-                    if source_lang != target_lang:
-                        translated = await asyncio.to_thread(
-                            translator.translate, result.text, source_lang, target_lang,
-                        )
-                        await ws.send_json({
-                            "type": "translation",
-                            "text": translated,
-                            "lang_from": source_lang,
-                            "lang_to": target_lang,
-                        })
-                        audio_bytes = await asyncio.to_thread(
-                            tts_engine.synthesize, translated, target_lang,
-                        )
-                        if audio_bytes:
-                            await ws.send_bytes(b"AUDIO:" + audio_bytes)
-                    else:
-                        await ws.send_json({
-                            "type": "translation",
-                            "text": result.text,
-                            "lang_from": source_lang,
-                            "lang_to": target_lang,
-                            "note": "same_language",
-                        })
-
-                    logger.info(f"📝 [{source_lang}→{target_lang}] {result.text[:60]}")
-
-            except Exception as e:
-                if "disconnect" in str(e).lower():
-                    break
-                logger.error(f"Solo result error: {e}")
-                break
-
-    result_task = asyncio.create_task(handle_results())
-
     try:
         while True:
             message = await ws.receive()
@@ -476,35 +446,70 @@ async def websocket_solo(ws: WebSocket):
             if message.get("type") == "websocket.disconnect":
                 break
 
-            if "bytes" in message and message["bytes"]:
-                # Бінарне аудіо (float32 PCM) → Deepgram
-                if not dg.is_active:
-                    await dg.start(session_config.get("source_lang") or "uk")
-                await dg.send_audio(message["bytes"])
-
-            elif "text" in message and message["text"]:
+            if "text" in message and message["text"]:
                 try:
                     msg = json.loads(message["text"])
                     msg_type = msg.get("type")
 
-                    if msg_type == "ping":
+                    if msg_type == "tts_done":
+                        tts_playing = False
+
+                    elif msg_type == "ping":
                         pass
 
-                    elif msg_type == "tts_done":
-                        pass  # може використовуватись для soft-gate у майбутньому
-
                     elif msg_type == "config":
-                        new_src = msg.get("source_lang")
-                        new_tgt = msg.get("target_lang")
-                        if new_tgt:
-                            session_config["target_lang"] = new_tgt
-                        if new_src and new_src != session_config.get("source_lang"):
-                            session_config["source_lang"] = new_src
-                            # Перезапустити Deepgram з новою мовою
-                            await dg.stop()
-                            await dg.start(language=new_src)
+                        # Зберігаємо конфіг мов (браузер все одно надсилає)
+                        if msg.get("source_lang"):
+                            session_config["source_lang"] = msg["source_lang"]
+                        if msg.get("target_lang"):
+                            session_config["target_lang"] = msg["target_lang"]
                         src = session_config.get("source_lang")
                         logger.info(f"🎤 Solo config: source={src}, target={session_config['target_lang']}")
+
+                    elif msg_type == "transcript":
+                        # Транскрипт прийшов напряму від браузера (Deepgram → браузер → сюди)
+                        text = msg.get("text", "").strip()
+                        is_final = msg.get("is_final", False)
+                        source_lang = msg.get("language") or session_config.get("source_lang") or "uk"
+                        confidence = msg.get("confidence", 0.0)
+
+                        # Відображення interim на клієнті (echo назад)
+                        await ws.send_json({
+                            "type": "transcript",
+                            "text": text,
+                            "is_final": is_final,
+                            "language": source_lang,
+                            "confidence": confidence,
+                        })
+
+                        if is_final and text:
+                            target_lang = session_config["target_lang"]
+                            if source_lang != target_lang:
+                                translated = await asyncio.to_thread(
+                                    translator.translate, text, source_lang, target_lang,
+                                )
+                                await ws.send_json({
+                                    "type": "translation",
+                                    "text": translated,
+                                    "lang_from": source_lang,
+                                    "lang_to": target_lang,
+                                })
+                                audio_bytes = await asyncio.to_thread(
+                                    tts_engine.synthesize, translated, target_lang,
+                                )
+                                if audio_bytes:
+                                    tts_playing = True
+                                    await ws.send_bytes(b"AUDIO:" + audio_bytes)
+                            else:
+                                await ws.send_json({
+                                    "type": "translation",
+                                    "text": text,
+                                    "lang_from": source_lang,
+                                    "lang_to": target_lang,
+                                    "note": "same_language",
+                                })
+
+                        logger.info(f"📝 [{source_lang}→{session_config['target_lang']}] {'[final] ' if is_final else ''}{text[:60]}")
 
                 except json.JSONDecodeError:
                     pass
@@ -514,9 +519,7 @@ async def websocket_solo(ws: WebSocket):
     except Exception as e:
         logger.error(f"❌ Помилка WebSocket Solo: {e}", exc_info=True)
     finally:
-        result_task.cancel()
         billing_task.cancel()
-        await dg.stop()
 
 
 # ===========================================================================
@@ -532,13 +535,50 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
         await ws.close(code=4004, reason="Room not found")
         return
 
-    room.host_websocket = ws
-    logger.info(f"🔌 Хост подключён к комнате '{room_id}'")
+    # Reconnect: якщо хост повертається в межах grace period
+    is_reconnect = room.host_disconnected_at is not None
+    room_manager.host_reconnected(room_id, ws)
+    if is_reconnect:
+        logger.info(f"🔄 Хост перепідключився до кімнати '{room_id}'")
+    else:
+        room.host_websocket = ws
+        logger.info(f"🔌 Хост подключён к комнате '{room_id}'")
+
+    # Billing auth — токен може прийти як перше або будь-яке text-повідомлення
+    from billing_db import deduct_session_cost as _deduct
+    _user_id = None
 
     dg = DeepgramTranscriber()
     await dg.start(language=room.host_language)
 
     await ws.send_json({"type": "room_state", "room": room.to_dict()})
+
+    # Keepalive ping від сервера не потрібен — пінг іде з клієнта
+    # Але треба відповідати на pong (або просто ігнорувати)
+
+    async def billing_tick():
+        nonlocal _user_id
+        if not _user_id:
+            return
+        while True:
+            await asyncio.sleep(60)
+            try:
+                guest_count = len(room.participants)
+                new_balance = _deduct(_user_id, "room", guest_count)
+                logger.info(f"💸 Room billing tick: user={_user_id} guests={guest_count} balance={new_balance:.4f}")
+                if new_balance <= 0:
+                    await ws.send_json({"type": "session_ended", "reason": "no_balance"})
+                    await ws.close()
+                    return
+                elif new_balance <= 0.10:
+                    minutes_left = max(1, round(new_balance / (0.05 * max(1, guest_count))))
+                    await ws.send_json({"type": "balance_warning", "minutes_left": minutes_left})
+            except asyncio.CancelledError:
+                return
+            except Exception as e:
+                logger.warning(f"Room billing tick error: {e}")
+
+    billing_tasks = [asyncio.create_task(billing_tick())]
 
     async def handle_results():
         while True:
@@ -614,8 +654,22 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                 except json.JSONDecodeError:
                     continue
 
+                msg_type = msg.get("type")
                 action = msg.get("action")
                 guest_id = msg.get("guest_id")
+
+                # Auth для білінгу (може прийти будь-коли на початку)
+                if msg_type == "auth" and not _user_id:
+                    _user = get_user_by_token(msg.get("token", ""))
+                    _user_id = _user["id"] if _user else None
+                    if _user_id:
+                        logger.info(f"💳 Room: user_id={_user_id} (billing active)")
+                        billing_tasks[0].cancel()
+                        billing_tasks[0] = asyncio.create_task(billing_tick())
+                    continue
+
+                if msg_type == "ping":
+                    continue
 
                 if not action or not guest_id:
                     continue
@@ -640,16 +694,12 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                 await ws.send_json({"type": "room_state", "room": room.to_dict()})
 
     except WebSocketDisconnect:
-        logger.info(f"🔌 Хост отключился от комнаты '{room_id}'")
-        await asyncio.sleep(2)
-        if room.host_websocket is ws:
-            await room_manager.close_room(room_id)
+        logger.info(f"🔌 Хост відключився від кімнати '{room_id}'")
+        await room_manager.set_host_disconnected(room_id)
     except RuntimeError as e:
         if "disconnect" in str(e).lower():
-            logger.info(f"🔌 Хост отключился от комнаты '{room_id}'")
-            await asyncio.sleep(2)
-            if room.host_websocket is ws:
-                await room_manager.close_room(room_id)
+            logger.info(f"🔌 Хост відключився від кімнати '{room_id}'")
+            await room_manager.set_host_disconnected(room_id)
         else:
             logger.error(f"❌ Ошибка WebSocket хоста: {e}", exc_info=True)
     except Exception as e:
@@ -660,12 +710,12 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
             pass
     finally:
         result_task.cancel()
+        billing_tasks[0].cancel()
         try:
             await result_task
         except (asyncio.CancelledError, Exception):
             pass
         await dg.stop()
-
 
 # ===========================================================================
 # WebSocket: Участник комнаты

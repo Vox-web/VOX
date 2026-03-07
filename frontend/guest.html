@@ -974,7 +974,7 @@
 
             const workletCode = `
                 class VoxGuestProcessor extends AudioWorkletProcessor {
-                    constructor() { super(); this.buffer = []; this.CHUNK_SIZE = 512; }
+                    constructor() { super(); this.buffer = []; this.CHUNK_SIZE = 2048; }
                     process(inputs) {
                         const input = inputs[0];
                         if (!input || !input[0]) return true;
@@ -1110,4 +1110,3 @@
     </script>
 </body>
 </html>
-

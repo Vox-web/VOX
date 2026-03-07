@@ -525,7 +525,7 @@
                 <span class="arrow">▼</span>
             </button>
             <div class="howto-content" id="howtoContent"></div>
-            <button class="pwa-btn" id="pwaInstallBtn" onclick="pwaInstall()">📲 <span id="pwaInstallLabel" class="i18n">Додати на головний екран</span></button>
+            <button class="pwa-btn" id="pwaInstallBtn" onclick="pwaInstall()">📲 <span id="pwaInstallLabel">Додати на головний екран</span></button>
         </div>
 
         <!-- SCREEN: SOLO -->
@@ -1371,12 +1371,25 @@
         finally { btn.disabled = false; btn.textContent = t('btnCreateRoom'); }
     }
 
+    let _roomPingInterval = null;
+
     function connectRoomWS() {
         const p = location.protocol==='https:'?'wss:':'ws:';
         roomWs = new WebSocket(`${p}//${location.host}/ws/room/${roomId}/host`);
         roomWs.binaryType = 'arraybuffer';
-        roomWs.onopen = () => roomSetStatus('roomStatusConnected');
+        roomWs.onopen = () => {
+            roomSetStatus('roomStatusConnected');
+            // Auth для білінгу
+            const _tok = localStorage.getItem('vox_token') || '';
+            roomWs.send(JSON.stringify({type: 'auth', token: _tok}));
+            // Keepalive ping
+            clearInterval(_roomPingInterval);
+            _roomPingInterval = setInterval(() => {
+                if (roomWs?.readyState === WebSocket.OPEN) roomWs.send(JSON.stringify({type:'ping'}));
+            }, 15000);
+        };
         roomWs.onclose = (e) => {
+            clearInterval(_roomPingInterval); _roomPingInterval = null;
             roomSetStatus('roomStatusDisconnected');
             if (e.code === 4004 || !roomId) return;
             setTimeout(connectRoomWS, 500);
@@ -1471,6 +1484,7 @@
         try { await fetch(`/room/${roomId}`,{method:'DELETE'}); } catch(e){}
         roomMicObj?.stop(); roomMicObj=null; roomMicActive=false;
         document.getElementById('roomMicBtn').classList.remove('active');
+        clearInterval(_roomPingInterval); _roomPingInterval = null;
         roomWs?.close(); roomWs=null; roomId=null; participants={};
         sessionStorage.removeItem('vox_host_room');
         sessionStorage.removeItem('vox_hist_room');
