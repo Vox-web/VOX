@@ -1213,12 +1213,14 @@ async function loadProfileBalance(){
     const bal = parseFloat(d.balance||0);
     const mins = d.est_minutes != null ? Math.floor(d.est_minutes) : Math.floor(bal/0.05);
     const balStr = '$'+bal.toFixed(2);
-    const minsStr = mins > 0 ? mins+' хв' : '0 хв';
+    const minWord = {'uk':'хв','en':'min','de':'Min'};
+    const minsStr = (mins > 0 ? mins : 0)+' '+(minWord[currentLang]||'хв');
     // Profile panel
     const balEl = document.getElementById('profileBalance');
     const minEl = document.getElementById('profileMinutes');
     if(balEl) balEl.textContent = balStr;
-    if(minEl) minEl.textContent = '≈ '+minsStr+' перекладу';
+    const transWord = {'uk':'перекладу','en':'translation','de':'Übersetzung'};
+    if(minEl) minEl.textContent = '≈ '+minsStr+' '+(transWord[currentLang]||'перекладу');
     // Dashboard billing block
     const dBal = document.getElementById('dashBalance');
     const dMin = document.getElementById('dashMinutes');
