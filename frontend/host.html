@@ -498,6 +498,7 @@
                 <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
             </div>
             <button class="solo-btn i18n" id="soloBtn" onclick="soloToggle()">СЛУХАТИ</button>
+            <div id="soloWrongLangWarn" style="display:none;margin:10px 0 4px;padding:10px 14px;border-radius:10px;background:rgba(240,192,80,.1);border:1px solid rgba(240,192,80,.35);color:var(--yellow);font-size:13px;line-height:1.4;"></div>
             <div class="card original">
                 <div class="card-label i18n" id="soloLabelOrig">Оригінал</div>
                 <div class="card-text" id="soloOriginal">—</div>
@@ -729,6 +730,8 @@
             if(sh) sh.textContent = t('btnShare');
             const st = document.getElementById('roomStatusText');
             if(st) st.textContent = t(_curRoomStatusKey);
+            const ww = document.getElementById('soloWrongLangWarn');
+            if(ww) ww.textContent = t('soloWrongLang');
         }
         if (animate) {
             els.forEach(el => el.classList.add('fading'));
@@ -868,7 +871,7 @@
     // SOLO
     // =====================================================================
     let soloListening=false, soloWs=null, soloMic=null, curSoloKey='soloStatusDisconnected';
-    let _emptyFinalCount = 0;
+    let _emptyFinalCount = 0, _wrongLangCount = 0;
     const soloVadEl=document.getElementById('soloVad'), soloOrigEl=document.getElementById('soloOriginal'),
           soloTransEl=document.getElementById('soloTranslation'), soloHistEl=document.getElementById('soloHistory');
 
@@ -902,6 +905,19 @@
                     if (m.is_final) {
                         if (m.text && m.text.trim()) {
                             _emptyFinalCount = 0;
+                            // Wrong language detection: compare Deepgram detected lang vs selected source lang
+                            const selSrc = document.getElementById('soloSrcLangSelect').value;
+                            const detectedLang = (m.language || '').toLowerCase().split('-')[0];
+                            const selectedLang = (selSrc === 'auto' || !selSrc) ? null : selSrc.toLowerCase().split('-')[0];
+                            if (selectedLang && detectedLang && detectedLang !== 'unknown' && detectedLang !== selectedLang) {
+                                _wrongLangCount++;
+                                if (_wrongLangCount >= 2) {
+                                    document.getElementById('soloWrongLangWarn').style.display = 'block';
+                                }
+                            } else {
+                                _wrongLangCount = 0;
+                                document.getElementById('soloWrongLangWarn').style.display = 'none';
+                            }
                             soloOrigEl.textContent = m.text;
                             soloOrigEl.style.opacity = '1';
                             soloOrigEl.style.color = '';
@@ -909,6 +925,8 @@
                             soloTransEl.style.opacity = '0.4';
                         } else {
                             _emptyFinalCount++;
+                            _wrongLangCount = 0;
+                            document.getElementById('soloWrongLangWarn').style.display = 'none';
                             if (_emptyFinalCount >= 3) {
                                 soloOrigEl.textContent = t('soloNoSpeech');
                                 soloOrigEl.style.opacity = '1';
@@ -955,6 +973,8 @@
     function soloStop() {
         soloListening = false;
         _emptyFinalCount = 0;
+        _wrongLangCount = 0;
+        document.getElementById('soloWrongLangWarn').style.display = 'none';
         document.getElementById('soloBtn').classList.remove('active');
         document.getElementById('soloBtn').textContent = t('soloBtnListen');
         soloMic?.stop(); soloMic = null;
@@ -1208,4 +1228,4 @@
     <span>Відгук</span>
 </a>
 </body>
-</html>  
+</html>
