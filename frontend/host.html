@@ -905,40 +905,16 @@
                     if (m.is_final) {
                         if (m.text && m.text.trim()) {
                             _emptyFinalCount = 0;
-                            // Wrong language detection via script analysis.
-                            // Deepgram always returns the *set* language, not detected — so m.language
-                            // is useless for comparison. Instead we look at what characters
-                            // are actually in the transcript and compare to what the selected
-                            // language should look like.
-                            const selSrc = document.getElementById('soloSrcLangSelect').value;
-                            if (selSrc && selSrc !== 'auto') {
-                                const txt = m.text;
-                                const hasCJK      = /[\u3000-\u9fff\uac00-\ud7af\u3040-\u30ff]/.test(txt);
-                                const hasArabic   = /[\u0600-\u06ff]/.test(txt);
-                                const hasCyrillic = /[\u0400-\u04ff]/.test(txt);
-                                const hasLatin    = /[a-zA-ZÀ-öø-ÿ]/.test(txt);
-                                const hasHindi    = /[\u0900-\u097f]/.test(txt);
-                                // Script expected by selected language
-                                const cjkLangs     = ['zh','ja','ko'];
-                                const arabicLangs  = ['ar'];
-                                const cyrillicLangs= ['ru','uk'];
-                                const latinLangs   = ['en','de','fr','es','it','pt','pl','tr'];
-                                const hindiLangs   = ['hi'];
-                                let mismatch = false;
-                                if (cjkLangs.includes(selSrc)      && !hasCJK)      mismatch = true;
-                                if (arabicLangs.includes(selSrc)   && !hasArabic)   mismatch = true;
-                                if (cyrillicLangs.includes(selSrc) && !hasCyrillic) mismatch = true;
-                                if (latinLangs.includes(selSrc)    && !hasLatin)    mismatch = true;
-                                if (hindiLangs.includes(selSrc)    && !hasHindi)    mismatch = true;
-                                if (mismatch) {
-                                    _wrongLangCount++;
-                                    if (_wrongLangCount >= 2) {
-                                        document.getElementById('soloWrongLangWarn').style.display = 'block';
-                                    }
-                                } else {
-                                    _wrongLangCount = 0;
-                                    document.getElementById('soloWrongLangWarn').style.display = 'none';
+                            // lang_mismatch is set by backend: detected language ≠ selected source lang
+                            if (m.lang_mismatch) {
+                                _wrongLangCount++;
+                                if (_wrongLangCount >= 2) {
+                                    document.getElementById('soloWrongLangWarn').style.display = 'block';
+                                    document.getElementById('soloWrongLangWarn').textContent = t('soloWrongLang');
                                 }
+                            } else {
+                                _wrongLangCount = 0;
+                                document.getElementById('soloWrongLangWarn').style.display = 'none';
                             }
                             soloOrigEl.textContent = m.text;
                             soloOrigEl.style.opacity = '1';
