@@ -963,6 +963,28 @@
         ja:'ja-JP', ko:'ko-KR', ar:'ar-SA', tr:'tr-TR', hi:'hi-IN'
     };
 
+    // Карта мов для Web Speech Synthesis
+    const _ttsLangMap = {
+        uk:'uk-UA', ru:'ru-RU', en:'en-US', de:'de-DE', pl:'pl-PL',
+        fr:'fr-FR', es:'es-ES', it:'it-IT', pt:'pt-BR', zh:'zh-CN',
+        ja:'ja-JP', ko:'ko-KR', ar:'ar-SA', tr:'tr-TR', hi:'hi-IN'
+    };
+
+    function _fallbackSpeak(text, lang) {
+        if (!window.speechSynthesis || !text) return;
+        // Зупинити попереднє озвучення
+        window.speechSynthesis.cancel();
+        const utt = new SpeechSynthesisUtterance(text);
+        utt.lang = _ttsLangMap[lang] || 'en-US';
+        utt.rate = 1.0;
+        utt.pitch = 1.0;
+        // Спробувати знайти голос для цієї мови
+        const voices = window.speechSynthesis.getVoices();
+        const match = voices.find(v => v.lang.startsWith(utt.lang.split('-')[0]));
+        if (match) utt.voice = match;
+        window.speechSynthesis.speak(utt);
+    }
+
     async function _myMemoryTranslate(text, srcLang, tgtLang) {
         // MyMemory: безкоштовний API, не потребує ключа
         const sl = srcLang === 'auto' ? 'en' : srcLang;
@@ -1015,6 +1037,7 @@
                     soloTransEl.textContent = translated;
                     soloTransEl.style.opacity = '1';
                     _hist(soloHistEl, final.trim(), translated);
+                    _fallbackSpeak(translated, tgtLang);
                 }
             }
         };
