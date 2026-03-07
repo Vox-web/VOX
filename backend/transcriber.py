@@ -37,6 +37,7 @@ class TranscriptResult:
     is_final: bool        # True = конец фразы, можно переводить
     language: str         # "en", "de", "uk", ...
     confidence: float     # 0.0 — 1.0
+    detected_language: Optional[str] = None  # реально определённый язык (в multi-режиме)
 
 
 # ---------------------------------------------------------------------------
@@ -219,12 +220,11 @@ class DeepgramTranscriber:
                 is_final = data.get("is_final", False)
                 speech_final = data.get("speech_final", False)
 
-                # Определяем язык (для auto-detect)
+                # Определяем язык
                 lang = self._language
-                if not lang:
-                    detected = channel.get("detected_language")
-                    if detected:
-                        lang = detected
+                detected = channel.get("detected_language")  # заполняется в language=multi режиме
+                if not lang and detected:
+                    lang = detected
 
                 if not text:
                     continue
@@ -237,6 +237,7 @@ class DeepgramTranscriber:
                         is_final=False,
                         language=lang or "unknown",
                         confidence=confidence,
+                        detected_language=detected,
                     ))
 
                 elif is_final:
@@ -254,6 +255,7 @@ class DeepgramTranscriber:
                             is_final=True,
                             language=lang or "unknown",
                             confidence=confidence,
+                            detected_language=detected,
                         ))
                     else:
                         # Частичный final — показываем как preview
@@ -263,6 +265,7 @@ class DeepgramTranscriber:
                             is_final=False,
                             language=lang or "unknown",
                             confidence=confidence,
+                            detected_language=detected,
                         ))
 
         except websockets.ConnectionClosed:
