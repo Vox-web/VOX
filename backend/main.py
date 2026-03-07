@@ -376,12 +376,6 @@ async def websocket_solo(ws: WebSocket):
                     "is_final": result.is_final,
                     "language": result.language,
                     "confidence": result.confidence,
-                    # lang_mismatch: detected language differs from user-selected source lang
-                    "lang_mismatch": (
-                        bool(result.detected_language)
-                        and session_config.get("source_lang") is not None
-                        and result.detected_language.split("-")[0] != session_config["source_lang"].split("-")[0]
-                    ),
                 })
 
                 if result.is_final and result.text.strip():
@@ -442,9 +436,7 @@ async def websocket_solo(ws: WebSocket):
                         src = session_config.get("source_lang")
                         logger.info(f"🎤 Solo config: source={src}, target={session_config['target_lang']}")
                         await dg.stop()
-                        # Always use multi mode — Deepgram detects actual language.
-                        # source_lang is used for mismatch detection and translation only.
-                        await dg.start(language=None)
+                        await dg.start(language=src)
                         dg_started = True
                 except json.JSONDecodeError:
                     pass
@@ -454,8 +446,8 @@ async def websocket_solo(ws: WebSocket):
                     continue
                 if not dg_started:
                     src = session_config.get("source_lang")
-                    logger.info(f"🎤 Solo lazy start: source={src or 'auto'}, using multi detection")
-                    await dg.start(language=None)  # multi mode for real language detection
+                    logger.info(f"🎤 Solo lazy start: language={src or 'multi'}")
+                    await dg.start(language=src)
                     dg_started = True
                 await dg.send_audio(message["bytes"])
 
