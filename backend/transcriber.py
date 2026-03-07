@@ -67,6 +67,9 @@ class DeepgramTranscriber:
         self._receive_task: Optional[asyncio.Task] = None
         self._language: Optional[str] = None
         self._finals_buffer: list[str] = []
+        self._flush_task: Optional[asyncio.Task] = None  # таймер авто-flush
+        self._last_lang: str = "unknown"
+        self._last_confidence: float = 0.0
 
         # Очередь результатов — читается обработчиком в main.py
         self.results: asyncio.Queue[TranscriptResult] = asyncio.Queue()
@@ -75,6 +78,26 @@ class DeepgramTranscriber:
     def is_active(self) -> bool:
         """Активно ли соединение с Deepgram."""
         return self._ws is not None and not self._ws.closed
+
+    async def _delayed_flush(self, delay: float):
+        """
+        Таймер: якщо після is_final без speech_final пройшло `delay` секунд
+        і буфер не порожній — флашимо його як фінальний результат.
+        """
+        try:
+            await asyncio.sleep(delay)
+            if self._finals_buffer:
+                full_text = " ".join(self._finals_buffer)
+                self._finals_buffer = []
+                logger.info(f"📝 [{self._last_lang}] (flush timer) {full_text}")
+                await self.results.put(TranscriptResult(
+                    text=full_text,
+                    is_final=True,
+                    language=self._last_lang,
+                    confidence=self._last_confidence,
+                ))
+        except asyncio.CancelledError:
+            pass
 
     async def start(self, language: Optional[str] = None):
         """
@@ -185,6 +208,9 @@ class DeepgramTranscriber:
 
         self._ws = None
         self._finals_buffer = []
+        if self._flush_task and not self._flush_task.done():
+            self._flush_task.cancel()
+            self._flush_task = None
 
     async def _receive_loop(self):
         """
@@ -240,9 +266,15 @@ class DeepgramTranscriber:
 
                 elif is_final:
                     self._finals_buffer.append(text)
+                    self._last_lang = lang or "unknown"
+                    self._last_confidence = confidence
 
                     if speech_final:
-                        # Конец фразы
+                        # Конец фразы — скасуємо таймер і флашимо одразу
+                        if self._flush_task and not self._flush_task.done():
+                            self._flush_task.cancel()
+                            self._flush_task = None
+
                         full_text = " ".join(self._finals_buffer)
                         self._finals_buffer = []
 
@@ -255,7 +287,7 @@ class DeepgramTranscriber:
                             confidence=confidence,
                         ))
                     else:
-                        # Частичный final — показываем как preview
+                        # Частичный final — показываем как preview и запускаємо таймер
                         full_text = " ".join(self._finals_buffer)
                         await self.results.put(TranscriptResult(
                             text=full_text,
@@ -263,6 +295,10 @@ class DeepgramTranscriber:
                             language=lang or "unknown",
                             confidence=confidence,
                         ))
+                        # Скинути попередній таймер і запустити новий (800ms)
+                        if self._flush_task and not self._flush_task.done():
+                            self._flush_task.cancel()
+                        self._flush_task = asyncio.create_task(self._delayed_flush(0.8))
 
         except websockets.ConnectionClosed:
             logger.info("🔇 Deepgram соединение закрыто")
