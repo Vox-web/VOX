@@ -100,15 +100,17 @@ class DeepgramTranscriber:
         self._language = language
 
         # Параметры Deepgram
+        # smart_format прибрано: буферизує аудіо перед першим interim (+1-2с затримки)
+        # endpointing=150 — кінець фрази швидше (було 300ms)
+        # utterance_end_ms=500 — менше очікування тиші (було 1000ms)
         params = [
             "model=nova-2",
             "interim_results=true",
-            "utterance_end_ms=1000",
-            "endpointing=300",
+            "utterance_end_ms=500",
+            "endpointing=150",
             "encoding=linear16",
             f"sample_rate={SAMPLE_RATE}",
             "channels=1",
-            "smart_format=true",
             "punctuate=true",
         ]
 

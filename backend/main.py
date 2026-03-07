@@ -16,7 +16,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -359,24 +359,14 @@ async def kick_participant(room_id: str, guest_id: str):
 # WebSocket: Solo режим
 # ===========================================================================
 @app.websocket("/ws/solo")
-async def websocket_solo(ws: WebSocket):
+async def websocket_solo(ws: WebSocket, token: str = Query(default="")):
     await ws.accept()
     logger.info("🔌 WebSocket підключено (Solo)")
 
-    # Billing: чекаємо перше повідомлення {type: "auth", token: "..."}
-    # Токен в URL — антипатерн (потрапляє в логи), тому auth через перше повідомлення
+    # Billing: resolve user from token
     from billing_db import deduct_session_cost as _deduct, get_user_balance as _get_balance
-    _user_id = None
-    try:
-        first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
-        if first_raw.get("text"):
-            first = json.loads(first_raw["text"])
-            if first.get("type") == "auth":
-                _user = get_user_by_token(first.get("token", ""))
-                _user_id = _user["id"] if _user else None
-    except (asyncio.TimeoutError, Exception):
-        pass  # анонімна сесія — продовжуємо без billing
-
+    _user = get_user_by_token(token) if token else None
+    _user_id = _user["id"] if _user else None
     if _user_id:
         logger.info(f"💳 Solo: user_id={_user_id} (billing active)")
     else:
@@ -491,7 +481,10 @@ async def websocket_solo(ws: WebSocket):
                     pass
 
             if "bytes" in message and message["bytes"]:
-                # Мікрофон завжди активний — echo cancellation на рівні браузера (AEC)
+                # Soft gate: мікрофон активний завжди, але аудіо не надсилається в Deepgram
+                # поки грає TTS — це запобігає echo без холодного старту Deepgram-сесії
+                if tts_playing:
+                    continue
                 if not dg_started:
                     src = session_config.get("source_lang")
                     logger.info(f"🎤 Solo lazy start: language={src or 'multi'}")
