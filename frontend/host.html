@@ -12,6 +12,13 @@
     <meta name="apple-mobile-web-app-title" content="VOX">
     <meta name="theme-color" content="#7c6aff">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="VOX">
+    <meta name="theme-color" content="#7c6aff">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -220,6 +227,11 @@
         .howto-content ol { margin: 0; padding-left: 20px; }
         .howto-content ol li { margin-bottom: 6px; }
         .howto-content .section { margin-bottom: 14px; }
+        .pwa-btn { display: none; width: 100%; padding: 13px; border-radius: 10px;
+            border: 1.5px dashed var(--accent); background: var(--accent-dim);
+            color: var(--accent); font-size: 14px; font-weight: 600; cursor: pointer;
+            transition: all .2s; }
+        .pwa-btn:hover { background: rgba(124,106,255,.2); border-style: solid; }
         .pwa-btn { display: none; width: 100%; padding: 13px; border-radius: 10px;
             border: 1.5px dashed var(--accent); background: var(--accent-dim);
             color: var(--accent); font-size: 14px; font-weight: 600; cursor: pointer;
@@ -605,6 +617,8 @@
             soloLabelOrig: 'Оригінал', soloLabelTrans: 'Переклад', soloLabelHist: 'Історія',
             soloRecording: 'Записую',
             soloNoSpeech: '⚠️ Мова не розпізнається. Перевірте мову джерела або гучність.',
+            soloWrongLang: '⚠️ Схоже, мова спікера не відповідає обраній. Змініть мову джерела.',
+            soloNoSpeech: '⚠️ Мова не розпізнається. Перевірте мову джерела або гучність.',
             roomSetupTitle: 'Налаштування кімнати', roomHostLangLabel: 'Ваша мова:',
             btnCreateRoom: 'Створити кімнату', roomQrLabel: 'Скануйте для входу',
             roomCostNote: 'Вартість: $0.05/хв × кількість гостей. При 3 гостях — ~$0.15/хв',
@@ -637,6 +651,8 @@
             soloLabelOrig: 'Original', soloLabelTrans: 'Translation', soloLabelHist: 'History',
             soloRecording: 'Recording',
             soloNoSpeech: '⚠️ Speech not recognized. Check source language or volume.',
+            soloWrongLang: '⚠️ Speaker language does not match selected source. Change source language.',
+            soloNoSpeech: '⚠️ Speech not recognized. Check source language or volume.',
             roomSetupTitle: 'Room Settings', roomHostLangLabel: 'Your language:',
             btnCreateRoom: 'Create Room', roomQrLabel: 'Scan to join',
             roomCostNote: 'Cost: $0.05/min × number of guests. With 3 guests — ~$0.15/min',
@@ -668,6 +684,8 @@
             soloBtnListen: 'HÖREN', soloBtnStop: 'STOPP',
             soloLabelOrig: 'Original', soloLabelTrans: 'Übersetzung', soloLabelHist: 'Verlauf',
             soloRecording: 'Aufnahme',
+            soloNoSpeech: '⚠️ Sprache nicht erkannt. Quellsprache oder Lautstärke prüfen.',
+            soloWrongLang: '⚠️ Sprechersprache stimmt nicht überein. Quellsprache ändern.',
             soloNoSpeech: '⚠️ Sprache nicht erkannt. Quellsprache oder Lautstärke prüfen.',
             roomSetupTitle: 'Raumeinstellungen', roomHostLangLabel: 'Ihre Sprache:',
             btnCreateRoom: 'Raum erstellen', roomQrLabel: 'Scannen zum Beitreten',
