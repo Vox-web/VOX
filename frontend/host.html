@@ -893,7 +893,10 @@
                 target_lang: tgtLang,
             }));
         };
-        soloWs.onclose = () => { soloSetStatus('soloStatusDisconnected'); if (soloListening) setTimeout(soloConnectWS,2000); };
+        soloWs.onclose = () => { soloSetStatus('soloStatusDisconnected'); if (soloListening) setTimeout(soloConnectWS,500); };
+        window.addEventListener('online', () => {
+            if (soloListening && (!soloWs || soloWs.readyState === WebSocket.CLOSED)) soloConnectWS();
+        });
         soloWs.onerror = () => soloSetStatus('soloStatusError');
         soloWs.onmessage = e => {
             if (e.data instanceof ArrayBuffer) _audioMsg(e.data);
@@ -1053,8 +1056,12 @@
         roomWs.onclose = (e) => {
             roomSetStatus('roomStatusDisconnected');
             if (e.code === 4004 || !roomId) return;
-            setTimeout(connectRoomWS, 3000);
+            setTimeout(connectRoomWS, 500);
         };
+
+        window.addEventListener('online', () => {
+            if (roomId && (!roomWs || roomWs.readyState === WebSocket.CLOSED)) connectRoomWS();
+        });
         roomWs.onerror = () => roomSetStatus('roomStatusDisconnected');
         roomWs.onmessage = e => {
             if (e.data instanceof ArrayBuffer) _audioMsg(e.data);

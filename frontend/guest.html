@@ -813,7 +813,12 @@
         ws.onclose = () => {
             statusDot.className = 'status-dot';
             statusTextEl.textContent = t('statusDisconnected');
+            if (guestId) setTimeout(connectGuestWS, 500);
         };
+
+        window.addEventListener('online', () => {
+            if (guestId && (!ws || ws.readyState === WebSocket.CLOSED)) connectGuestWS();
+        });
 
         ws.onerror = () => {
             statusDot.className = 'status-dot';
