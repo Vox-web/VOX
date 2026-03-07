@@ -518,9 +518,8 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
         return
 
     # Reconnect: якщо хост повертається в межах grace period
-    is_reconnect = room.host_disconnected_at is not None
-    room_manager.host_reconnected(room_id, ws)
-    if is_reconnect:
+    if room.host_disconnected_at is not None:
+        room_manager.host_reconnected(room_id, ws)
         logger.info(f"🔄 Хост перепідключився до кімнати '{room_id}'")
     else:
         room.host_websocket = ws
@@ -612,7 +611,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                 if "disconnect" in str(e).lower():
                     break
                 logger.error(f"Host result error: {e}")
-                break
+                # Не виходимо — продовжуємо чекати наступний результат
 
     result_task = asyncio.create_task(handle_results())
 
@@ -764,7 +763,7 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                 if "disconnect" in str(e).lower():
                     break
                 logger.error(f"Guest result error: {e}")
-                break
+                # Не виходимо — продовжуємо чекати наступний результат
 
     result_task = asyncio.create_task(handle_results())
 
