@@ -1099,13 +1099,15 @@
     let _soloPingInterval = null;
     function soloConnectWS() {
         const p = location.protocol==='https:'?'wss:':'ws:';
-        const _tok = localStorage.getItem('vox_token') || '';
-        soloWs = new WebSocket(`${p}//${location.host}/ws/solo${_tok ? '?token=' + encodeURIComponent(_tok) : ''}`);
+        soloWs = new WebSocket(`${p}//${location.host}/ws/solo`);
         soloWs.binaryType = 'arraybuffer';
         soloWs.onopen = async () => {
             _wsRetries = 0;
             soloStopFallback(); // якщо fallback був активний — вимкнути
             soloSetStatus('soloStatusConnected');
+            // Auth: токен передається першим повідомленням (не в URL — безпечніше)
+            const _tok = localStorage.getItem('vox_token') || '';
+            soloWs.send(JSON.stringify({type: 'auth', token: _tok}));
             // Keepalive: ping кожні 15 сек щоб WS не рвався при згаснутому екрані
             clearInterval(_soloPingInterval);
             _soloPingInterval = setInterval(() => {

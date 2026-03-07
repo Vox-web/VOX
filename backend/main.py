@@ -16,7 +16,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header, Query
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -359,14 +359,24 @@ async def kick_participant(room_id: str, guest_id: str):
 # WebSocket: Solo режим
 # ===========================================================================
 @app.websocket("/ws/solo")
-async def websocket_solo(ws: WebSocket, token: str = Query(default="")):
+async def websocket_solo(ws: WebSocket):
     await ws.accept()
     logger.info("🔌 WebSocket підключено (Solo)")
 
-    # Billing: resolve user from token
+    # Billing: чекаємо перше повідомлення {type: "auth", token: "..."}
+    # Токен в URL — антипатерн (потрапляє в логи), тому auth через перше повідомлення
     from billing_db import deduct_session_cost as _deduct, get_user_balance as _get_balance
-    _user = get_user_by_token(token) if token else None
-    _user_id = _user["id"] if _user else None
+    _user_id = None
+    try:
+        first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
+        if first_raw.get("text"):
+            first = json.loads(first_raw["text"])
+            if first.get("type") == "auth":
+                _user = get_user_by_token(first.get("token", ""))
+                _user_id = _user["id"] if _user else None
+    except (asyncio.TimeoutError, Exception):
+        pass  # анонімна сесія — продовжуємо без billing
+
     if _user_id:
         logger.info(f"💳 Solo: user_id={_user_id} (billing active)")
     else:
