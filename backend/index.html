@@ -417,6 +417,17 @@ main{position:relative;z-index:1}
 }
 .billing-placeholder .icon{font-size:28px;opacity:.5}
 
+.topup-amount-btn{
+  background:var(--surface2);border:1px solid var(--border2);color:var(--text);
+  border-radius:12px;padding:14px 10px;cursor:pointer;transition:all .2s;
+  font-family:'DM Sans',sans-serif;font-size:20px;font-weight:700;
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+}
+.topup-amount-btn span{font-size:11px;font-weight:400;color:var(--text3)}
+.topup-amount-btn:hover{border-color:var(--accent);background:var(--accent-dim);color:var(--accent2)}
+.topup-popular{border-color:var(--accent) !important;background:var(--accent-dim) !important;color:var(--accent2) !important}
+.topup-popular span{color:var(--accent2) !important}
+
 /* ── CTA SECTION ── */
 .cta-section{
   background:linear-gradient(135deg,rgba(124,106,255,.15) 0%,rgba(160,100,255,.1) 100%);
@@ -686,21 +697,34 @@ footer{
           <span>🎙</span>
           <span data-i18n="dash_go_host">Перейти до VOX Host</span>
         </a>
-        <button class="dash-btn dash-btn-review" onclick="openReviewModal('landing')" >
+        <button class="dash-btn dash-btn-review" onclick="openReviewModal('landing')">
           <span>⭐</span>
           <span data-i18n="dash_leave_review">Залишити відгук</span>
         </button>
-        <button class="dash-btn dash-btn-outline" style="cursor:not-allowed;opacity:.5" title="Coming soon">
+        <button class="dash-btn dash-btn-outline" onclick="openTopupModal()">
           <span>💳</span>
-          <span data-i18n="dash_billing">Білінг (незабаром)</span>
+          <span>Поповнити баланс</span>
         </button>
       </div>
-      <div class="billing-placeholder">
-        <span class="icon">💳</span>
-        <div>
-          <div style="font-weight:600;color:var(--text2);margin-bottom:2px" data-i18n="billing_title">Платіжна інформація</div>
-          <div data-i18n="billing_desc">Безкоштовний план · Білінг буде доступний у наступному оновленні</div>
+      <!-- Білінг-блок з реальними даними -->
+      <div style="margin-top:24px;background:rgba(124,106,255,.06);border:1px solid rgba(124,106,255,.2);border-radius:14px;padding:20px 22px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <span style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">💰 Баланс рахунку</span>
+          <span style="font-size:20px;font-weight:700;color:var(--green)" id="dashBalance">…</span>
         </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+          <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:18px;font-weight:700;color:var(--accent2)" id="dashMinutes">—</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">хв перекладу</div>
+          </div>
+          <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:18px;font-weight:700;color:var(--yellow)" id="dashRate">$0.05</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">за хвилину</div>
+          </div>
+        </div>
+        <button onclick="openTopupModal()" style="width:100%;padding:10px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:background .2s" onmouseover="this.style.background='var(--accent2)'" onmouseout="this.style.background='var(--accent)'">
+          💳 Поповнити баланс
+        </button>
       </div>
     </div>
   </div>
@@ -805,11 +829,20 @@ footer{
     <div class="section-tag" data-i18n="cta_tag">Почни зараз</div>
     <h2 class="section-title" data-i18n="cta_title">Готовий говорити<br/>з усім світом?</h2>
     <p class="section-desc" style="margin:0 auto 40px" data-i18n="cta_desc">Реєстрація безкоштовна. Почни прямо зараз — без кредитної картки.</p>
-    <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
-      <button class="btn-primary" onclick="openModal('auth','register')">
+    <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap" id="ctaActions">
+      <!-- Гість: кнопка реєстрації -->
+      <button id="ctaRegisterBtn" class="btn-primary" onclick="openModal('auth','register')">
         <span>🚀</span>
         <span data-i18n="cta_btn">Зареєструватись безкоштовно</span>
       </button>
+      <!-- Авторизований: інфо-панель -->
+      <div id="ctaAuthedMsg" style="display:none;background:rgba(45,212,160,.08);border:1px solid rgba(45,212,160,.3);border-radius:14px;padding:14px 24px;display:none;align-items:center;gap:12px">
+        <span style="font-size:24px">✅</span>
+        <div style="text-align:left">
+          <div style="font-weight:600;color:var(--green);font-size:15px" id="ctaAuthedName"></div>
+          <div style="font-size:13px;color:var(--text3);margin-top:2px">Ви авторизовані · <a href="/host" style="color:var(--accent2);text-decoration:none">Перейти до VOX Host →</a></div>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -846,6 +879,22 @@ footer{
 </footer>
 
 <!-- ══════════════ AUTH MODAL ══════════════ -->
+<!-- ── TOPUP MODAL ── -->
+<div class="modal-overlay" id="modalTopup" onclick="if(event.target===this)closeModal('modalTopup')" style="z-index:600">
+  <div class="modal" style="max-width:380px">
+    <button class="modal-close" onclick="closeModal('modalTopup')">✕</button>
+    <h2 style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:6px">💳 Поповнити баланс</h2>
+    <p style="color:var(--text3);font-size:14px;margin-bottom:24px">Оберіть суму поповнення. Кошти одразу зараховуються на рахунок.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px" id="topupGrid">
+      <button onclick="doTopup(5)"  class="topup-amount-btn">$5<span>≈ 100 хв</span></button>
+      <button onclick="doTopup(10)" class="topup-amount-btn topup-popular">$10<span>≈ 200 хв ⭐</span></button>
+      <button onclick="doTopup(20)" class="topup-amount-btn">$20<span>≈ 400 хв</span></button>
+      <button onclick="doTopup(50)" class="topup-amount-btn">$50<span>≈ 1000 хв</span></button>
+    </div>
+    <p style="font-size:11px;color:var(--text3);text-align:center">🔒 Безпечна оплата через Stripe · Без підписки</p>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalAuth" onclick="closeModalOnOverlay(event,'modalAuth')">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('modalAuth')">✕</button>
@@ -1126,10 +1175,17 @@ function updateNavForUser(){
   document.getElementById('profileAvatarBig').textContent = currentUser.name[0].toUpperCase();
   document.getElementById('profileName').textContent = currentUser.name;
   document.getElementById('profileEmail').textContent = currentUser.email || '';
-  // Hide bonus CTA — user is already registered
+  // Hide bonus CTA — user already registered
   const bonusBtn = document.getElementById('bonusCta');
   if(bonusBtn) bonusBtn.style.display='none';
-  // Load balance from billing API
+  // CTA section: hide register btn, show authed message
+  const ctaReg = document.getElementById('ctaRegisterBtn');
+  const ctaMsg = document.getElementById('ctaAuthedMsg');
+  const ctaName = document.getElementById('ctaAuthedName');
+  if(ctaReg) ctaReg.style.display='none';
+  if(ctaMsg){ ctaMsg.style.display='flex'; }
+  if(ctaName) ctaName.textContent = '👋 ' + currentUser.name;
+  // Load balance
   loadProfileBalance();
   // Show dashboard
   const dash = document.getElementById('dashboard');
@@ -1145,13 +1201,43 @@ async function loadProfileBalance(){
     const r = await fetch('/api/balance', {headers:{Authorization:'Bearer '+token}});
     if(!r.ok) return;
     const d = await r.json();
-    const bal = (d.balance||0).toFixed(2);
-    const mins = d.est_minutes != null ? Math.floor(d.est_minutes)+'хв' : '—';
+    const bal = parseFloat(d.balance||0);
+    const mins = d.est_minutes != null ? Math.floor(d.est_minutes) : Math.floor(bal/0.05);
+    const balStr = '$'+bal.toFixed(2);
+    const minsStr = mins > 0 ? mins+' хв' : '0 хв';
+    // Profile panel
     const balEl = document.getElementById('profileBalance');
     const minEl = document.getElementById('profileMinutes');
-    if(balEl) balEl.textContent = '$'+bal;
-    if(minEl) minEl.textContent = '≈ '+mins+' перекладу';
+    if(balEl) balEl.textContent = balStr;
+    if(minEl) minEl.textContent = '≈ '+minsStr+' перекладу';
+    // Dashboard billing block
+    const dBal = document.getElementById('dashBalance');
+    const dMin = document.getElementById('dashMinutes');
+    if(dBal) dBal.textContent = balStr;
+    if(dMin) dMin.textContent = minsStr;
   }catch(e){}
+}
+
+function openTopupModal(){
+  document.getElementById('modalTopup').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+
+async function doTopup(amount){
+  try{
+    const token = getToken();
+    if(!token){ openModal('auth','login'); return; }
+    const btn = event.target.closest('button');
+    if(btn){ btn.textContent='…'; btn.disabled=true; }
+    const r = await fetch('/api/create-checkout',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({amount_usd:amount})
+    });
+    const d = await r.json();
+    if(d.url) window.location.href = d.url;
+    else showToast('❌ Помилка створення платежу','error');
+  }catch(e){ showToast('❌ Помилка мережі','error'); }
 }
 
 function updateNavForGuest(){
@@ -1160,6 +1246,13 @@ function updateNavForGuest(){
   document.getElementById('navUser').style.display='none';
   document.getElementById('dashboard').style.display='none';
   document.getElementById('anonFields').style.display='block';
+  // CTA: відновити кнопку реєстрації
+  const ctaReg = document.getElementById('ctaRegisterBtn');
+  const ctaMsg = document.getElementById('ctaAuthedMsg');
+  const bonusBtn = document.getElementById('bonusCta');
+  if(ctaReg) ctaReg.style.display='';
+  if(ctaMsg) ctaMsg.style.display='none';
+  if(bonusBtn) bonusBtn.style.display='';
 }
 
 function logout(){
