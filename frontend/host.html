@@ -56,6 +56,70 @@
             .container { padding: 10px; gap: 10px; }
         }
 
+        /* ======== Billing: Balance widget ======== */
+        .balance-widget {
+            display: flex; align-items: center; gap: 6px;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 6px 12px; cursor: pointer;
+            font-size: 13px; font-weight: 600; color: var(--text);
+            transition: all 0.2s; box-shadow: var(--shadow);
+        }
+        .balance-widget:hover { border-color: var(--accent); color: var(--accent); }
+        .balance-widget .bal-icon { font-size: 15px; }
+        .balance-widget .bal-min { font-size: 11px; color: var(--text2); font-weight: 400; }
+        .balance-low { border-color: var(--yellow) !important; color: var(--yellow) !important; }
+        .balance-empty { border-color: var(--red) !important; color: var(--red) !important; }
+
+        /* Модалка пополнения */
+        .billing-modal-overlay {
+            display: none; position: fixed; inset: 0; z-index: 1000;
+            background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
+            align-items: center; justify-content: center;
+        }
+        .billing-modal-overlay.open { display: flex; }
+        .billing-modal {
+            background: var(--surface); border-radius: 20px;
+            padding: 28px 24px; width: 90%; max-width: 360px;
+            box-shadow: 0 24px 64px rgba(0,0,0,.35);
+            border: 1px solid var(--border);
+        }
+        .billing-modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+        .billing-modal .bal-current {
+            font-size: 13px; color: var(--text2); margin-bottom: 20px;
+        }
+        .topup-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;
+        }
+        .topup-btn {
+            padding: 14px 8px; border-radius: 12px; border: 1.5px solid var(--border);
+            background: var(--surface2); color: var(--text);
+            font-size: 18px; font-weight: 700; cursor: pointer;
+            transition: all 0.2s; text-align: center;
+        }
+        .topup-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+        .topup-btn small { display: block; font-size: 11px; font-weight: 400; color: var(--text2); margin-top: 3px; }
+        .billing-modal .modal-close {
+            width: 100%; padding: 11px; border-radius: 10px;
+            border: 1px solid var(--border); background: transparent;
+            color: var(--text2); font-size: 14px; cursor: pointer;
+        }
+        .billing-modal .modal-close:hover { color: var(--text); }
+
+        /* Toast уведомления */
+        .vox-toast {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+            background: var(--surface); border: 1px solid var(--border);
+            color: var(--text); font-size: 14px; font-weight: 500;
+            padding: 12px 20px; border-radius: 12px; z-index: 2000;
+            box-shadow: 0 8px 24px rgba(0,0,0,.25);
+            opacity: 0; transition: all 0.3s; pointer-events: none;
+            max-width: 320px; text-align: center;
+        }
+        .vox-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .vox-toast.toast-success { border-color: var(--green); color: var(--green); }
+        .vox-toast.toast-warning { border-color: var(--yellow); color: var(--yellow); }
+        .vox-toast.toast-error { border-color: var(--red); color: var(--red); }
+
         /* ======== Header ======== */
         .header {
             text-align: center; padding: 12px 0 4px; position: relative;
@@ -403,10 +467,29 @@
     <nav class="top-nav">
         <a href="/landing" class="top-nav-logo">VOX</a>
         <div class="top-nav-right">
+            <button class="balance-widget" id="balanceWidget" onclick="openTopupModal()" style="display:none" title="Поповнити баланс">
+                <span class="bal-icon">💰</span>
+                <span id="balanceAmount">$0.00</span>
+                <span class="bal-min" id="balanceMinutes">· ~0 хв</span>
+            </button>
             <a href="javascript:void(0)" onclick="window.open('/review?source=host&lang='+uiLang,'_blank')" class="top-nav-btn review-btn">⭐ <span class="nav-label" id="navReviewLabel">Відгук</span></a>
             <a href="/cabinet" class="top-nav-btn">👤 <span class="nav-label" id="navCabinetLabel">Кабінет</span></a>
         </div>
     </nav>
+    <div class="billing-modal-overlay" id="topupModalOverlay" onclick="closeTopupModal(event)">
+        <div class="billing-modal">
+            <h3>💳 Поповнити баланс</h3>
+            <div class="bal-current">Поточний баланс: <strong id="topupCurrentBal">$0.00</strong></div>
+            <div class="topup-grid">
+                <button class="topup-btn" onclick="doTopup(5)">$5<small>~100 хв Solo</small></button>
+                <button class="topup-btn" onclick="doTopup(10)">$10<small>~200 хв Solo</small></button>
+                <button class="topup-btn" onclick="doTopup(20)">$20<small>~400 хв Solo</small></button>
+                <button class="topup-btn" onclick="doTopup(50)">$50<small>~1000 хв Solo</small></button>
+            </div>
+            <button class="modal-close" onclick="closeTopupModal(null)">Закрити</button>
+        </div>
+    </div>
+    <div class="vox-toast" id="voxToast"></div>
 
 
     <div class="container">
@@ -1208,6 +1291,125 @@
         _pwaBtn.style.display = 'block';
 
     console.log('VOX v0.3.3 — Deepgram Streaming');
+
+    // =====================================================================
+    // BILLING — баланс, пополнение, тосты
+    // =====================================================================
+    let _billingToken = localStorage.getItem('vox_token') || '';
+    let _billingTimer = null;
+
+    async function loadBalance() {
+        if (!_billingToken) return;
+        try {
+            const r = await fetch('/api/balance', {
+                headers: { 'Authorization': 'Bearer ' + _billingToken }
+            });
+            if (!r.ok) return;
+            const d = await r.json();
+            const widget = document.getElementById('balanceWidget');
+            const amtEl  = document.getElementById('balanceAmount');
+            const minEl  = document.getElementById('balanceMinutes');
+            const curEl  = document.getElementById('topupCurrentBal');
+            widget.style.display = 'flex';
+            amtEl.textContent = '$' + d.balance.toFixed(2);
+            minEl.textContent = '· ~' + d.est_minutes + ' хв';
+            if (curEl) curEl.textContent = '$' + d.balance.toFixed(2);
+            // Стилизация по уровню
+            widget.classList.toggle('balance-low',   d.balance > 0 && d.balance < 1.0);
+            widget.classList.toggle('balance-empty',  d.balance <= 0);
+        } catch(e) { /* тихо */ }
+    }
+
+    function openTopupModal() {
+        document.getElementById('topupModalOverlay').classList.add('open');
+        loadBalance(); // обновить текущий баланс
+    }
+    function closeTopupModal(e) {
+        if (e && e.target !== document.getElementById('topupModalOverlay')) return;
+        document.getElementById('topupModalOverlay').classList.remove('open');
+    }
+
+    async function doTopup(amount) {
+        if (!_billingToken) { showVoxToast('⚠️ Увійдіть в акаунт для поповнення', 'warning'); return; }
+        try {
+            const r = await fetch('/api/create-checkout', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + _billingToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount })
+            });
+            const d = await r.json();
+            if (d.url) { window.location.href = d.url; }
+            else { showVoxToast('❌ Помилка: ' + (d.detail || 'невідома'), 'error'); }
+        } catch(e) { showVoxToast('❌ Помилка мережі', 'error'); }
+    }
+
+    let _toastTimer;
+    function showVoxToast(msg, type = '') {
+        const el = document.getElementById('voxToast');
+        el.textContent = msg;
+        el.className = 'vox-toast show' + (type ? ' toast-' + type : '');
+        clearTimeout(_toastTimer);
+        _toastTimer = setTimeout(() => el.classList.remove('show'), 4000);
+    }
+
+    // Показать тост по URL-параметрам (?payment=success, ?verified=1)
+    (function checkUrlParams() {
+        const p = new URLSearchParams(location.search);
+        if (p.get('payment') === 'success') {
+            showVoxToast('✅ Оплата успішна! Баланс поповнено.', 'success');
+            loadBalance();
+        } else if (p.get('payment') === 'cancel') {
+            showVoxToast('ℹ️ Оплата скасована.', '');
+        } else if (p.get('verified') === '1') {
+            showVoxToast('🎁 Email підтверджено! Нараховано $3 бонус.', 'success');
+            loadBalance();
+        } else if (p.get('verified') === '0') {
+            showVoxToast('❌ Недійсний токен верифікації.', 'error');
+        }
+        // Очистить параметры из URL без перезагрузки
+        if (p.toString()) history.replaceState({}, '', location.pathname);
+    })();
+
+    // Инициализация и polling баланса каждые 30 сек
+    if (_billingToken) {
+        loadBalance();
+        _billingTimer = setInterval(loadBalance, 30000);
+    }
+
+    // Обработка WS-сообщений биллинга (balance_warning, session_ended)
+    // Перехватываем JSON сообщения из существующих WS
+    const _origSoloOnMsg = (typeof soloWs !== 'undefined') ? null : null; // placeholder
+    function _handleBillingWsMsg(data) {
+        if (!data || !data.type) return;
+        if (data.type === 'balance_warning') {
+            showVoxToast(`⚠️ Баланс закінчується! ~${data.minutes_left} хв залишилось.`, 'warning');
+        } else if (data.type === 'session_ended' && data.reason === 'no_balance') {
+            showVoxToast('🔴 Баланс вичерпано. Сесію зупинено.', 'error');
+            // Останавливаем Solo если активен
+            if (typeof soloStop === 'function' && soloListening) soloStop();
+        }
+    }
+    // Патч: перехватываем все входящие WS JSON сообщения
+    const _patchWsOnMessage = (ws) => {
+        if (!ws) return;
+        const orig = ws.onmessage;
+        ws.onmessage = (ev) => {
+            if (typeof ev.data === 'string') {
+                try { _handleBillingWsMsg(JSON.parse(ev.data)); } catch(e) {}
+            }
+            if (orig) orig.call(ws, ev);
+        };
+    };
+    // Вызывается после создания WS в соответствующих функциях — но т.к. они уже существуют,
+    // делаем polling проверку раз в 5 сек для новых WS объектов
+    let _wsPatched = new WeakSet();
+    setInterval(() => {
+        [typeof soloWs !== 'undefined' ? soloWs : null,
+         typeof roomWs !== 'undefined' ? roomWs : null]
+        .filter(Boolean).forEach(ws => {
+            if (!_wsPatched.has(ws)) { _patchWsOnMessage(ws); _wsPatched.add(ws); }
+        });
+    }, 5000);
     </script>
     <!-- ── Review FAB Button ── -->
 <a class="review-fab" href="/review?source=host" target="_blank">

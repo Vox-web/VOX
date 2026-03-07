@@ -655,6 +655,20 @@ footer{
         <span data-i18n="hero_cta_how">Як це працює</span>
       </a>
     </div>
+    <!-- Бонусний CTA — $3 при реєстрації -->
+    <div style="margin-top:14px;text-align:center">
+      <button onclick="openModal('auth','register')"
+        style="display:inline-flex;align-items:center;gap:8px;
+               background:linear-gradient(135deg,rgba(45,212,160,.12),rgba(45,212,160,.06));
+               border:1px solid rgba(45,212,160,.35);color:#2dd4a0;
+               font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;
+               padding:11px 22px;border-radius:12px;cursor:pointer;
+               transition:all .2s;letter-spacing:.2px"
+        onmouseover="this.style.background='linear-gradient(135deg,rgba(45,212,160,.22),rgba(45,212,160,.12))'"
+        onmouseout="this.style.background='linear-gradient(135deg,rgba(45,212,160,.12),rgba(45,212,160,.06))'">
+        🎁 <span data-i18n="hero_cta_bonus">Спробувати безкоштовно — $3 бонус</span>
+      </button>
+    </div>
     <div class="stats-row">
       <div class="stat-card"><div class="stat-num">15</div><div class="stat-label" data-i18n="stat_langs">мов</div></div>
       <div class="stat-card"><div class="stat-num">~300ms</div><div class="stat-label" data-i18n="stat_latency">затримка</div></div>
@@ -938,7 +952,7 @@ uk:{
   hero_badge:"AI Live Translation · 15 мов",
   hero_sub:"Платформа перекладу в реальному часі",
   hero_desc:"Спілкуйтесь без мовних бар'єрів. Миттєва транскрипція та переклад у реальному часі для особистих розмов і багатомовних кімнат.",
-  hero_cta_start:"Розпочати безкоштовно", hero_cta_how:"Як це працює",
+  hero_cta_start:"Розпочати безкоштовно", hero_cta_how:"Як це працює", hero_cta_bonus:"Спробувати безкоштовно — $3 бонус",
   hero_scroll:"Гортай нижче",
   stat_langs:"мов", stat_latency:"затримка", stat_rooms:"учасників", stat_avail:"доступність",
   feat_tag:"Можливості", feat_title:"Все що потрібно\nдля живого спілкування",
@@ -982,7 +996,7 @@ en:{
   hero_badge:"AI Live Translation · 15 languages",
   hero_sub:"Real-Time AI Translation Platform",
   hero_desc:"Communicate without language barriers. Instant transcription and translation in real time for personal conversations and multilingual rooms.",
-  hero_cta_start:"Start for free", hero_cta_how:"How it works",
+  hero_cta_start:"Start for free", hero_cta_how:"How it works", hero_cta_bonus:"Try for free — $3 bonus",
   hero_scroll:"Scroll down",
   stat_langs:"languages", stat_latency:"latency", stat_rooms:"participants", stat_avail:"availability",
   feat_tag:"Features", feat_title:"Everything you need\nfor live communication",
@@ -1026,7 +1040,7 @@ de:{
   hero_badge:"KI-Echtzeit-Übersetzung · 15 Sprachen",
   hero_sub:"KI-Übersetzungsplattform in Echtzeit",
   hero_desc:"Kommunizieren Sie ohne Sprachbarrieren. Sofortige Transkription und Übersetzung in Echtzeit für persönliche Gespräche und mehrsprachige Räume.",
-  hero_cta_start:"Kostenlos starten", hero_cta_how:"So funktioniert es",
+  hero_cta_start:"Kostenlos starten", hero_cta_how:"So funktioniert es", hero_cta_bonus:"Kostenlos testen — $3 Bonus",
   hero_scroll:"Nach unten scrollen",
   stat_langs:"Sprachen", stat_latency:"Latenz", stat_rooms:"Teilnehmer", stat_avail:"Verfügbarkeit",
   feat_tag:"Funktionen", feat_title:"Alles was Sie brauchen\nfür Live-Kommunikation",

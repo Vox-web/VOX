@@ -16,6 +16,7 @@
   --green:#2dd4a0;--yellow:#f0c050;--red:#ff5f7e;
   --radius:14px;
 }
+html{height:100%}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
 /* ─── LOGIN ─── */
@@ -53,13 +54,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 /* ─── APP ─── */
 #appWrap{display:none;min-height:100vh;flex-direction:column}
 
+/* ─── HEADER ─── */
 header{
   background:var(--surface);border-bottom:1px solid var(--border);
-  padding:0 28px;height:60px;
-  display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;
+  padding:0 20px;height:60px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
 }
 .h-logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--accent);letter-spacing:4px}
-.h-right{display:flex;align-items:center;gap:16px}
+.h-right{display:flex;align-items:center;gap:12px}
 .h-tag{
   background:rgba(255,95,126,.1);color:var(--red);
   font-size:12px;font-weight:600;letter-spacing:1px;
@@ -73,10 +76,23 @@ header{
 }
 .h-logout:hover{color:var(--red);border-color:var(--red)}
 
-.layout{display:flex;flex:1}
+/* ─── HAMBURGER (mobile) ─── */
+.h-hamburger{
+  display:none;background:transparent;border:1px solid var(--border2);
+  color:var(--text2);width:36px;height:36px;border-radius:8px;
+  cursor:pointer;align-items:center;justify-content:center;font-size:18px;
+  transition:all .2s;flex-shrink:0;
+}
+.h-hamburger:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ─── LAYOUT ─── */
+.layout{display:flex;flex:1;min-height:calc(100vh - 60px)}
+
+/* ─── SIDEBAR ─── */
 .sidebar{
   width:220px;background:var(--bg2);border-right:1px solid var(--border);
-  padding:24px 12px;flex-shrink:0;
+  padding:20px 12px;flex-shrink:0;
+  transition:transform .3s ease;
 }
 .nav-item{
   display:flex;align-items:center;gap:10px;
@@ -88,61 +104,68 @@ header{
 .nav-item.active{background:var(--accent-dim);color:var(--accent2)}
 .nav-icon{font-size:18px}
 
-.content{flex:1;padding:28px;overflow-y:auto;max-width:1100px}
+/* ─── CONTENT ─── */
+.content{flex:1;padding:24px;overflow-y:auto;max-width:1100px;min-width:0}
 
 /* ─── STATS ROW ─── */
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:28px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}
 .stat{
   background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);padding:20px;
+  border-radius:var(--radius);padding:18px;
 }
-.stat-n{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;
+.stat-n{
+  font-family:'Syne',sans-serif;font-size:28px;font-weight:800;
   background:linear-gradient(135deg,var(--accent),#c084fc);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
 .stat-l{color:var(--text2);font-size:13px;margin-top:4px}
 
-/* ─── TABLE ─── */
+/* ─── TABLE WRAP ─── */
 .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
 .table-head{
   display:flex;align-items:center;justify-content:space-between;
-  padding:16px 20px;border-bottom:1px solid var(--border);
+  padding:14px 18px;border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap;
 }
 .table-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:700}
-.filters{display:flex;gap:8px}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
 .filter-btn{
   border:1px solid var(--border2);background:transparent;
   color:var(--text2);font-family:'DM Sans',sans-serif;
-  font-size:12px;padding:6px 14px;border-radius:8px;cursor:pointer;transition:all .2s;
+  font-size:12px;padding:6px 12px;border-radius:8px;cursor:pointer;transition:all .2s;
 }
 .filter-btn:hover,.filter-btn.active{border-color:var(--accent);color:var(--accent2)}
-table{width:100%;border-collapse:collapse}
+
+/* ─── TABLE (desktop) ─── */
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:600px}
 th{
-  text-align:left;padding:12px 16px;
-  font-size:12px;font-weight:600;letter-spacing:.5px;
+  text-align:left;padding:11px 14px;
+  font-size:11px;font-weight:600;letter-spacing:.5px;
   color:var(--text3);text-transform:uppercase;
-  border-bottom:1px solid var(--border);background:var(--bg2);
+  border-bottom:1px solid var(--border);background:var(--bg2);white-space:nowrap;
 }
-td{padding:14px 16px;border-bottom:1px solid var(--border);vertical-align:top;font-size:14px}
+td{padding:12px 14px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:13px}
 tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(124,106,255,.04)}
+tr:hover td{background:rgba(124,106,255,.03)}
 .stars-cell{color:var(--yellow);letter-spacing:2px;font-size:13px}
 .source-badge{
   display:inline-flex;align-items:center;gap:4px;
-  font-size:11px;padding:4px 10px;border-radius:99px;font-weight:500;
+  font-size:11px;padding:3px 9px;border-radius:99px;font-weight:500;white-space:nowrap;
 }
 .src-landing{background:rgba(124,106,255,.12);color:var(--accent2);border:1px solid rgba(124,106,255,.25)}
 .src-host{background:rgba(45,212,160,.1);color:var(--green);border:1px solid rgba(45,212,160,.2)}
 .status-badge{
   display:inline-flex;align-items:center;gap:4px;
-  font-size:11px;padding:4px 10px;border-radius:99px;
+  font-size:11px;padding:3px 9px;border-radius:99px;white-space:nowrap;
 }
 .s-pending{background:rgba(240,192,80,.1);color:var(--yellow);border:1px solid rgba(240,192,80,.2)}
 .s-approved{background:rgba(45,212,160,.1);color:var(--green);border:1px solid rgba(45,212,160,.2)}
-.act-btns{display:flex;gap:6px;flex-wrap:wrap}
+.s-blocked{background:rgba(255,95,126,.08);color:var(--red);border:1px solid rgba(255,95,126,.2)}
+.act-btns{display:flex;gap:5px;flex-wrap:wrap}
 .act-btn{
   border:none;cursor:pointer;
-  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;
-  padding:6px 12px;border-radius:7px;transition:all .2s;
+  font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;
+  padding:5px 10px;border-radius:7px;transition:all .2s;white-space:nowrap;
 }
 .btn-approve{background:rgba(45,212,160,.12);color:var(--green)}
 .btn-approve:hover{background:rgba(45,212,160,.25)}
@@ -150,22 +173,101 @@ tr:hover td{background:rgba(124,106,255,.04)}
 .btn-reject:hover{background:rgba(255,95,126,.2)}
 .btn-delete{background:rgba(255,95,126,.08);color:var(--red)}
 .btn-delete:hover{background:rgba(255,95,126,.18)}
+.btn-edit{background:rgba(124,106,255,.12);color:var(--accent2)}
+.btn-edit:hover{background:rgba(124,106,255,.24)}
 
-.review-txt{color:var(--text2);max-width:300px;white-space:pre-wrap;line-height:1.5}
-.user-email{color:var(--text3);font-size:12px}
+.review-txt{color:var(--text2);max-width:260px;line-height:1.5;font-size:13px}
+.user-email{color:var(--text3);font-size:11px;margin-top:2px}
 .empty-state{text-align:center;padding:48px;color:var(--text3)}
-.empty-icon{font-size:40px;margin-bottom:12px}
+.empty-icon{font-size:36px;margin-bottom:12px}
 
-/* ─── TOAST ─── */
-.toast{
-  position:fixed;bottom:28px;right:28px;z-index:1000;
-  background:var(--surface2);border:1px solid var(--border2);
-  color:var(--text);font-size:14px;padding:14px 20px;
-  border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.4);
-  transform:translateY(20px);opacity:0;
-  transition:all .3s;pointer-events:none;
+/* ─── CARD VIEW (mobile users/payments) ─── */
+.card-list{display:none;flex-direction:column;gap:10px;padding:14px}
+.user-card{
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:16px;
 }
-.toast.show{transform:translateY(0);opacity:1}
+.user-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.user-card-name{font-weight:600;font-size:15px}
+.user-card-id{color:var(--text3);font-size:12px}
+.user-card-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:13px}
+.user-card-label{color:var(--text3)}
+.user-card-actions{display:flex;gap:6px;margin-top:12px}
+.user-card-actions .act-btn{flex:1;text-align:center;padding:8px}
+
+/* ─── BAL INPUT ─── */
+.bal-row{display:flex;align-items:center;gap:6px}
+.bal-input{
+  width:72px;background:var(--bg2);border:1px solid var(--border2);
+  color:var(--text);padding:4px 8px;border-radius:6px;font-size:12px;
+  font-family:'DM Sans',sans-serif;
+}
+.bal-input:focus{outline:none;border-color:var(--accent)}
+.bal-save{
+  background:var(--accent);color:#fff;border:none;
+  padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;
+  transition:background .2s;
+}
+.bal-save:hover{background:var(--accent2)}
+
+/* ─── MODAL ─── */
+.modal-overlay{
+  display:none;position:fixed;inset:0;z-index:500;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(6px);
+  align-items:center;justify-content:center;padding:20px;
+}
+.modal-overlay.open{display:flex}
+.modal-box{
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:20px;padding:28px 24px;width:100%;max-width:420px;
+  max-height:90vh;overflow-y:auto;
+}
+.modal-title{
+  font-family:'Syne',sans-serif;font-size:18px;font-weight:700;
+  margin-bottom:20px;display:flex;align-items:center;gap:8px;
+}
+.modal-field{margin-bottom:14px}
+.modal-label{font-size:12px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.modal-input{
+  width:100%;background:var(--bg2);border:1px solid var(--border2);
+  color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;
+  padding:10px 14px;border-radius:10px;outline:none;transition:border .2s;
+}
+.modal-input:focus{border-color:var(--accent)}
+.modal-input::placeholder{color:var(--text3)}
+.modal-select{
+  width:100%;background:var(--bg2);border:1px solid var(--border2);
+  color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;
+  padding:10px 14px;border-radius:10px;outline:none;cursor:pointer;
+}
+.modal-footer{display:flex;gap:10px;margin-top:20px}
+.modal-btn-cancel{
+  flex:1;padding:11px;border-radius:10px;
+  border:1px solid var(--border2);background:transparent;
+  color:var(--text3);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;
+  transition:all .2s;
+}
+.modal-btn-cancel:hover{color:var(--text);border-color:var(--text3)}
+.modal-btn-save{
+  flex:2;padding:11px;border-radius:10px;border:none;
+  background:var(--accent);color:#fff;
+  font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;
+  cursor:pointer;transition:background .2s;
+}
+.modal-btn-save:hover{background:var(--accent2)}
+.modal-btn-danger{
+  flex:1;padding:11px;border-radius:10px;border:none;
+  background:rgba(255,95,126,.12);color:var(--red);
+  font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;
+  cursor:pointer;transition:background .2s;
+}
+.modal-btn-danger:hover{background:rgba(255,95,126,.25)}
+
+/* ─── CONFIRM MODAL ─── */
+.confirm-box{max-width:340px;text-align:center}
+.confirm-icon{font-size:44px;margin-bottom:12px}
+.confirm-msg{color:var(--text2);font-size:14px;line-height:1.6;margin-bottom:4px}
+.confirm-sub{color:var(--text3);font-size:12px;margin-bottom:20px}
 
 /* ─── REFRESH BTN ─── */
 .refresh-btn{
@@ -175,6 +277,65 @@ tr:hover td{background:rgba(124,106,255,.04)}
   transition:all .2s;display:flex;align-items:center;gap:6px;
 }
 .refresh-btn:hover{border-color:var(--accent);color:var(--accent2)}
+
+/* ─── TOAST ─── */
+.toast{
+  position:fixed;bottom:24px;right:24px;z-index:1000;
+  background:var(--surface2);border:1px solid var(--border2);
+  color:var(--text);font-size:14px;padding:12px 18px;
+  border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.4);
+  transform:translateY(20px);opacity:0;
+  transition:all .3s;pointer-events:none;max-width:280px;
+}
+.toast.show{transform:translateY(0);opacity:1}
+.toast-ok{border-color:var(--green);color:var(--green)}
+.toast-err{border-color:var(--red);color:var(--red)}
+
+/* ─── MOBILE OVERLAY (sidebar backdrop) ─── */
+.sidebar-overlay{
+  display:none;position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.5);
+}
+.sidebar-overlay.open{display:block}
+
+/* ══════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════ */
+@media(max-width:768px){
+  .h-hamburger{display:flex}
+  .h-tag{display:none}
+
+  .sidebar{
+    position:fixed;left:0;top:60px;bottom:0;z-index:95;
+    transform:translateX(-100%);box-shadow:4px 0 24px rgba(0,0,0,.5);
+  }
+  .sidebar.open{transform:translateX(0)}
+
+  .content{padding:14px}
+
+  /* Скрываем десктопные таблицы пользователей/платежей, показываем карточки */
+  .mobile-cards .table-scroll{display:none}
+  .mobile-cards .card-list{display:flex}
+
+  /* Таблицы отзывов — скролл */
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+  .stats{grid-template-columns:1fr 1fr;gap:10px}
+  .stat{padding:14px}
+  .stat-n{font-size:22px}
+
+  .table-head{gap:8px}
+  .table-title{font-size:14px}
+  .filters{gap:4px}
+  .filter-btn{font-size:11px;padding:5px 9px}
+
+  .modal-box{padding:20px 16px}
+}
+
+@media(max-width:400px){
+  .stats{grid-template-columns:1fr}
+  .h-right{gap:8px}
+  .h-logout{font-size:12px;padding:6px 10px}
+}
 </style>
 </head>
 <body>
@@ -194,21 +355,32 @@ tr:hover td{background:rgba(124,106,255,.04)}
 <!-- ═══ APP ═══ -->
 <div id="appWrap">
   <header>
-    <div class="h-logo">VOX</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="h-hamburger" id="hamburgerBtn" onclick="toggleSidebar()" aria-label="Меню">☰</button>
+      <div class="h-logo">VOX</div>
+    </div>
     <div class="h-right">
       <span class="h-tag">🔒 ADMIN</span>
       <button class="h-logout" onclick="adminLogout()">Вийти</button>
     </div>
   </header>
+
+  <!-- sidebar overlay for mobile -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
   <div class="layout">
-    <nav class="sidebar">
+    <nav class="sidebar" id="sidebar">
       <button class="nav-item active" onclick="showPage('reviews')" id="nav-reviews">
         <span class="nav-icon">⭐</span> Відгуки
       </button>
       <button class="nav-item" onclick="showPage('users')" id="nav-users">
         <span class="nav-icon">👥</span> Користувачі
       </button>
+      <button class="nav-item" onclick="showPage('payments')" id="nav-payments">
+        <span class="nav-icon">💳</span> Платежі
+      </button>
     </nav>
+
     <div class="content">
 
       <!-- ── REVIEWS PAGE ── -->
@@ -221,33 +393,114 @@ tr:hover td{background:rgba(124,106,255,.04)}
         </div>
         <div class="table-wrap">
           <div class="table-head">
-            <span class="table-title">Відгуки користувачів</span>
+            <span class="table-title">Відгуки</span>
             <div class="filters">
               <button class="filter-btn active" onclick="filterReviews('all',this)">Всі</button>
               <button class="filter-btn" onclick="filterReviews('pending',this)">Очікують</button>
               <button class="filter-btn" onclick="filterReviews('approved',this)">Опубліковані</button>
-              <button class="refresh-btn" onclick="loadReviews()">↻ Оновити</button>
+              <button class="refresh-btn" onclick="loadReviews()">↻</button>
             </div>
           </div>
-          <div id="reviewsTable">
-            <div class="empty-state"><div class="empty-icon">⏳</div><div>Завантаження...</div></div>
+          <div class="table-scroll">
+            <div id="reviewsTable">
+              <div class="empty-state"><div class="empty-icon">⏳</div><div>Завантаження...</div></div>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- ── USERS PAGE ── -->
       <div id="pageUsers" style="display:none">
-        <div class="table-wrap">
+        <div class="table-wrap mobile-cards">
           <div class="table-head">
-            <span class="table-title">Зареєстровані користувачі</span>
-            <button class="refresh-btn" onclick="loadUsers()">↻ Оновити</button>
+            <span class="table-title">Користувачі</span>
+            <div style="display:flex;gap:8px">
+              <span id="userCount" style="color:var(--text3);font-size:13px;align-self:center"></span>
+              <button class="refresh-btn" onclick="loadUsers()">↻ Оновити</button>
+            </div>
           </div>
-          <div id="usersTable">
-            <div class="empty-state"><div class="empty-icon">⏳</div><div>Завантаження...</div></div>
+          <!-- DESKTOP: таблица -->
+          <div class="table-scroll">
+            <div id="usersTable">
+              <div class="empty-state"><div class="empty-icon">⏳</div><div>Завантаження...</div></div>
+            </div>
           </div>
+          <!-- MOBILE: карточки -->
+          <div class="card-list" id="usersCards"></div>
         </div>
       </div>
 
+      <!-- ── PAYMENTS PAGE ── -->
+      <div id="pagePayments" style="display:none">
+        <div class="stats" id="paymentStats">
+          <div class="stat"><div class="stat-n" id="pTotal">–</div><div class="stat-l">Всього платежів</div></div>
+          <div class="stat"><div class="stat-n" id="pCompleted">–</div><div class="stat-l">Успішних</div></div>
+          <div class="stat"><div class="stat-n" id="pRevenue" style="font-size:22px">–</div><div class="stat-l">Виручка</div></div>
+        </div>
+        <div class="table-wrap mobile-cards">
+          <div class="table-head">
+            <span class="table-title">Платежі</span>
+            <button class="refresh-btn" onclick="loadPayments()">↻ Оновити</button>
+          </div>
+          <div class="table-scroll">
+            <div id="paymentsTable">
+              <div class="empty-state"><div class="empty-icon">⏳</div><div>Завантаження...</div></div>
+            </div>
+          </div>
+          <div class="card-list" id="paymentsCards"></div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /layout -->
+</div><!-- /appWrap -->
+
+<!-- ═══ EDIT USER MODAL ═══ -->
+<div class="modal-overlay" id="editUserModal" onclick="closeEditModal(event)">
+  <div class="modal-box">
+    <div class="modal-title">✏️ Редагувати користувача</div>
+    <input type="hidden" id="editUserId"/>
+    <div class="modal-field">
+      <div class="modal-label">Ім'я</div>
+      <input class="modal-input" id="editUserName" type="text" placeholder="Ім'я"/>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Email</div>
+      <input class="modal-input" id="editUserEmail" type="email" placeholder="email@example.com"/>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Новий пароль <span style="color:var(--text3)">(залиш порожнім щоб не змінювати)</span></div>
+      <input class="modal-input" id="editUserPassword" type="password" placeholder="••••••"/>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Баланс ($)</div>
+      <input class="modal-input" id="editUserBalance" type="number" step="0.01" min="0" placeholder="0.00"/>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Статус</div>
+      <select class="modal-select" id="editUserStatus">
+        <option value="1">✓ Активний</option>
+        <option value="0">✗ Заблокований</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn-cancel" onclick="closeEditModal(null)">Скасувати</button>
+      <button class="modal-btn-danger" onclick="confirmDeleteUser()">🗑 Видалити</button>
+      <button class="modal-btn-save" onclick="saveUser()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONFIRM DELETE MODAL ═══ -->
+<div class="modal-overlay" id="confirmModal" onclick="closeConfirmModal(event)">
+  <div class="modal-box confirm-box">
+    <div class="confirm-icon">⚠️</div>
+    <div class="modal-title" style="justify-content:center" id="confirmTitle">Видалити?</div>
+    <div class="confirm-msg" id="confirmMsg"></div>
+    <div class="confirm-sub" id="confirmSub">Цю дію неможливо скасувати.</div>
+    <div class="modal-footer">
+      <button class="modal-btn-cancel" onclick="closeConfirmModal(null)">Ні, відмінити</button>
+      <button class="modal-btn-danger" id="confirmOkBtn">Так, видалити</button>
     </div>
   </div>
 </div>
@@ -290,13 +543,25 @@ function getAdminHeaders(){
 
 document.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!adminAuthed) doAdminLogin(); });
 
+// ═══════════ SIDEBAR MOBILE ═══════════
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('open');
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('open');
+}
+
 // ═══════════ NAV ═══════════
 function showPage(page){
-  ['reviews','users'].forEach(p=>{
+  ['reviews','users','payments'].forEach(p=>{
     document.getElementById('page'+capitalize(p)).style.display = p===page?'block':'none';
     document.getElementById('nav-'+p).classList.toggle('active', p===page);
   });
+  closeSidebar();
   if(page==='users') loadUsers();
+  if(page==='payments') loadPayments();
 }
 function capitalize(s){return s.charAt(0).toUpperCase()+s.slice(1)}
 
@@ -311,7 +576,7 @@ async function loadReviews(){
     allReviews = await r.json();
     renderReviewStats();
     renderReviews();
-  } catch(e){ showToast('❌ Помилка завантаження відгуків'); }
+  } catch(e){ showToast('❌ Помилка завантаження відгуків','err'); }
 }
 
 function renderReviewStats(){
@@ -373,8 +638,8 @@ function renderReviews(){
         <td>
           <div class="act-btns">
             ${!r.is_approved
-              ? `<button class="act-btn btn-approve" onclick="approveReview(${r.id},true)">✓ Опублікувати</button>`
-              : `<button class="act-btn btn-reject"  onclick="approveReview(${r.id},false)">✗ Відкликати</button>`
+              ? `<button class="act-btn btn-approve" onclick="approveReview(${r.id},true)">✓</button>`
+              : `<button class="act-btn btn-reject"  onclick="approveReview(${r.id},false)">✗</button>`
             }
             <button class="act-btn btn-delete" onclick="deleteReview(${r.id})">🗑</button>
           </div>
@@ -393,50 +658,308 @@ async function approveReview(id, approved){
       const idx = allReviews.findIndex(x=>x.id===id);
       if(idx>=0) allReviews[idx].is_approved = approved;
       renderReviewStats(); renderReviews();
-      showToast(approved?'✅ Відгук опубліковано':'↩️ Відгук відкликано');
+      showToast(approved?'✅ Відгук опубліковано':'↩️ Відгук відкликано','ok');
     }
-  }catch(e){ showToast('❌ Помилка'); }
+  }catch(e){ showToast('❌ Помилка','err'); }
 }
 
 async function deleteReview(id){
-  if(!confirm('Видалити відгук назавжди?')) return;
-  try{
-    const r = await fetch(`/api/admin/reviews/${id}`,{method:'DELETE',headers:getAdminHeaders()});
-    if(r.ok){
-      allReviews = allReviews.filter(x=>x.id!==id);
-      renderReviewStats(); renderReviews();
-      showToast('🗑 Відгук видалено');
+  showConfirm(
+    'Видалити відгук?',
+    'Відгук буде видалений назавжди.',
+    '',
+    async ()=>{
+      try{
+        const r = await fetch(`/api/admin/reviews/${id}`,{method:'DELETE',headers:getAdminHeaders()});
+        if(r.ok){
+          allReviews = allReviews.filter(x=>x.id!==id);
+          renderReviewStats(); renderReviews();
+          showToast('🗑 Відгук видалено','ok');
+        }
+      }catch(e){ showToast('❌ Помилка','err'); }
     }
-  }catch(e){ showToast('❌ Помилка'); }
+  );
 }
 
 // ═══════════ USERS ═══════════
+let _allUsers = [];
+
 async function loadUsers(){
   try{
     const r = await fetch('/api/admin/users',{headers:getAdminHeaders()});
     if(!r.ok){ if(r.status===401||r.status===403) adminLogout(); return; }
-    const users = await r.json();
-    const wrap = document.getElementById('usersTable');
-    if(!users.length){
-      wrap.innerHTML=`<div class="empty-state"><div class="empty-icon">👤</div><div>Немає користувачів</div></div>`;
-      return;
+    _allUsers = await r.json();
+    document.getElementById('userCount').textContent = `${_allUsers.length} чол.`;
+    renderUsersTable(_allUsers);
+    renderUsersCards(_allUsers);
+  }catch(e){ showToast('❌ Помилка завантаження','err'); }
+}
+
+const esc = s=>(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function renderUsersTable(users){
+  const wrap = document.getElementById('usersTable');
+  if(!users.length){
+    wrap.innerHTML=`<div class="empty-state"><div class="empty-icon">👤</div><div>Немає користувачів</div></div>`;
+    return;
+  }
+  wrap.innerHTML=`
+  <table>
+    <thead><tr>
+      <th>#</th><th>Ім'я</th><th>Email</th><th>Реєстрація</th><th>Баланс</th><th>Email підтв.</th><th>Статус</th><th>Дії</th>
+    </tr></thead>
+    <tbody>
+    ${users.map(u=>`
+      <tr id="urow-${u.id}">
+        <td style="color:var(--text3)">${u.id}</td>
+        <td style="font-weight:500">${esc(u.name)}</td>
+        <td style="color:var(--text2);font-size:12px">${esc(u.email)}</td>
+        <td style="color:var(--text3);font-size:11px">${fmtDate(u.created_at)}</td>
+        <td>
+          <div class="bal-row">
+            <span style="color:var(--green);font-weight:600">$${(u.balance||0).toFixed(2)}</span>
+            <input class="bal-input" type="number" min="0" step="0.5"
+              value="${(u.balance||0).toFixed(2)}" id="bal-${u.id}"/>
+            <button class="bal-save" onclick="quickSaveBalance(${u.id})">✓</button>
+          </div>
+        </td>
+        <td>
+          <span class="status-badge ${u.is_email_verified?'s-approved':'s-pending'}">
+            ${u.is_email_verified?'✓':'—'}
+          </span>
+        </td>
+        <td>
+          <span class="status-badge ${u.is_active?'s-approved':'s-blocked'}">
+            ${u.is_active?'Активний':'Блок.'}
+          </span>
+        </td>
+        <td>
+          <div class="act-btns">
+            <button class="act-btn btn-edit" onclick="openEditUser(${u.id})">✏️ Ред.</button>
+            <button class="act-btn btn-delete" onclick="deleteUser(${u.id},'${esc(u.name)}')">🗑</button>
+          </div>
+        </td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+function renderUsersCards(users){
+  const wrap = document.getElementById('usersCards');
+  if(!users.length){
+    wrap.innerHTML=`<div class="empty-state"><div class="empty-icon">👤</div><div>Немає користувачів</div></div>`;
+    return;
+  }
+  wrap.innerHTML = users.map(u=>`
+    <div class="user-card" id="ucard-${u.id}">
+      <div class="user-card-header">
+        <div>
+          <div class="user-card-name">${esc(u.name)}</div>
+          <div class="user-email">${esc(u.email)}</div>
+        </div>
+        <span class="status-badge ${u.is_active?'s-approved':'s-blocked'}">
+          ${u.is_active?'✓ Активний':'✗ Блок.'}
+        </span>
+      </div>
+      <div class="user-card-row">
+        <span class="user-card-label">ID</span>
+        <span style="color:var(--text3)">#${u.id}</span>
+      </div>
+      <div class="user-card-row">
+        <span class="user-card-label">Баланс</span>
+        <span style="color:var(--green);font-weight:600">$${(u.balance||0).toFixed(2)}</span>
+      </div>
+      <div class="user-card-row">
+        <span class="user-card-label">Email підтв.</span>
+        <span>${u.is_email_verified?'✅':'—'}</span>
+      </div>
+      <div class="user-card-row">
+        <span class="user-card-label">Реєстрація</span>
+        <span style="color:var(--text3);font-size:12px">${fmtDate(u.created_at)}</span>
+      </div>
+      <div class="user-card-actions">
+        <button class="act-btn btn-edit" onclick="openEditUser(${u.id})">✏️ Редагувати</button>
+        <button class="act-btn btn-delete" onclick="deleteUser(${u.id},'${esc(u.name)}')">🗑 Видалити</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Быстрое изменение баланса прямо из таблицы
+async function quickSaveBalance(userId){
+  const input = document.getElementById('bal-'+userId);
+  if(!input) return;
+  const newBal = parseFloat(input.value);
+  if(isNaN(newBal)||newBal<0){ showToast('❌ Некоректне значення','err'); return; }
+  try{
+    const r = await fetch('/api/admin/adjust-balance',{
+      method:'POST', headers:getAdminHeaders(),
+      body:JSON.stringify({user_id:userId, new_balance:newBal})
+    });
+    if(!r.ok){ showToast('❌ Помилка','err'); return; }
+    // Обновить локально
+    const u = _allUsers.find(x=>x.id===userId);
+    if(u) u.balance = newBal;
+    showToast(`✅ Баланс #${userId}: $${newBal.toFixed(2)}`,'ok');
+  }catch(e){ showToast('❌ Помилка мережі','err'); }
+}
+
+// ─── Модалка редактирования ───
+function openEditUser(userId){
+  const u = _allUsers.find(x=>x.id===userId);
+  if(!u) return;
+  document.getElementById('editUserId').value      = u.id;
+  document.getElementById('editUserName').value    = u.name||'';
+  document.getElementById('editUserEmail').value   = u.email||'';
+  document.getElementById('editUserPassword').value= '';
+  document.getElementById('editUserBalance').value = (u.balance||0).toFixed(2);
+  document.getElementById('editUserStatus').value  = u.is_active ? '1' : '0';
+  document.getElementById('editUserModal').classList.add('open');
+}
+
+function closeEditModal(e){
+  if(e && e.target !== document.getElementById('editUserModal')) return;
+  document.getElementById('editUserModal').classList.remove('open');
+}
+
+async function saveUser(){
+  const id      = parseInt(document.getElementById('editUserId').value);
+  const name    = document.getElementById('editUserName').value.trim();
+  const email   = document.getElementById('editUserEmail').value.trim();
+  const pass    = document.getElementById('editUserPassword').value;
+  const balance = parseFloat(document.getElementById('editUserBalance').value);
+  const active  = document.getElementById('editUserStatus').value === '1';
+
+  if(!name||!email){ showToast('❌ Ім\'я та Email обов\'язкові','err'); return; }
+  if(isNaN(balance)||balance<0){ showToast('❌ Некоректний баланс','err'); return; }
+
+  try{
+    const body = {user_id:id, name, email, is_active:active, new_balance:balance};
+    if(pass) body.new_password = pass;
+
+    const r = await fetch('/api/admin/users/'+id, {
+      method:'PATCH',
+      headers: getAdminHeaders(),
+      body: JSON.stringify(body)
+    });
+    if(!r.ok){
+      const d = await r.json().catch(()=>({}));
+      showToast('❌ '+(d.detail||'Помилка'),'err'); return;
     }
-    const esc = s=>(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // Обновить локально
+    const u = _allUsers.find(x=>x.id===id);
+    if(u){ u.name=name; u.email=email; u.is_active=active; u.balance=balance; }
+    renderUsersTable(_allUsers);
+    renderUsersCards(_allUsers);
+    document.getElementById('editUserModal').classList.remove('open');
+    showToast('✅ Дані збережено','ok');
+  }catch(e){ showToast('❌ Помилка мережі','err'); }
+}
+
+function confirmDeleteUser(){
+  const id   = parseInt(document.getElementById('editUserId').value);
+  const name = document.getElementById('editUserName').value;
+  document.getElementById('editUserModal').classList.remove('open');
+  deleteUser(id, name);
+}
+
+async function deleteUser(id, name){
+  showConfirm(
+    `Видалити користувача?`,
+    `${name} (#${id}) буде видалений разом з усіма даними.`,
+    'Цю дію неможливо скасувати.',
+    async ()=>{
+      try{
+        const r = await fetch('/api/admin/users/'+id,{method:'DELETE',headers:getAdminHeaders()});
+        if(!r.ok){ showToast('❌ Помилка видалення','err'); return; }
+        _allUsers = _allUsers.filter(x=>x.id!==id);
+        renderUsersTable(_allUsers);
+        renderUsersCards(_allUsers);
+        document.getElementById('userCount').textContent = `${_allUsers.length} чол.`;
+        showToast(`🗑 Користувача #${id} видалено`,'ok');
+      }catch(e){ showToast('❌ Помилка мережі','err'); }
+    }
+  );
+}
+
+// ═══════════ PAYMENTS ═══════════
+async function loadPayments(){
+  try{
+    const r = await fetch('/api/admin/payments',{headers:getAdminHeaders()});
+    if(!r.ok){ if(r.status===401||r.status===403) adminLogout(); return; }
+    const payments = await r.json();
+    const completed = payments.filter(p=>p.status==='completed');
+    document.getElementById('pTotal').textContent     = payments.length;
+    document.getElementById('pCompleted').textContent = completed.length;
+    document.getElementById('pRevenue').textContent   = '$'+completed.reduce((s,p)=>s+p.amount,0).toFixed(2);
+
+    const wrap = document.getElementById('paymentsTable');
+    const cards = document.getElementById('paymentsCards');
+    if(!payments.length){
+      wrap.innerHTML=`<div class="empty-state"><div class="empty-icon">💳</div><div>Платежів немає</div></div>`;
+      cards.innerHTML=''; return;
+    }
+    // Desktop table
     wrap.innerHTML=`
     <table>
-      <thead><tr><th>#</th><th>Ім'я</th><th>Email</th><th>Дата реєстрації</th><th>Статус</th></tr></thead>
+      <thead><tr><th>#</th><th>Користувач</th><th>Email</th><th>Сума</th><th>Статус</th><th>Дата</th></tr></thead>
       <tbody>
-      ${users.map(u=>`
+      ${payments.map(p=>`
         <tr>
-          <td style="color:var(--text3)">${u.id}</td>
-          <td style="font-weight:500">${esc(u.name)}</td>
-          <td style="color:var(--text2)">${esc(u.email)}</td>
-          <td style="color:var(--text3);font-size:12px">${fmtDate(u.created_at)}</td>
-          <td><span class="status-badge ${u.is_active?'s-approved':'s-pending'}">${u.is_active?'✓ Активний':'✗ Заблокований'}</span></td>
+          <td style="color:var(--text3)">${p.id}</td>
+          <td style="font-weight:500">${esc(p.name||'–')}</td>
+          <td style="color:var(--text2);font-size:12px">${esc(p.email||'–')}</td>
+          <td style="color:var(--green);font-weight:600">$${p.amount.toFixed(2)}</td>
+          <td><span class="status-badge ${p.status==='completed'?'s-approved':'s-pending'}">
+            ${p.status==='completed'?'✓ Оплачено':'⏳ Очікує'}
+          </span></td>
+          <td style="color:var(--text3);font-size:12px">${fmtDate(p.created_at)}</td>
         </tr>`).join('')}
       </tbody>
     </table>`;
-  }catch(e){ showToast('❌ Помилка завантаження'); }
+    // Mobile cards
+    cards.innerHTML = payments.map(p=>`
+      <div class="user-card">
+        <div class="user-card-header">
+          <div>
+            <div class="user-card-name">${esc(p.name||'–')}</div>
+            <div class="user-email">${esc(p.email||'–')}</div>
+          </div>
+          <span style="color:var(--green);font-weight:700;font-size:18px">$${p.amount.toFixed(2)}</span>
+        </div>
+        <div class="user-card-row">
+          <span class="user-card-label">Статус</span>
+          <span class="status-badge ${p.status==='completed'?'s-approved':'s-pending'}">
+            ${p.status==='completed'?'✓ Оплачено':'⏳ Очікує'}
+          </span>
+        </div>
+        <div class="user-card-row">
+          <span class="user-card-label">Дата</span>
+          <span style="color:var(--text3);font-size:12px">${fmtDate(p.created_at)}</span>
+        </div>
+      </div>
+    `).join('');
+  }catch(e){ showToast('❌ Помилка завантаження платежів','err'); }
+}
+
+// ═══════════ CONFIRM MODAL ═══════════
+let _confirmCb = null;
+function showConfirm(title, msg, sub, cb){
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmMsg').textContent   = msg;
+  document.getElementById('confirmSub').textContent   = sub||'';
+  _confirmCb = cb;
+  document.getElementById('confirmModal').classList.add('open');
+  document.getElementById('confirmOkBtn').onclick = async ()=>{
+    document.getElementById('confirmModal').classList.remove('open');
+    if(_confirmCb) await _confirmCb();
+    _confirmCb = null;
+  };
+}
+function closeConfirmModal(e){
+  if(e && e.target !== document.getElementById('confirmModal')) return;
+  document.getElementById('confirmModal').classList.remove('open');
+  _confirmCb = null;
 }
 
 // ═══════════ HELPERS ═══════════
@@ -448,10 +971,12 @@ function fmtDate(s){
 }
 
 let _toast;
-function showToast(msg){
+function showToast(msg, type=''){
   const el = document.getElementById('toast');
-  el.textContent=msg; el.classList.add('show');
-  clearTimeout(_toast); _toast=setTimeout(()=>el.classList.remove('show'),3000);
+  el.textContent=msg;
+  el.className='toast show'+(type==='ok'?' toast-ok':type==='err'?' toast-err':'');
+  clearTimeout(_toast);
+  _toast=setTimeout(()=>el.classList.remove('show'),3000);
 }
 
 // ═══════════ INIT ═══════════

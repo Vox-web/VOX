@@ -27,3 +27,5 @@ qrcode[pil]==7.4.2
 Pillow==10.4.0
 
 requests
+stripe>=7.0.0
+resend>=0.7.0
