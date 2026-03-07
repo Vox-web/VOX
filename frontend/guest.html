@@ -643,6 +643,7 @@
     let guestId = null;
     let roomId = null;
     let ws = null;
+    let _wasKicked = false;
     let myState = 'listening'; // listening | requesting | speaking
     let audioContext = null;
     let audioWorkletNode = null;
@@ -813,7 +814,7 @@
         ws.onclose = () => {
             statusDot.className = 'status-dot';
             statusTextEl.textContent = t('statusDisconnected');
-            if (guestId) setTimeout(connectGuestWS, 500);
+            if (guestId && !_wasKicked) setTimeout(connectGuestWS, 500);
         };
 
         window.addEventListener('online', () => {
@@ -865,6 +866,7 @@
                 break;
 
             case 'kicked':
+                _wasKicked = true;
                 document.getElementById('overlayKicked').classList.add('active');
                 if (ws) { ws.close(); ws = null; }
                 stopGuestMic();
@@ -873,6 +875,7 @@
                 break;
 
             case 'room_closed':
+                _wasKicked = true;
                 document.getElementById('overlayClosed').classList.add('active');
                 if (ws) { ws.close(); ws = null; }
                 stopGuestMic();
