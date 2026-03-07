@@ -356,23 +356,7 @@ async def kick_participant(room_id: str, guest_id: str):
 
 
 # ===========================================================================
-# REST: Deepgram тимчасовий токен для прямого підключення з браузера
-# ===========================================================================
-@app.post("/api/deepgram-token")
-async def get_deepgram_token(authorization: Optional[str] = Header(None)):
-    """
-    Повертає Deepgram API key для прямого WS-підключення з браузера.
-    TODO: замінити на /v1/auth/grant коли буде Deepgram Member plan.
-    """
-    dg_key = os.getenv("DEEPGRAM_API_KEY")
-    if not dg_key:
-        raise HTTPException(500, "DEEPGRAM_API_KEY не задан")
-    return JSONResponse({"token": dg_key})
-
-
-# ===========================================================================
-# WebSocket: Solo режим (приймає тільки текст транскриптів від браузера)
-# Аудіо іде напряму Телефон → Deepgram, тут тільки переклад + TTS
+# WebSocket: Solo режим (Phase 3 proxy: аудіо → Railway → Deepgram)
 # ===========================================================================
 @app.websocket("/ws/solo")
 async def websocket_solo(ws: WebSocket):
@@ -389,6 +373,12 @@ async def websocket_solo(ws: WebSocket):
             if first.get("type") == "auth":
                 _user = get_user_by_token(first.get("token", ""))
                 _user_id = _user["id"] if _user else None
+            # Якщо перше повідомлення — config, зберігаємо його теж
+            elif first.get("type") == "config":
+                if first.get("source_lang"):
+                    session_config["source_lang"] = first["source_lang"]
+                if first.get("target_lang"):
+                    session_config["target_lang"] = first["target_lang"]
     except (asyncio.TimeoutError, Exception):
         pass
 
@@ -396,8 +386,6 @@ async def websocket_solo(ws: WebSocket):
         logger.info(f"💳 Solo: user_id={_user_id} (billing active)")
     else:
         logger.info("💳 Solo: anonymous session (no billing)")
-
-    tts_playing = False
 
     async def billing_tick():
         if not _user_id:
@@ -421,6 +409,66 @@ async def websocket_solo(ws: WebSocket):
 
     billing_task = asyncio.create_task(billing_tick())
 
+    # Запускаємо Deepgram транскрайбер (сервер → Deepgram, Phase 3 proxy)
+    dg = DeepgramTranscriber()
+    src_lang = session_config.get("source_lang") or "uk"
+    await dg.start(language=src_lang)
+
+    async def handle_results():
+        """Читає транскрипти від Deepgram і відправляє переклад + TTS клієнту."""
+        while True:
+            try:
+                result = await dg.results.get()
+            except asyncio.CancelledError:
+                break
+
+            try:
+                await ws.send_json({
+                    "type": "transcript",
+                    "text": result.text,
+                    "is_final": result.is_final,
+                    "language": result.language,
+                    "confidence": result.confidence,
+                })
+
+                if result.is_final and result.text.strip():
+                    source_lang = result.language or session_config.get("source_lang") or "uk"
+                    target_lang = session_config["target_lang"]
+
+                    if source_lang != target_lang:
+                        translated = await asyncio.to_thread(
+                            translator.translate, result.text, source_lang, target_lang,
+                        )
+                        await ws.send_json({
+                            "type": "translation",
+                            "text": translated,
+                            "lang_from": source_lang,
+                            "lang_to": target_lang,
+                        })
+                        audio_bytes = await asyncio.to_thread(
+                            tts_engine.synthesize, translated, target_lang,
+                        )
+                        if audio_bytes:
+                            await ws.send_bytes(b"AUDIO:" + audio_bytes)
+                    else:
+                        await ws.send_json({
+                            "type": "translation",
+                            "text": result.text,
+                            "lang_from": source_lang,
+                            "lang_to": target_lang,
+                            "note": "same_language",
+                        })
+
+                    logger.info(f"📝 [{source_lang}→{target_lang}] {result.text[:60]}")
+
+            except Exception as e:
+                if "disconnect" in str(e).lower():
+                    break
+                logger.error(f"Solo result error: {e}")
+                break
+
+    result_task = asyncio.create_task(handle_results())
+
     try:
         while True:
             message = await ws.receive()
@@ -428,70 +476,35 @@ async def websocket_solo(ws: WebSocket):
             if message.get("type") == "websocket.disconnect":
                 break
 
-            if "text" in message and message["text"]:
+            if "bytes" in message and message["bytes"]:
+                # Бінарне аудіо (float32 PCM) → Deepgram
+                if not dg.is_active:
+                    await dg.start(session_config.get("source_lang") or "uk")
+                await dg.send_audio(message["bytes"])
+
+            elif "text" in message and message["text"]:
                 try:
                     msg = json.loads(message["text"])
                     msg_type = msg.get("type")
 
-                    if msg_type == "tts_done":
-                        tts_playing = False
-
-                    elif msg_type == "ping":
+                    if msg_type == "ping":
                         pass
 
+                    elif msg_type == "tts_done":
+                        pass  # може використовуватись для soft-gate у майбутньому
+
                     elif msg_type == "config":
-                        # Зберігаємо конфіг мов (браузер все одно надсилає)
-                        if msg.get("source_lang"):
-                            session_config["source_lang"] = msg["source_lang"]
-                        if msg.get("target_lang"):
-                            session_config["target_lang"] = msg["target_lang"]
+                        new_src = msg.get("source_lang")
+                        new_tgt = msg.get("target_lang")
+                        if new_tgt:
+                            session_config["target_lang"] = new_tgt
+                        if new_src and new_src != session_config.get("source_lang"):
+                            session_config["source_lang"] = new_src
+                            # Перезапустити Deepgram з новою мовою
+                            await dg.stop()
+                            await dg.start(language=new_src)
                         src = session_config.get("source_lang")
                         logger.info(f"🎤 Solo config: source={src}, target={session_config['target_lang']}")
-
-                    elif msg_type == "transcript":
-                        # Транскрипт прийшов напряму від браузера (Deepgram → браузер → сюди)
-                        text = msg.get("text", "").strip()
-                        is_final = msg.get("is_final", False)
-                        source_lang = msg.get("language") or session_config.get("source_lang") or "uk"
-                        confidence = msg.get("confidence", 0.0)
-
-                        # Відображення interim на клієнті (echo назад)
-                        await ws.send_json({
-                            "type": "transcript",
-                            "text": text,
-                            "is_final": is_final,
-                            "language": source_lang,
-                            "confidence": confidence,
-                        })
-
-                        if is_final and text:
-                            target_lang = session_config["target_lang"]
-                            if source_lang != target_lang:
-                                translated = await asyncio.to_thread(
-                                    translator.translate, text, source_lang, target_lang,
-                                )
-                                await ws.send_json({
-                                    "type": "translation",
-                                    "text": translated,
-                                    "lang_from": source_lang,
-                                    "lang_to": target_lang,
-                                })
-                                audio_bytes = await asyncio.to_thread(
-                                    tts_engine.synthesize, translated, target_lang,
-                                )
-                                if audio_bytes:
-                                    tts_playing = True
-                                    await ws.send_bytes(b"AUDIO:" + audio_bytes)
-                            else:
-                                await ws.send_json({
-                                    "type": "translation",
-                                    "text": text,
-                                    "lang_from": source_lang,
-                                    "lang_to": target_lang,
-                                    "note": "same_language",
-                                })
-
-                        logger.info(f"📝 [{source_lang}→{session_config['target_lang']}] {'[final] ' if is_final else ''}{text[:60]}")
 
                 except json.JSONDecodeError:
                     pass
@@ -501,7 +514,9 @@ async def websocket_solo(ws: WebSocket):
     except Exception as e:
         logger.error(f"❌ Помилка WebSocket Solo: {e}", exc_info=True)
     finally:
+        result_task.cancel()
         billing_task.cancel()
+        await dg.stop()
 
 
 # ===========================================================================

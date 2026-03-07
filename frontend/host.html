@@ -1096,99 +1096,9 @@
         txt.textContent = t(k);
     }
 
-    // ── Solo: пряме підключення до Deepgram з браузера ──────────────────────
-    // Архітектура: Телефон → Deepgram (аудіо напряму, ~150ms)
-    //              Телефон → VOX WS (тільки текст транскрипту → переклад+TTS)
-    let _soloPingInterval = null;
-    let _dgWs = null; // пряме з'єднання браузер → Deepgram
-
-    async function _getDgToken() {
-        try {
-            const r = await fetch('/api/deepgram-token', { method: 'POST' });
-            if (!r.ok) throw new Error('token fetch failed');
-            const d = await r.json();
-            return d.token;
-        } catch(e) { console.error('DG token error:', e); return null; }
-    }
-
-    async function _connectDg(srcLang) {
-        // Закрити попереднє з'єднання якщо є
-        if (_dgWs && _dgWs.readyState !== WebSocket.CLOSED) {
-            _dgWs.onmessage = null; _dgWs.close();
-        }
-        const token = await _getDgToken();
-        if (!token) return false;
-
-        const lang = (!srcLang || srcLang === 'auto') ? 'multi' : srcLang;
-        const params = new URLSearchParams({
-            model: 'nova-2',
-            interim_results: 'true',
-            utterance_end_ms: '1000',
-            endpointing: '150',
-            encoding: 'linear16',
-            sample_rate: '16000',
-            channels: '1',
-            punctuate: 'true',
-            language: lang,
-            token: token,
-        });
-        _dgWs = new WebSocket(`wss://api.deepgram.com/v1/listen?${params}`);
-        _dgWs.binaryType = 'arraybuffer';
-
-        return new Promise((resolve) => {
-            _dgWs.onopen = () => { console.log('🎤 Deepgram direct connected'); resolve(true); };
-            _dgWs.onerror = () => resolve(false);
-            _dgWs.onclose = () => {
-                // Авто-перепідключення якщо сесія ще активна
-                if (soloListening) setTimeout(() => _connectDg(document.getElementById('soloSrcLangSelect').value), 1000);
-            };
-            _dgWs.onmessage = (ev) => {
-                try {
-                    const d = JSON.parse(ev.data);
-                    if (d.type !== 'Results') return;
-                    const alt = d.channel?.alternatives?.[0];
-                    if (!alt) return;
-                    const text = (alt.transcript || '').trim();
-                    const isFinal = d.is_final || false;
-                    const speechFinal = d.speech_final || false;
-                    const detectedLang = d.channel?.detected_language || srcLang || 'uk';
-
-                    if (!text) return;
-
-                    // Показати на екрані
-                    if (!isFinal) {
-                        soloOrigEl.style.color = '';
-                        soloOrigEl.textContent = '🎤 ' + text;
-                        soloOrigEl.style.opacity = '0.7';
-                    } else if (isFinal && !speechFinal) {
-                        soloOrigEl.textContent = text;
-                        soloOrigEl.style.opacity = '0.9';
-                    }
-
-                    // Надіслати транскрипт на VOX сервер для перекладу
-                    if (soloWs?.readyState === WebSocket.OPEN) {
-                        soloWs.send(JSON.stringify({
-                            type: 'transcript',
-                            text: text,
-                            is_final: speechFinal,
-                            language: detectedLang,
-                            confidence: alt.confidence || 0,
-                        }));
-                    }
-
-                    if (speechFinal && text) {
-                        soloOrigEl.textContent = text;
-                        soloOrigEl.style.opacity = '1';
-                        soloOrigEl.style.color = '';
-                        soloTransEl.textContent = '⏳';
-                        soloTransEl.style.opacity = '0.4';
-                        _emptyFinalCount = 0;
-                    }
-                } catch(e) {}
-            };
-            setTimeout(() => resolve(false), 5000); // таймаут підключення
-        });
-    }
+        // ── Solo: підключення до VOX сервера (Phase 3 proxy) ────────────────────
+        // Архітектура: Телефон → Railway/VOX → Deepgram → Railway/VOX → Телефон
+        let _soloPingInterval = null;
 
     function soloConnectWS() {
         const p = location.protocol==='https:'?'wss:':'ws:';
@@ -1232,12 +1142,21 @@
             try {
                 const m = JSON.parse(e.data);
                 _handleBillingWsMsg(m);
-                if (m.type === 'translation') {
+                if (m.type === 'transcript') {
+                    if (!m.is_final) {
+                        soloOrigEl.textContent = '🎤 ' + m.text;
+                        soloOrigEl.style.opacity = '0.7';
+                    } else {
+                        soloOrigEl.textContent = m.text;
+                        soloOrigEl.style.opacity = '1';
+                        soloTransEl.textContent = '⏳';
+                        soloTransEl.style.opacity = '0.4';
+                    }
+                } else if (m.type === 'translation') {
                     soloTransEl.textContent = m.text || '—';
                     soloTransEl.style.opacity = '1';
                     _hist(soloHistEl, soloOrigEl.textContent, m.text);
                 }
-                // transcript echo від сервера ігноруємо — вже показали напряму з Deepgram
             } catch(e) {}
         };
     }
@@ -1249,21 +1168,13 @@
         document.getElementById('soloBtn').textContent = t('soloBtnStop');
         soloSetStatus('soloStatusConnecting');
 
-        const srcLang = document.getElementById('soloSrcLangSelect').value;
-
-        // Паралельно підключаємо VOX WS і Deepgram напряму
         soloConnectWS();
-        const dgOk = await _connectDg(srcLang);
-
-        if (!dgOk) {
-            console.warn('Deepgram direct failed, falling back to proxy mic');
-        }
 
         try {
             soloMic = await _mic('VoxSP', buf => {
-                // Аудіо → Deepgram напряму (якщо підключено)
-                if (_dgWs?.readyState === WebSocket.OPEN) {
-                    _dgWs.send(buf);
+                // Аудіо → VOX сервер (проксується на Deepgram)
+                if (soloWs?.readyState === WebSocket.OPEN) {
+                    soloWs.send(buf);
                 }
                 _vad(soloVadEl, new Float32Array(buf));
             });
@@ -1281,8 +1192,6 @@
         soloMic?.stop(); soloMic = null;
         _resetV(soloVadEl);
         soloSetStatus('soloStatusStopped');
-        // Закрити Deepgram WS
-        if (_dgWs) { _dgWs.onclose = null; _dgWs.close(); _dgWs = null; }
         // Закрити VOX WS (після відтворення аудіо)
         if (aQ.length > 0 || aPlaying) {
             const _waitAndClose = () => {
@@ -1308,8 +1217,7 @@
         if (soloWs?.readyState === WebSocket.OPEN) {
             soloWs.send(JSON.stringify({type:'config', source_lang: v === 'auto' ? null : v}));
         }
-        // Перепідключити Deepgram з новою мовою (якщо сесія активна)
-        if (soloListening) await _connectDg(v);
+        // Сервер сам перезапустить Deepgram з новою мовою при отриманні config
     });
 
     // =====================================================================
