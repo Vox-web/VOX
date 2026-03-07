@@ -1069,7 +1069,7 @@
         };
     }
 
-    function handleRoomMsg(m) {
+    function handleRoomMsg(m) { 
         switch(m.type) {
             case 'room_state': participants = m.room.participants||{}; renderParticipants(); break;
             case 'participant_joined': participants[m.guest_id] = m; renderParticipants(); break;
