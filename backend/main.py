@@ -88,6 +88,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="VOX", version="0.3.0", lifespan=lifespan)
 init_db()
 
+# ── Billing ──
+from billing_db import migrate as billing_migrate
+from billing import billing_router, send_verification_email
+billing_migrate()
+app.include_router(billing_router)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -814,6 +820,15 @@ async def api_register(body: RegisterBody):
         }
         raise HTTPException(400, errors.get(result["error"], result["error"]))
     result["user"].pop("password_hash", None)
+    # Отправить верификационный email ($3 бонус)
+    try:
+        send_verification_email(
+            result["user"]["id"],
+            result["user"]["email"],
+            result["user"]["name"]
+        )
+    except Exception as _e:
+        logger.warning(f"send_verification_email failed: {_e}")
     return result
 
 
