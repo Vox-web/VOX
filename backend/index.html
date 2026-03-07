@@ -75,7 +75,7 @@ nav{
   color:var(--accent);letter-spacing:5px;
   flex-shrink:0;
 }
-.nav-right{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;}
+.nav-right{display:flex;align-items:center;gap:8px;min-width:0;overflow:visible;}
 .lang-switch{
   display:flex;background:var(--surface);
   border:1px solid var(--border);border-radius:10px;
@@ -1291,7 +1291,6 @@ checkAuth();
 function toggleProfilePanel(){
   const panel = document.getElementById('profilePanel');
   panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-  if(panel.style.display === 'block') applyI18n();
 }
 // Close profile panel when clicking outside
 document.addEventListener('click', function(e){
@@ -1304,4 +1303,4 @@ document.addEventListener('click', function(e){
 
 </script>
 </body>
-</html>   
+</html>
