@@ -930,29 +930,88 @@
     // =================================================================
     async function toggleHandRaise() {
         if (myState === 'listening') {
-            // Только AudioContext — в user gesture (никогда не падает).
-            // getUserMedia делается позже в startGuestMic (после speak_granted).
-            if (!audioContext) {
-                audioContext = new AudioContext({sampleRate: 16000});
-            }
-            if (audioContext.state === 'suspended') {
-                try { await audioContext.resume(); } catch(e) {}
-            }
-
+            // ВСЯ инициализация микрофона — здесь, в user gesture, как у хоста
+            await _initMicInUserGesture();
             myState = 'requesting';
-            // ws.send ВСЕГДА выполняется — не зависит от микрофона
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({action: 'request_speak'}));
             }
             updateHandButton();
-
         } else if (myState === 'requesting') {
             myState = 'listening';
+            stopGuestMic();
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({action: 'cancel_request'}));
             }
-            if (audioContext) { audioContext.close(); audioContext = null; }
             updateHandButton();
+        }
+    }
+
+    // Полная инициализация микрофона — вызывается ТОЛЬКО из user gesture
+    async function _initMicInUserGesture() {
+        try {
+            if (mediaStream) return; // уже инициализирован
+
+            // getUserMedia — требует user gesture на мобильных браузерах
+            mediaStream = await navigator.mediaDevices.getUserMedia({
+                audio: {sampleRate:16000, channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true}
+            });
+
+            // AudioContext — создаём и разблокируем в user gesture
+            if (!audioContext) {
+                audioContext = new AudioContext({sampleRate: 16000});
+            }
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+
+            // Worklet
+            const workletCode = `
+                class VoxGuestProcessor extends AudioWorkletProcessor {
+                    constructor() { super(); this.buffer = []; this.CHUNK_SIZE = 2048; }
+                    process(inputs) {
+                        const input = inputs[0];
+                        if (!input || !input[0]) return true;
+                        this.buffer.push(...input[0]);
+                        while (this.buffer.length >= this.CHUNK_SIZE) {
+                            const chunk = new Float32Array(this.buffer.splice(0, this.CHUNK_SIZE));
+                            this.port.postMessage(chunk.buffer, [chunk.buffer]);
+                        }
+                        return true;
+                    }
+                }
+                registerProcessor('vox-guest-processor', VoxGuestProcessor);
+            `;
+            const blob = new Blob([workletCode], {type:'application/javascript'});
+            const url = URL.createObjectURL(blob);
+            await audioContext.audioWorklet.addModule(url);
+            URL.revokeObjectURL(url);
+
+            const source = audioContext.createMediaStreamSource(mediaStream);
+            audioWorkletNode = new AudioWorkletNode(audioContext, 'vox-guest-processor');
+
+            // Отправляем байты ТОЛЬКО когда myState === 'speaking'
+            audioWorkletNode.port.onmessage = (e) => {
+                if (myState === 'speaking' && ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(e.data);
+                }
+                animateVAD(new Float32Array(e.data));
+            };
+
+            source.connect(audioWorkletNode);
+            audioWorkletNode.connect(audioContext.destination);
+
+            // Авто-resume: мобильные браузеры могут приостановить audioContext
+            // когда воспроизводится TTS (audio session interruption на Android/iOS)
+            audioContext.onstatechange = () => {
+                console.log('[MIC] audioContext state:', audioContext.state);
+                if (audioContext.state === 'suspended' && myState === 'speaking') {
+                    audioContext.resume().catch(e => console.warn('[MIC] resume failed:', e));
+                }
+            };
+
+        } catch (e) {
+            console.error('Mic init error:', e);
         }
     }
 
@@ -981,57 +1040,13 @@
     // Guest microphone
     // =================================================================
     async function startGuestMic() {
-        // AudioContext уже создан и разблокирован в toggleHandRaise (user gesture).
-        // Здесь только getUserMedia + AudioWorklet на готовом контексте.
-        try {
-            if (audioContext && audioContext.state === 'suspended') {
-                try { await audioContext.resume(); } catch(e) {}
-            }
-
-            mediaStream = await navigator.mediaDevices.getUserMedia({
-                audio: {sampleRate:16000, channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true}
-            });
-
-            if (!audioContext) {
-                audioContext = new AudioContext({sampleRate: 16000});
-                if (audioContext.state === 'suspended') {
-                    try { await audioContext.resume(); } catch(e) {}
-                }
-            }
-
-            const workletCode = `
-                class VoxGuestProcessor extends AudioWorkletProcessor {
-                    constructor() { super(); this.buffer = []; this.CHUNK_SIZE = 2048; }
-                    process(inputs) {
-                        const input = inputs[0];
-                        if (!input || !input[0]) return true;
-                        this.buffer.push(...input[0]);
-                        while (this.buffer.length >= this.CHUNK_SIZE) {
-                            const chunk = new Float32Array(this.buffer.splice(0, this.CHUNK_SIZE));
-                            this.port.postMessage(chunk.buffer, [chunk.buffer]);
-                        }
-                        return true;
-                    }
-                }
-                registerProcessor('vox-guest-processor', VoxGuestProcessor);
-            `;
-            const blob = new Blob([workletCode], {type:'application/javascript'});
-            const url = URL.createObjectURL(blob);
-            await audioContext.audioWorklet.addModule(url);
-            URL.revokeObjectURL(url);
-
-            const source = audioContext.createMediaStreamSource(mediaStream);
-            audioWorkletNode = new AudioWorkletNode(audioContext, 'vox-guest-processor');
-            audioWorkletNode.port.onmessage = (e) => {
-                if (ws && ws.readyState === WebSocket.OPEN) ws.send(e.data);
-                animateVAD(new Float32Array(e.data));
-            };
-            source.connect(audioWorkletNode);
-            audioWorkletNode.connect(audioContext.destination);
-
-        } catch (e) {
-            console.error('startGuestMic error:', e);
+        // Микрофон уже инициализирован в _initMicInUserGesture() (toggleHandRaise).
+        // Просто убеждаемся что AudioContext не suspended.
+        if (audioContext && audioContext.state === 'suspended') {
+            try { await audioContext.resume(); } catch(e) {}
         }
+        // Данные автоматически пойдут через onmessage,
+        // т.к. myState теперь 'speaking' и проверка там есть.
     }
 
     function stopGuestMic() {
@@ -1092,7 +1107,15 @@
             const buf = await playbackContext.decodeAudioData(mp3.slice(0));
             const src = playbackContext.createBufferSource();
             src.buffer = buf; src.connect(playbackContext.destination);
-            src.onended = () => processAudioQueue(); src.start(0);
+            src.onended = () => {
+                // После воспроизведения TTS восстанавливаем микрофон
+                // (мобильные браузеры могут приостановить audioContext во время playback)
+                if (audioContext && audioContext.state === 'suspended' && myState === 'speaking') {
+                    audioContext.resume().catch(e => console.warn('[MIC] post-TTS resume failed:', e));
+                }
+                processAudioQueue();
+            };
+            src.start(0);
         } catch (e) { console.error('Playback error:', e); processAudioQueue(); }
     }
 
@@ -1134,7 +1157,7 @@
 
     // Init i18n
     applyI18n();
-    console.log('VOX Guest v0.3.4');
+    console.log('VOX Guest v0.3.5');
     </script>
 </body>
 </html>
