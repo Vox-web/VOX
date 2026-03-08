@@ -799,10 +799,14 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                     await dg.start(participant.language)
                     guest_speaking = True
 
-                logger.debug(
-                    f"🎵 [GUEST DEBUG] Аудио → Deepgram: {chunk_size} байт, "
-                    f"dg.is_active={dg.is_active}, ws.state={ws.client_state}"
-                )
+                if not hasattr(ws, '_guest_chunk_count'):
+                    ws._guest_chunk_count = 0
+                ws._guest_chunk_count += 1
+                if ws._guest_chunk_count % 50 == 1:
+                    logger.info(
+                        f"🎵 [GUEST DEBUG] Аудио → Deepgram: чанк #{ws._guest_chunk_count}, "
+                        f"{chunk_size} байт, dg.is_active={dg.is_active}"
+                    )
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
