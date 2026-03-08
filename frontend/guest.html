@@ -1368,10 +1368,22 @@
                 preroll_frames: guestPreRollFrames,
             });
 
+            const currentCxState = guestMicObj?.getState ? guestMicObj.getState() : null;
+
             serverLog('audio_context_state_before_resume', {
-                cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
+                cx_state: currentCxState,
             });
-            const resumedState = guestMicObj?.resume ? await guestMicObj.resume() : null;
+
+            let resumedState = currentCxState;
+
+            if (currentCxState !== 'running' && guestMicObj?.resume) {
+                resumedState = await guestMicObj.resume();
+            } else {
+                serverLog('audio_context_resume_skip_already_running', {
+                    cx_state: currentCxState,
+                });
+            }
+
             serverLog('audio_context_state_after_resume', {
                 cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
                 resumed_state: resumedState,
