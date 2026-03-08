@@ -832,7 +832,7 @@
             // Изначально хост говорит
             document.getElementById('speakerName').textContent = '🎤 ' + t('hostSpeaking');
             document.getElementById('speakerIndicator').style.display = 'block';
-            sendGuestAudioMeta();
+            sendGuestAudioMeta('ws_open');
         };
 
         ws.onclose = () => {
@@ -869,7 +869,7 @@
     function handleJsonMsg(msg) {
         switch (msg.type) {
             case 'speak_granted':
-                serverLog('recv_speak_granted', { by: 'server' });
+                serverLog('recv_speak_granted', { by: 'server', has_mic: !!guestMicObj, preparing: !!guestMicPreparing });
                 myState = 'speaking';
                 speakBanner.classList.add('active');
                 handBtn.style.display = 'none';
@@ -882,13 +882,14 @@
                 myState = 'listening';
                 speakBanner.classList.remove('active');
                 handBtn.style.display = 'block';
-                stopGuestMic();
+                stopGuestMic('speak_revoked');
                 updateHandButton();
                 break;
 
             case 'speak_denied':
                 serverLog('recv_speak_denied', { by: 'server' });
                 myState = 'listening';
+                stopGuestMic('speak_denied');
                 updateHandButton();
                 break;
 
@@ -904,7 +905,7 @@
                 _wasKicked = true;
                 document.getElementById('overlayKicked').classList.add('active');
                 if (ws) { ws.close(); ws = null; }
-                stopGuestMic();
+                stopGuestMic('kicked');
                 sessionStorage.removeItem(`vox_guest_${roomId}`);
                 sessionStorage.removeItem(`vox_hist_${roomId}`);
                 break;
@@ -913,7 +914,7 @@
                 _wasKicked = true;
                 document.getElementById('overlayClosed').classList.add('active');
                 if (ws) { ws.close(); ws = null; }
-                stopGuestMic();
+                stopGuestMic('room_closed');
                 sessionStorage.removeItem(`vox_guest_${roomId}`);
                 sessionStorage.removeItem(`vox_hist_${roomId}`);
                 break;
@@ -1009,16 +1010,75 @@
     // =================================================================
     let guestMicObj = null;
     let guestMicMeta = null;
+    let guestMicPreparing = null;
+    let guestFirstChunkSent = false;
 
-    function sendGuestAudioMeta() {
-        if (!guestMicMeta) return;
-        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    function sendGuestAudioMeta(reason = 'unknown') {
+        if (!guestMicMeta) {
+            serverLog('send_audio_meta_skip_no_meta', { reason });
+            return;
+        }
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            serverLog('send_audio_meta_skip_ws_not_open', { reason, ws_state: ws ? ws.readyState : null });
+            return;
+        }
         ws.send(JSON.stringify({
             type: 'audio_meta',
             source: 'guest',
             ...guestMicMeta,
         }));
-        serverLog('send_audio_meta', guestMicMeta);
+        serverLog('send_audio_meta', { reason, ...guestMicMeta });
+    }
+
+    async function prepareGuestMic(reason = 'unknown') {
+        if (guestMicObj) {
+            serverLog('mic_prepare_skip_existing', { reason, context_sr: guestMicMeta?.context_sample_rate || null, track_sr: guestMicMeta?.track_sample_rate || null });
+            return guestMicObj;
+        }
+        if (guestMicPreparing) {
+            serverLog('mic_prepare_wait_existing', { reason });
+            return guestMicPreparing;
+        }
+
+        guestFirstChunkSent = false;
+        serverLog('mic_prepare_begin', { reason });
+
+        guestMicPreparing = (async () => {
+            const mic = await _mic('VoxGP', buf => {
+                const floatBuf = new Float32Array(buf);
+
+                if ((myState === 'requesting' || myState === 'speaking')) {
+                    animateVAD(floatBuf);
+                }
+
+                if (myState === 'speaking' && ws?.readyState === WebSocket.OPEN) {
+                    if (!guestFirstChunkSent) {
+                        guestFirstChunkSent = true;
+                        serverLog('first_audio_chunk_sent', {
+                            bytes: buf.byteLength,
+                            frames: floatBuf.length,
+                            context_sr: guestMicMeta?.context_sample_rate || null,
+                            track_sr: guestMicMeta?.track_sample_rate || null,
+                        });
+                    }
+                    ws.send(buf);
+                }
+            });
+
+            guestMicObj = mic;
+            guestMicMeta = mic?.meta || null;
+            serverLog('mic_prepare_ok', guestMicMeta || {});
+            return mic;
+        })();
+
+        try {
+            return await guestMicPreparing;
+        } catch (e) {
+            serverLog('mic_prepare_error', { reason, message: String(e) });
+            throw e;
+        } finally {
+            guestMicPreparing = null;
+        }
     }
 
     async function toggleHandRaise() {
@@ -1030,12 +1090,19 @@
             }
             updateHandButton();
 
+            try {
+                await prepareGuestMic('tap_request_speak');
+            } catch (e) {
+                console.error('Guest mic warmup err:', e);
+            }
+
         } else if (myState === 'requesting') {
             myState = 'listening';
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({action: 'cancel_request'}));
                 serverLog('send_cancel_request', { state: myState });
             }
+            stopGuestMic('cancel_request');
             updateHandButton();
         }
     }
@@ -1058,43 +1125,39 @@
         myState = 'listening';
         speakBanner.classList.remove('active');
         handBtn.style.display = 'block';
-        guestMicObj?.stop(); guestMicObj = null;
-        serverLog('mic_stopped_after_done');
-        guestMicMeta = null;
-        resetVAD();
+        stopGuestMic('done_speaking');
         updateHandButton();
     }
 
     // startGuestMic / stopGuestMic — реальный старт/стоп микрофона гостя
     async function startGuestMic() {
-        if (guestMicObj) {
-            sendGuestAudioMeta();
-            serverLog('start_guest_mic_skip_existing');
-            return;
-        }
+        serverLog('start_guest_mic_begin', {
+            has_mic: !!guestMicObj,
+            preparing: !!guestMicPreparing,
+            ws_state: ws ? ws.readyState : null,
+        });
 
         try {
-            console.info('[VOX guest] start mic after speak_granted');
-            guestMicObj = await _mic('VoxGP', buf => {
-                if (myState === 'speaking' && ws?.readyState === WebSocket.OPEN) {
-                    ws.send(buf);
-                }
-                animateVAD(new Float32Array(buf));
+            await prepareGuestMic('speak_granted');
+            sendGuestAudioMeta('speak_granted');
+            serverLog('start_guest_mic_ready', {
+                has_mic: !!guestMicObj,
+                context_sr: guestMicMeta?.context_sample_rate || null,
+                track_sr: guestMicMeta?.track_sample_rate || null,
             });
-            guestMicMeta = guestMicObj?.meta || null;
-            serverLog('mic_initialized', guestMicMeta || {});
-            sendGuestAudioMeta();
         } catch (e) {
             console.error('Guest mic err:', e);
-            serverLog('mic_init_error', { message: String(e) });
+            serverLog('start_guest_mic_error', { message: String(e) });
         }
     }
 
-    function stopGuestMic() {
-        serverLog('stop_guest_mic_called');
+    function stopGuestMic(reason = 'unknown') {
+        serverLog('stop_guest_mic_called', { reason, had_mic: !!guestMicObj, preparing: !!guestMicPreparing });
         guestMicObj?.stop();
         guestMicObj = null;
         guestMicMeta = null;
+        guestMicPreparing = null;
+        guestFirstChunkSent = false;
         resetVAD();
     }
 
