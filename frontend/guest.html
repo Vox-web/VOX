@@ -1096,6 +1096,7 @@
     let guestFirstChunkArrived = false;
     let guestFirstChunkBlocked = false;
     let guestFirstChunkSent = false;
+    let guestLiveChunksSent = 0;
     let guestPreRoll = [];
     let guestPreRollFrames = 0;
 
@@ -1120,62 +1121,117 @@
     }
 
     function flushGuestPreRoll(reason = 'unknown') {
-        if (!canStreamGuestAudio()) {
-            serverLog('preroll_flush_skip_gate_closed', {
-                reason,
-                buffered_chunks: guestPreRoll.length,
-                buffered_frames: guestPreRollFrames,
-                state: myState,
-                ws_state: ws ? ws.readyState : null,
-            });
-            return 0;
-        }
-
-        if (!guestPreRoll.length) {
-            serverLog('preroll_flush_skip_empty', { reason });
-            return 0;
-        }
-
-        const chunks = guestPreRoll.slice();
-        const frames = guestPreRollFrames;
-        clearGuestPreRoll();
-
-        for (const chunk of chunks) {
-            ws.send(chunk);
-        }
-
-        serverLog('preroll_flushed', {
+    if (!canStreamGuestAudio()) {
+        serverLog('preroll_flush_skip_gate_closed', {
             reason,
-            chunks: chunks.length,
-            frames,
-            approx_ms: Math.round(frames / GUEST_TARGET_SAMPLE_RATE * 1000),
-        });
-        return chunks.length;
-    }
-
-    function sendGuestAudioMeta(reason = 'unknown') {
-        serverLog('send_audio_meta_begin', {
-            reason,
-            has_meta: !!guestMicMeta,
+            buffered_chunks: guestPreRoll.length,
+            buffered_frames: guestPreRollFrames,
+            state: myState,
             ws_state: ws ? ws.readyState : null,
         });
+        return 0;
+    }
 
-        if (!guestMicMeta) {
-            serverLog('send_audio_meta_skip_no_meta', { reason });
-            return false;
+    if (!guestPreRoll.length) {
+        serverLog('preroll_flush_skip_empty', { reason });
+        return 0;
+    }
+
+    const chunks = guestPreRoll.slice();
+    const frames = guestPreRollFrames;
+    clearGuestPreRoll();
+
+    let sent = 0;
+
+    for (const chunk of chunks) {
+        try {
+            ws.send(chunk);
+            sent++;
+            if (sent <= 3) {
+                serverLog('preroll_chunk_sent', {
+                    reason,
+                    seq: sent,
+                    bytes: chunk.byteLength,
+                    ws_state: ws ? ws.readyState : null,
+                });
+            }
+        } catch (e) {
+            serverLog('preroll_chunk_send_error', {
+                reason,
+                seq: sent + 1,
+                total_chunks: chunks.length,
+                message: e?.message || String(e),
+                stack: e?.stack || null,
+                name: e?.name || null,
+                ws_state: ws ? ws.readyState : null,
+            });
+            break;
         }
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
-            serverLog('send_audio_meta_skip_ws_not_open', { reason, ws_state: ws ? ws.readyState : null });
-            return false;
-        }
-        ws.send(JSON.stringify({
+    }
+
+    serverLog('preroll_flushed', {
+        reason,
+        chunks: sent,
+        frames,
+        approx_ms: Math.round(frames / GUEST_TARGET_SAMPLE_RATE * 1000),
+    });
+
+    return sent;
+}
+
+    function sendGuestAudioMeta(reason = 'unknown') {
+    serverLog('send_audio_meta_begin', {
+        reason,
+        has_meta: !!guestMicMeta,
+        ws_state: ws ? ws.readyState : null,
+    });
+
+    if (!guestMicMeta) {
+        serverLog('send_audio_meta_skip_no_meta', { reason });
+        return false;
+    }
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        serverLog('send_audio_meta_skip_ws_not_open', {
+            reason,
+            ws_state: ws ? ws.readyState : null
+        });
+        return false;
+    }
+
+    try {
+        const payload = JSON.stringify({
             type: 'audio_meta',
             source: 'guest',
             ...guestMicMeta,
-        }));
+        });
+
+        serverLog('send_audio_meta_before_ws_send', {
+            reason,
+            payload_bytes: payload.length,
+            ws_state: ws.readyState,
+        });
+
+        ws.send(payload);
+
+        serverLog('send_audio_meta_after_ws_send', {
+            reason,
+            payload_bytes: payload.length,
+            ws_state: ws.readyState,
+        });
+
         serverLog('send_audio_meta_done', { reason, ...guestMicMeta });
         return true;
+    } catch (e) {
+        serverLog('send_audio_meta_error', {
+            reason,
+            message: e?.message || String(e),
+            stack: e?.stack || null,
+            name: e?.name || null,
+            ws_state: ws ? ws.readyState : null,
+        });
+        return false;
     }
+}
 
     async function prepareGuestMic(reason = 'unknown') {
         if (guestMicObj) {
@@ -1257,7 +1313,12 @@
                         track_sr: guestMicMeta?.track_sample_rate || null,
                     });
 
-                    flushGuestPreRoll('first_live_chunk');
+                    const prerollFlushedNow = flushGuestPreRoll('first_live_chunk');
+                    serverLog('first_chunk_after_preroll_flush', {
+                        preroll_flushed_chunks: prerollFlushedNow,
+                        ws_state: ws ? ws.readyState : null,
+                        cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
+                    });
 
                     guestFirstChunkSent = true;
                     serverLog('first_audio_chunk_sent', {
@@ -1269,7 +1330,30 @@
                     });
                 }
 
-                ws.send(buf);
+                try {
+                    ws.send(buf);
+                    guestLiveChunksSent++;
+
+                    if (guestLiveChunksSent <= 5) {
+                        serverLog('live_audio_chunk_sent', {
+                            seq: guestLiveChunksSent,
+                            bytes: buf.byteLength,
+                            frames: floatBuf.length,
+                            ws_state: ws ? ws.readyState : null,
+                            cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
+                            context_sr: guestMicMeta?.context_sample_rate || null,
+                            track_sr: guestMicMeta?.track_sample_rate || null,
+                        });
+                    }
+                } catch (e) {
+                    serverLog('live_audio_chunk_send_error', {
+                        seq: guestLiveChunksSent + 1,
+                        message: e?.message || String(e),
+                        stack: e?.stack || null,
+                        name: e?.name || null,
+                        ws_state: ws ? ws.readyState : null,
+                    });
+                }
             });
 
             guestMicObj = mic;
@@ -1417,24 +1501,25 @@
     }
 
     function stopGuestMic(reason = 'unknown') {
-        serverLog('stop_guest_mic_called', {
-            reason,
-            had_mic: !!guestMicObj,
-            preparing: !!guestMicPreparing,
-            preroll_chunks: guestPreRoll.length,
-            preroll_frames: guestPreRollFrames,
-        });
-        guestMicObj?.stop();
-        guestMicObj = null;
-        guestMicMeta = null;
-        guestMicPreparing = null;
-        guestFirstChunkArrived = false;
-        guestFirstChunkBlocked = false;
-        guestFirstChunkSent = false;
-        clearGuestPreRoll();
-        resetVAD();
-    }
-
+    serverLog('stop_guest_mic_called', {
+        reason,
+        had_mic: !!guestMicObj,
+        preparing: !!guestMicPreparing,
+        preroll_chunks: guestPreRoll.length,
+        preroll_frames: guestPreRollFrames,
+        live_chunks_sent: guestLiveChunksSent,
+    });
+    guestMicObj?.stop();
+    guestMicObj = null;
+    guestMicMeta = null;
+    guestMicPreparing = null;
+    guestFirstChunkArrived = false;
+    guestFirstChunkBlocked = false;
+    guestFirstChunkSent = false;
+    guestLiveChunksSent = 0;
+    clearGuestPreRoll();
+    resetVAD();
+}
     // =================================================================
     // Audio playback (с разблокировкой AudioContext после рефреша)
     // =================================================================
