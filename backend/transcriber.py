@@ -230,7 +230,27 @@ class DeepgramTranscriber:
             async for raw_msg in self._ws:
                 data = json.loads(raw_msg)
 
-                if data.get("type") != "Results":
+                msg_type = data.get("type")
+
+                # UtteranceEnd: Deepgram обнаружил тишину после utterance_end_ms.
+                # Флашим буфер если там есть накопленные finals.
+                if msg_type == "UtteranceEnd":
+                    if self._finals_buffer:
+                        if self._flush_task and not self._flush_task.done():
+                            self._flush_task.cancel()
+                            self._flush_task = None
+                        full_text = " ".join(self._finals_buffer)
+                        self._finals_buffer = []
+                        logger.info(f"📝 [{self._last_lang}] (UtteranceEnd) {full_text}")
+                        await self.results.put(TranscriptResult(
+                            text=full_text,
+                            is_final=True,
+                            language=self._last_lang or "unknown",
+                            confidence=self._last_confidence,
+                        ))
+                    continue
+
+                if msg_type != "Results":
                     continue
 
                 channel = data.get("channel", {})
