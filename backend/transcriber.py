@@ -81,6 +81,8 @@ class DeepgramTranscriber:
         # Deepgram получает уже приведённый к 16 кГц поток.
         self._input_sample_rate: int = SAMPLE_RATE
         self._debug_audio_chunks_seen: int = 0
+        self._debug_results_seen: int = 0
+        self._debug_empty_results_seen: int = 0
 
         # Очередь результатов — читается обработчиком в main.py
         self.results: asyncio.Queue[TranscriptResult] = asyncio.Queue()
@@ -107,6 +109,7 @@ class DeepgramTranscriber:
         і буфер не порожній — флашимо його як фінальний результат.
         """
         try:
+            logger.info(f"🧭 [DG TRACE] delayed_flush_sleep {delay}s")
             await asyncio.sleep(delay)
             if self._finals_buffer:
                 full_text = " ".join(self._finals_buffer)
@@ -119,6 +122,7 @@ class DeepgramTranscriber:
                     confidence=self._last_confidence,
                 ))
         except asyncio.CancelledError:
+            logger.info("🧭 [DG TRACE] receive_loop cancelled")
             pass
 
     async def _interim_flush(self, delay: float = 2.0):
@@ -130,6 +134,7 @@ class DeepgramTranscriber:
         потому что Finalize ломает сессию (GitHub #1035).
         """
         try:
+            logger.info(f"🧭 [DG TRACE] interim_flush_sleep {delay}s")
             await asyncio.sleep(delay)
             if self._pending_interim_text:
                 text = self._pending_interim_text
@@ -208,6 +213,7 @@ class DeepgramTranscriber:
                 )
                 self._receive_task = asyncio.create_task(self._receive_loop())
                 logger.info(f"🎤 Deepgram сессия открыта (язык: {language or 'auto'})")
+                logger.info(f"🧭 [DG TRACE] session_start lang={language or 'auto'} input_sr={self._input_sample_rate} target_sr={SAMPLE_RATE}")
                 return  # Успех — выходим
             except Exception as e:
                 self._ws = None
@@ -290,6 +296,8 @@ class DeepgramTranscriber:
 
     async def stop(self):
         """Закрыть сессию Deepgram."""
+        logger.info(f"🧭 [DG TRACE] stop_begin active={self.is_active} finals={len(self._finals_buffer)} pending_interim={bool(self._pending_interim_text)} input_sr={self._input_sample_rate}")
+
         # Flush зависший interim перед закрытием
         if self._pending_interim_text:
             text = self._pending_interim_text
@@ -328,8 +336,10 @@ class DeepgramTranscriber:
 
         if self._ws and not self._ws.closed:
             try:
+                logger.info("🧭 [DG TRACE] send CloseStream")
                 await self._ws.send(json.dumps({"type": "CloseStream"}))
                 await self._ws.close()
+                logger.info("🧭 [DG TRACE] websocket closed")
             except Exception:
                 pass
 
@@ -338,6 +348,7 @@ class DeepgramTranscriber:
         if self._flush_task and not self._flush_task.done():
             self._flush_task.cancel()
             self._flush_task = None
+        logger.info("🧭 [DG TRACE] stop_end")
 
     async def _receive_loop(self):
         """
@@ -358,12 +369,17 @@ class DeepgramTranscriber:
                 data = json.loads(raw_msg)
 
                 msg_type = data.get("type")
+                self._debug_results_seen += 1
+                if msg_type != 'Results' or self._debug_results_seen <= 10 or self._debug_results_seen % 25 == 0:
+                    logger.info("🧭 [DG TRACE] recv #%s type=%s", self._debug_results_seen, msg_type)
 
                 # UtteranceEnd: Deepgram обнаружил тишину после utterance_end_ms.
                 # Флашим буфер если там есть накопленные finals.
                 if msg_type == "UtteranceEnd":
+                    logger.info("🧭 [DG TRACE] UtteranceEnd finals=%s pending_interim=%s", len(self._finals_buffer), bool(self._pending_interim_text))
                     if self._finals_buffer:
                         if self._flush_task and not self._flush_task.done():
+                            logger.info("🧭 [DG TRACE] cancel delayed flush due UtteranceEnd")
                             self._flush_task.cancel()
                             self._flush_task = None
                         full_text = " ".join(self._finals_buffer)
@@ -380,6 +396,7 @@ class DeepgramTranscriber:
                         text = self._pending_interim_text
                         self._pending_interim_text = None
                         if self._interim_flush_task and not self._interim_flush_task.done():
+                            logger.info("🧭 [DG TRACE] cancel interim flush due UtteranceEnd")
                             self._interim_flush_task.cancel()
                             self._interim_flush_task = None
                         logger.info(f"📝 [{self._last_lang}] (UtteranceEnd interim flush) {text}")
@@ -397,6 +414,7 @@ class DeepgramTranscriber:
                 channel = data.get("channel", {})
                 alternatives = channel.get("alternatives", [])
                 if not alternatives:
+                    logger.info("🧭 [DG TRACE] Results without alternatives")
                     continue
 
                 alt = alternatives[0]
@@ -413,7 +431,12 @@ class DeepgramTranscriber:
                         lang = detected
 
                 if not text:
+                    self._debug_empty_results_seen += 1
+                    if self._debug_empty_results_seen <= 10 or self._debug_empty_results_seen % 25 == 0:
+                        logger.info("🧭 [DG TRACE] empty transcript is_final=%s speech_final=%s lang=%s empty_count=%s", is_final, speech_final, lang or 'unknown', self._debug_empty_results_seen)
                     continue
+
+                logger.info("🧭 [DG TRACE] Results text=%r is_final=%s speech_final=%s lang=%s conf=%.3f finals_buffer=%s", text[:120], is_final, speech_final, lang or 'unknown', confidence, len(self._finals_buffer))
 
                 if not is_final:
                     # Interim: накопленные finals + текущий interim
@@ -429,13 +452,16 @@ class DeepgramTranscriber:
                     self._last_lang = lang or "unknown"
                     self._last_confidence = confidence
                     if self._interim_flush_task and not self._interim_flush_task.done():
+                        logger.info("🧭 [DG TRACE] cancel previous interim flush timer")
                         self._interim_flush_task.cancel()
+                    logger.info("🧭 [DG TRACE] schedule interim flush timer 2.0s text=%r", full_text[:120])
                     self._interim_flush_task = asyncio.create_task(self._interim_flush(2.0))
 
                 elif is_final:
                     # Final пришёл — отменяем interim flush
                     self._pending_interim_text = None
                     if self._interim_flush_task and not self._interim_flush_task.done():
+                        logger.info("🧭 [DG TRACE] cancel interim flush due final result")
                         self._interim_flush_task.cancel()
                         self._interim_flush_task = None
 
@@ -446,6 +472,7 @@ class DeepgramTranscriber:
                     if speech_final:
                         # Конец фразы — скасуємо таймер і флашимо одразу
                         if self._flush_task and not self._flush_task.done():
+                            logger.info("🧭 [DG TRACE] cancel delayed flush due speech_final")
                             self._flush_task.cancel()
                             self._flush_task = None
 
@@ -471,11 +498,14 @@ class DeepgramTranscriber:
                         ))
                         # Скинути попередній таймер і запустити новий (800ms)
                         if self._flush_task and not self._flush_task.done():
+                            logger.info("🧭 [DG TRACE] cancel previous delayed flush timer")
                             self._flush_task.cancel()
+                        logger.info("🧭 [DG TRACE] schedule delayed flush 0.8s buffer=%r", full_text[:120])
                         self._flush_task = asyncio.create_task(self._delayed_flush(0.8))
 
         except websockets.ConnectionClosed:
             logger.info("🔇 Deepgram соединение закрыто")
+            logger.info("🧭 [DG TRACE] receive_loop connection closed")
         except asyncio.CancelledError:
             pass
         except Exception as e:

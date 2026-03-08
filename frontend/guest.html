@@ -653,6 +653,24 @@
     let myState = 'listening'; // listening | requesting | speaking
     let currentSpeaker = 'Host';
 
+    function serverLog(event, data = {}) {
+        try {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    action: 'client_log',
+                    event,
+                    state: myState,
+                    room_id: roomId,
+                    guest_id: guestId,
+                    data,
+                    client_ts: new Date().toISOString(),
+                }));
+            }
+        } catch (e) {
+            console.warn('serverLog failed', e);
+        }
+    }
+
     // DOM
     const screenJoin = document.getElementById('screenJoin');
     const screenRoom = document.getElementById('screenRoom');
@@ -783,11 +801,14 @@
             screenRoom.classList.add('active');
             applyI18n();
 
+            serverLog('join_room_success', { guest_lang: guestLang, display_name: displayName || null });
+
             // Connect WebSocket
             connectGuestWS();
 
         } catch (e) {
             console.error('Join error:', e);
+            serverLog('join_room_error', { message: String(e) });
             btn.textContent = t('btnJoin');
             btn.disabled = false;
         }
@@ -804,7 +825,9 @@
         ws.binaryType = 'arraybuffer';
 
         ws.onopen = () => {
+            console.info('[VOX guest] ws open', { roomId, guestId });
             statusDot.className = 'status-dot connected';
+            serverLog('ws_open', { room_id: roomId, guest_id: guestId });
             statusTextEl.textContent = t('statusConnected');
             // Изначально хост говорит
             document.getElementById('speakerName').textContent = '🎤 ' + t('hostSpeaking');
@@ -813,7 +836,9 @@
         };
 
         ws.onclose = () => {
+            console.info('[VOX guest] ws close', { roomId, guestId, state: myState });
             statusDot.className = 'status-dot';
+            serverLog('ws_close', { room_id: roomId, guest_id: guestId });
             statusTextEl.textContent = t('statusDisconnected');
             if (guestId && !_wasKicked) setTimeout(connectGuestWS, 500);
         };
@@ -822,15 +847,21 @@
             if (guestId && (!ws || ws.readyState === WebSocket.CLOSED)) connectGuestWS();
         });
 
-        ws.onerror = () => {
+        ws.onerror = (err) => {
+            console.error('[VOX guest] ws error', err);
             statusDot.className = 'status-dot';
+            serverLog('ws_error', { message: 'websocket error' });
         };
 
         ws.onmessage = (event) => {
             if (event.data instanceof ArrayBuffer) {
                 handleAudioMsg(event.data);
             } else {
-                handleJsonMsg(JSON.parse(event.data));
+                const msg = JSON.parse(event.data);
+                if (msg?.type && msg.type !== 'transcript') {
+                    console.info('[VOX guest] ws message', msg.type, msg);
+                }
+                handleJsonMsg(msg);
             }
         };
     }
@@ -838,6 +869,7 @@
     function handleJsonMsg(msg) {
         switch (msg.type) {
             case 'speak_granted':
+                serverLog('recv_speak_granted', { by: 'server' });
                 myState = 'speaking';
                 speakBanner.classList.add('active');
                 handBtn.style.display = 'none';
@@ -846,6 +878,7 @@
                 break;
 
             case 'speak_revoked':
+                serverLog('recv_speak_revoked', { by: 'server' });
                 myState = 'listening';
                 speakBanner.classList.remove('active');
                 handBtn.style.display = 'block';
@@ -854,6 +887,7 @@
                 break;
 
             case 'speak_denied':
+                serverLog('recv_speak_denied', { by: 'server' });
                 myState = 'listening';
                 updateHandButton();
                 break;
@@ -903,10 +937,12 @@
 
             case 'transcript':
                 if (msg.is_final) {
+                    serverLog('recv_transcript_final', { language: msg.language, text: (msg.text || '').slice(0, 80), confidence: msg.confidence });
                     originalText.textContent = msg.text || '—';
                     originalText.style.opacity='1';
                     translationText.textContent='⏳'; translationText.style.opacity='0.4';
                 } else {
+                    serverLog('recv_transcript_interim', { language: msg.language, text: (msg.text || '').slice(0, 80), confidence: msg.confidence });
                     // Deepgram interim — текст в реальном времени
                     originalText.textContent = '🎤 ' + (msg.text || (GUEST_I18N[guestLang]?.recording || 'Recording') + '...');
                     originalText.style.opacity='0.7';
@@ -919,6 +955,7 @@
                 break;
 
             case 'translation':
+                serverLog('recv_translation', { lang_from: msg.lang_from, lang_to: msg.lang_to, text: (msg.text || '').slice(0, 80) });
                 translationText.textContent = msg.text || '—';
                 translationText.style.opacity='1';
                 addToHistory(originalText.textContent, msg.text, msg.lang_from, msg.lang_to, msg.speaker || currentSpeaker);
@@ -981,12 +1018,14 @@
             source: 'guest',
             ...guestMicMeta,
         }));
+        serverLog('send_audio_meta', guestMicMeta);
     }
 
     async function toggleHandRaise() {
         if (myState === 'listening') {
             // Запускаем микрофон В КЛИКЕ — точно как хост
             try {
+                console.info('[VOX guest] init mic before request_speak');
                 guestMicObj = await _mic('VoxGP', buf => {
                     if (myState === 'speaking' && ws?.readyState === WebSocket.OPEN) {
                         ws.send(buf);
@@ -994,14 +1033,17 @@
                     animateVAD(new Float32Array(buf));
                 });
                 guestMicMeta = guestMicObj?.meta || null;
+                serverLog('mic_initialized', guestMicMeta || {});
                 sendGuestAudioMeta();
             } catch(e) {
                 console.error('Guest mic err:', e);
+                serverLog('mic_init_error', { message: String(e) });
             }
 
             myState = 'requesting';
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({action: 'request_speak'}));
+                serverLog('send_request_speak', { state: myState });
             }
             updateHandButton();
 
@@ -1009,8 +1051,10 @@
             myState = 'listening';
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({action: 'cancel_request'}));
+                serverLog('send_cancel_request', { state: myState });
             }
             guestMicObj?.stop(); guestMicObj = null;
+            serverLog('mic_stopped_after_cancel');
             guestMicMeta = null;
             resetVAD();
             updateHandButton();
@@ -1028,6 +1072,7 @@
     }
 
     function doneSpeaking() {
+        serverLog('send_done_speaking');
         if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({action: 'done_speaking'}));
         }
@@ -1035,6 +1080,7 @@
         speakBanner.classList.remove('active');
         handBtn.style.display = 'block';
         guestMicObj?.stop(); guestMicObj = null;
+        serverLog('mic_stopped_after_done');
         guestMicMeta = null;
         resetVAD();
         updateHandButton();
@@ -1042,7 +1088,7 @@
 
     // startGuestMic / stopGuestMic — для совместимости с handleJsonMsg
     function startGuestMic() { /* mic уже запущен в toggleHandRaise */ }
-    function stopGuestMic() { guestMicObj?.stop(); guestMicObj = null; guestMicMeta = null; resetVAD(); }
+    function stopGuestMic() { serverLog('stop_guest_mic_called'); guestMicObj?.stop(); guestMicObj = null; guestMicMeta = null; resetVAD(); }
 
     // =================================================================
     // Audio playback (с разблокировкой AudioContext после рефреша)

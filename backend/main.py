@@ -136,6 +136,15 @@ def _pick_client_sample_rate(meta: dict | None, default: int = 16000) -> int:
 
 # ---------------------------------------------------------------------------
 # Pydantic модели
+
+
+def _log_guest_trace(participant_name: str, room_id: str, stage: str, **fields):
+    payload = " ".join(f"{k}={fields[k]!r}" for k in sorted(fields))
+    logger.info(
+        f"🧭 [GUEST TRACE] room={room_id} guest={participant_name!r} stage={stage}"
+        + (f" {payload}" if payload else "")
+    )
+
 # ---------------------------------------------------------------------------
 class RegisterBody(BaseModel):
     email: str
@@ -751,6 +760,7 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
 
     participant.websocket = ws
     logger.info(f"🔌 Участник '{participant.display_name}' подключён к '{room_id}'")
+    _log_guest_trace(participant.display_name, room_id, 'ws_connected', guest_id=guest_id, language=participant.language, state=str(participant.state))
 
     await room_manager.notify_host_participant_joined(room, participant)
 
@@ -765,6 +775,7 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
         Запускается как отдельная задача, НЕ блокирует handle_results.
         """
         try:
+            _log_guest_trace(participant.display_name, room_id, 'process_final_start', text=final_result.text[:120], lang=final_result.language, confidence=final_result.confidence)
             # 1. Перевод + TTS + рассылка хосту и другим гостям
             translations = await _process_room_speech(room, final_result, speaker_guest_id=guest_id)
 
@@ -787,6 +798,7 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                 "lang_from": final_result.language,
                 "lang_to": target_lang,
             })
+            _log_guest_trace(participant.display_name, room_id, 'process_final_done', target_lang=target_lang, translated=translated[:120])
         except Exception as e:
             if "disconnect" not in str(e).lower():
                 logger.error(f"Guest _process_final error: {e}")
@@ -815,6 +827,7 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
 
                 if result.is_final and result.text.strip():
                     # НЕ БЛОКИРУЕМ — запускаем перевод+TTS+broadcast в фоне
+                    _log_guest_trace(participant.display_name, room_id, 'schedule_process_final', text=result.text[:120], lang=result.language)
                     task = asyncio.create_task(_guest_process_final(result))
                     _background_tasks.add(task)
                     task.add_done_callback(_background_tasks.discard)
@@ -839,6 +852,8 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
             if "bytes" in message and message["bytes"]:
                 chunk_size = len(message["bytes"])
                 if participant.state != ParticipantState.SPEAKING:
+                    if _audio_chunk_count == 0 or _audio_chunk_count % 50 == 0:
+                        _log_guest_trace(participant.display_name, room_id, 'audio_ignored_not_speaking', participant_state=str(participant.state), chunk_size=chunk_size)
                     if guest_speaking:
                         logger.info(
                             f"🔇 [GUEST] Слово забрано у '{participant.display_name}'"
@@ -854,15 +869,18 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                     )
                     _audio_chunk_count = 0
                     dg.set_input_sample_rate(guest_input_sample_rate)
+                    _log_guest_trace(participant.display_name, room_id, 'deepgram_start', lang=participant.language, input_sr=guest_input_sample_rate, guest_speaking=guest_speaking, dg_active=dg.is_active)
                     await dg.start(participant.language, input_sample_rate=guest_input_sample_rate)
                     guest_speaking = True
+                    _log_guest_trace(participant.display_name, room_id, 'deepgram_started', lang=participant.language, input_sr=guest_input_sample_rate)
 
                 _audio_chunk_count += 1
-                if _audio_chunk_count % 100 == 1:
+                if _audio_chunk_count <= 5 or _audio_chunk_count % 50 == 1:
                     logger.info(
                         f"🎵 [GUEST] Аудио чанк #{_audio_chunk_count} от '{participant.display_name}' "
                         f"({chunk_size} байт, input_sr={guest_input_sample_rate})"
                     )
+                    _log_guest_trace(participant.display_name, room_id, 'audio_chunk_forward', chunk_no=_audio_chunk_count, chunk_size=chunk_size, input_sr=guest_input_sample_rate)
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
@@ -872,6 +890,7 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                     continue
 
                 msg_type = msg.get("type")
+                action = msg.get("action")
                 if msg_type == "audio_meta":
                     guest_audio_meta = dict(msg)
                     guest_input_sample_rate = _pick_client_sample_rate(guest_audio_meta)
@@ -884,22 +903,36 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                         f"chunk_frames={guest_audio_meta.get('chunk_frames')} "
                         f"format={guest_audio_meta.get('sample_format')}"
                     )
+                    _log_guest_trace(participant.display_name, room_id, 'audio_meta_received', context_sr=guest_audio_meta.get('context_sample_rate'), track_sr=guest_audio_meta.get('track_sample_rate'), chunk_frames=guest_audio_meta.get('chunk_frames'), sample_format=guest_audio_meta.get('sample_format'), requested_sr=guest_audio_meta.get('requested_sample_rate'), picked_sr=guest_input_sample_rate)
                     continue
 
-                action = msg.get("action")
+                if action == "client_log":
+                    _log_guest_trace(participant.display_name, room_id, f"client::{msg.get('event', 'unknown')}", client_state=msg.get('state'), client_ts=msg.get('client_ts'), **(msg.get('data') or {}))
+                    continue
+
+                _log_guest_trace(participant.display_name, room_id, 'client_action', action=action, msg_type=msg_type, keys=sorted(list(msg.keys())))
 
                 if action == "request_speak":
+                    _log_guest_trace(participant.display_name, room_id, 'request_speak_start')
                     await room_manager.request_to_speak(room_id, guest_id)
+                    _log_guest_trace(participant.display_name, room_id, 'request_speak_done', participant_state=str(participant.state))
                 elif action == "cancel_request":
+                    _log_guest_trace(participant.display_name, room_id, 'cancel_request_start')
                     await room_manager.cancel_request(room_id, guest_id)
+                    _log_guest_trace(participant.display_name, room_id, 'cancel_request_done', participant_state=str(participant.state))
                 elif action == "done_speaking":
+                    _log_guest_trace(participant.display_name, room_id, 'done_speaking_start', guest_speaking=guest_speaking)
                     if guest_speaking:
                         await dg.stop()  # stop() сам флашит зависшие interim/final
                         guest_speaking = False
+                        _log_guest_trace(participant.display_name, room_id, 'deepgram_stopped_after_done')
                     translator.clear_context()
+                    _log_guest_trace(participant.display_name, room_id, 'translator_context_cleared')
                     await room_manager.revoke_speak(room_id, guest_id)
+                    _log_guest_trace(participant.display_name, room_id, 'done_speaking_done', participant_state=str(participant.state))
 
     except WebSocketDisconnect:
+        _log_guest_trace(participant.display_name, room_id, 'exception_websocket_disconnect')
         logger.info(f"🔌 Участник '{participant.display_name}' отключился от '{room_id}'")
         if participant.websocket is ws:
             await room_manager.leave_room(room_id, guest_id)
