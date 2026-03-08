@@ -348,7 +348,7 @@ class DeepgramTranscriber:
                     self._last_confidence = confidence
                     if self._interim_watchdog and not self._interim_watchdog.done():
                         self._interim_watchdog.cancel()
-                    self._interim_watchdog = asyncio.create_task(self._interim_watchdog_fn(3.0))
+                    self._interim_watchdog = asyncio.create_task(self._interim_watchdog_fn(1.5))
 
                 elif is_final:
                     # Final пришёл — отменяем watchdog
