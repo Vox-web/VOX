@@ -648,9 +648,6 @@
     let audioContext = null;
     let audioWorkletNode = null;
     let mediaStream = null;
-    let playbackContext = null;
-    let audioQueue = [];
-    let isPlaying = false;
     let currentSpeaker = 'Host';
 
     // DOM
@@ -968,7 +965,7 @@
             // Worklet
             const workletCode = `
                 class VoxGuestProcessor extends AudioWorkletProcessor {
-                    constructor() { super(); this.buffer = []; this.CHUNK_SIZE = 2048; }
+                    constructor() { super(); this.buffer = []; this.CHUNK_SIZE = 512; }
                     process(inputs) {
                         const input = inputs[0];
                         if (!input || !input[0]) return true;
@@ -990,10 +987,20 @@
             const source = audioContext.createMediaStreamSource(mediaStream);
             audioWorkletNode = new AudioWorkletNode(audioContext, 'vox-guest-processor');
 
-            // Отправляем байты ТОЛЬКО когда myState === 'speaking'
+            let _sentChunks = 0;
+            let _skippedChunks = 0;
             audioWorkletNode.port.onmessage = (e) => {
                 if (myState === 'speaking' && ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(e.data);
+                    _sentChunks++;
+                    if (_sentChunks % 50 === 1) {
+                        console.log(`[MIC] sent chunk #${_sentChunks}, ctx=${audioContext?.state}, myState=${myState}`);
+                    }
+                } else {
+                    _skippedChunks++;
+                    if (_skippedChunks % 50 === 1) {
+                        console.warn(`[MIC] SKIP chunk #${_skippedChunks}: myState=${myState}, wsReady=${ws?.readyState}, ctx=${audioContext?.state}`);
+                    }
                 }
                 animateVAD(new Float32Array(e.data));
             };
@@ -1062,14 +1069,61 @@
     let _audioUnlocked = false;
 
     // Браузер блокирует AudioContext без user gesture.
-    // После восстановления сессии (sessionStorage) жеста нет —
-    // разблокируем при первом клике/тапе на странице.
+    // =================================================================
+    // TTS Playback — через <audio> тег, без Web Audio API
+    // Это единственный надёжный способ на Android: не создаётся второй
+    // AudioContext который убивает микрофонный.
+    // =================================================================
+    const _audioPlayer = new Audio();
+    let _audioObjectUrl = null;
+    const audioQueue = [];
+    let isPlaying = false;
+
+    _audioPlayer.onended = () => {
+        if (_audioObjectUrl) { URL.revokeObjectURL(_audioObjectUrl); _audioObjectUrl = null; }
+        isPlaying = false;
+        processAudioQueue();
+    };
+    _audioPlayer.onerror = (e) => {
+        console.error('Audio playback error:', e);
+        if (_audioObjectUrl) { URL.revokeObjectURL(_audioObjectUrl); _audioObjectUrl = null; }
+        isPlaying = false;
+        processAudioQueue();
+    };
+
+    async function playAudio(mp3Bytes) {
+        audioQueue.push(mp3Bytes);
+        if (!isPlaying) processAudioQueue();
+    }
+
+    function processAudioQueue() {
+        if (audioQueue.length === 0) { isPlaying = false; return; }
+        isPlaying = true;
+        const mp3 = audioQueue.shift();
+        try {
+            if (_audioObjectUrl) URL.revokeObjectURL(_audioObjectUrl);
+            const blob = new Blob([mp3], { type: 'audio/mpeg' });
+            _audioObjectUrl = URL.createObjectURL(blob);
+            _audioPlayer.src = _audioObjectUrl;
+            _audioPlayer.play().catch(e => {
+                console.warn('Audio play() failed:', e);
+                isPlaying = false;
+                processAudioQueue();
+            });
+        } catch (e) {
+            console.error('processAudioQueue error:', e);
+            isPlaying = false;
+            processAudioQueue();
+        }
+    }
+
+    // Разблокировка audio при первом тапе (мобильный autoplay policy)
     function _ensureAudioUnlock() {
         if (_audioUnlocked) return;
-        const unlock = async () => {
-            if (playbackContext && playbackContext.state === 'suspended') {
-                try { await playbackContext.resume(); } catch(e) {}
-            }
+        const unlock = () => {
+            // Воспроизводим тишину чтобы разблокировать audio element
+            _audioPlayer.src = 'data:audio/mpeg;base64,/+MYxAAAAANIAAAAAExBTUUzLjk4LjIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+            _audioPlayer.play().catch(() => {});
             _audioUnlocked = true;
             document.removeEventListener('click', unlock, true);
             document.removeEventListener('touchstart', unlock, true);
@@ -1078,46 +1132,6 @@
         document.addEventListener('touchstart', unlock, true);
     }
     _ensureAudioUnlock();
-
-    async function playAudio(mp3Bytes) {
-        audioQueue.push(mp3Bytes);
-        if (!isPlaying) processAudioQueue();
-    }
-    async function processAudioQueue() {
-        if (audioQueue.length === 0) { isPlaying = false; return; }
-        isPlaying = true;
-        const mp3 = audioQueue.shift();
-        try {
-            if (!playbackContext) {
-                playbackContext = new AudioContext();
-                // Пробуем разблокировать сразу
-                if (playbackContext.state === 'suspended') {
-                    try { await playbackContext.resume(); } catch(e) {}
-                }
-            }
-            if (playbackContext.state === 'suspended') {
-                // AudioContext всё ещё заблокирован — ждём user gesture
-                console.warn('AudioContext suspended — audio queued, waiting for user gesture');
-                // Ставим обратно в очередь и пробуем через 500мс
-                audioQueue.unshift(mp3);
-                isPlaying = false;
-                setTimeout(() => { if (!isPlaying && audioQueue.length > 0) processAudioQueue(); }, 500);
-                return;
-            }
-            const buf = await playbackContext.decodeAudioData(mp3.slice(0));
-            const src = playbackContext.createBufferSource();
-            src.buffer = buf; src.connect(playbackContext.destination);
-            src.onended = () => {
-                // После воспроизведения TTS восстанавливаем микрофон
-                // (мобильные браузеры могут приостановить audioContext во время playback)
-                if (audioContext && audioContext.state === 'suspended' && myState === 'speaking') {
-                    audioContext.resume().catch(e => console.warn('[MIC] post-TTS resume failed:', e));
-                }
-                processAudioQueue();
-            };
-            src.start(0);
-        } catch (e) { console.error('Playback error:', e); processAudioQueue(); }
-    }
 
     // =================================================================
     // UI utilities
@@ -1157,7 +1171,7 @@
 
     // Init i18n
     applyI18n();
-    console.log('VOX Guest v0.3.5');
+    console.log('VOX Guest v0.4.0');
     </script>
 </body>
 </html>
