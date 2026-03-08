@@ -115,6 +115,25 @@ session_config = {
     "is_listening": False,
 }
 
+
+def _pick_client_sample_rate(meta: dict | None, default: int = 16000) -> int:
+    """
+    Вытянуть фактическую частоту дискретизации из audio_meta клиента.
+    Предпочитаем sample rate AudioContext, потому что именно в нём работает Web Audio граф.
+    """
+    if not meta:
+        return default
+
+    for key in ("context_sample_rate", "sample_rate", "track_sample_rate", "requested_sample_rate"):
+        value = meta.get(key)
+        try:
+            rate = int(value)
+        except (TypeError, ValueError):
+            continue
+        if 8000 <= rate <= 192000:
+            return rate
+    return default
+
 # ---------------------------------------------------------------------------
 # Pydantic модели
 # ---------------------------------------------------------------------------
@@ -737,6 +756,8 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
 
     dg = DeepgramTranscriber()
     guest_speaking = False
+    guest_audio_meta: dict = {}
+    guest_input_sample_rate = 16000
 
     async def _guest_process_final(final_result: TranscriptResult):
         """
@@ -832,14 +853,15 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                         f"(lang={participant.language}, guest_speaking={guest_speaking}, dg.is_active={dg.is_active})"
                     )
                     _audio_chunk_count = 0
-                    await dg.start(participant.language)
+                    dg.set_input_sample_rate(guest_input_sample_rate)
+                    await dg.start(participant.language, input_sample_rate=guest_input_sample_rate)
                     guest_speaking = True
 
                 _audio_chunk_count += 1
                 if _audio_chunk_count % 100 == 1:
                     logger.info(
                         f"🎵 [GUEST] Аудио чанк #{_audio_chunk_count} от '{participant.display_name}' "
-                        f"({chunk_size} байт)"
+                        f"({chunk_size} байт, input_sr={guest_input_sample_rate})"
                     )
                 await dg.send_audio(message["bytes"])
 
@@ -847,6 +869,21 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                 try:
                     msg = json.loads(message["text"])
                 except json.JSONDecodeError:
+                    continue
+
+                msg_type = msg.get("type")
+                if msg_type == "audio_meta":
+                    guest_audio_meta = dict(msg)
+                    guest_input_sample_rate = _pick_client_sample_rate(guest_audio_meta)
+                    dg.set_input_sample_rate(guest_input_sample_rate)
+                    logger.info(
+                        f"🎛️ [GUEST] audio_meta '{participant.display_name}': "
+                        f"context_sr={guest_audio_meta.get('context_sample_rate')} "
+                        f"track_sr={guest_audio_meta.get('track_sample_rate')} "
+                        f"picked_sr={guest_input_sample_rate} "
+                        f"chunk_frames={guest_audio_meta.get('chunk_frames')} "
+                        f"format={guest_audio_meta.get('sample_format')}"
+                    )
                     continue
 
                 action = msg.get("action")

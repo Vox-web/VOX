@@ -22,6 +22,8 @@ from typing import Optional
 import numpy as np
 import websockets
 
+from audio_utils import resample_audio
+
 logger = logging.getLogger("vox.transcriber")
 
 SAMPLE_RATE = 16000
@@ -75,8 +77,24 @@ class DeepgramTranscriber:
         self._pending_interim_text: Optional[str] = None
         self._interim_flush_task: Optional[asyncio.Task] = None
 
+        # Фактическая частота входного потока из браузера.
+        # Deepgram получает уже приведённый к 16 кГц поток.
+        self._input_sample_rate: int = SAMPLE_RATE
+        self._debug_audio_chunks_seen: int = 0
+
         # Очередь результатов — читается обработчиком в main.py
         self.results: asyncio.Queue[TranscriptResult] = asyncio.Queue()
+
+    def set_input_sample_rate(self, sample_rate: Optional[int]):
+        """Установить фактическую sample rate входного float32 потока из браузера."""
+        try:
+            rate = int(sample_rate) if sample_rate else SAMPLE_RATE
+        except (TypeError, ValueError):
+            rate = SAMPLE_RATE
+        if not 8000 <= rate <= 192000:
+            rate = SAMPLE_RATE
+        self._input_sample_rate = rate
+        logger.info(f"🎚️ Deepgram input sample rate set to {self._input_sample_rate} Hz")
 
     @property
     def is_active(self) -> bool:
@@ -126,7 +144,7 @@ class DeepgramTranscriber:
         except asyncio.CancelledError:
             pass
 
-    async def start(self, language: Optional[str] = None):
+    async def start(self, language: Optional[str] = None, input_sample_rate: Optional[int] = None):
         """
         Открыть новую сессию транскрипции.
 
@@ -152,6 +170,9 @@ class DeepgramTranscriber:
                 break
 
         self._language = language
+        if input_sample_rate is not None:
+            self.set_input_sample_rate(input_sample_rate)
+        self._debug_audio_chunks_seen = 0
 
         # Параметры Deepgram
         params = [
@@ -212,8 +233,55 @@ class DeepgramTranscriber:
             return
 
         try:
+            if not pcm_float32_bytes:
+                return
+
+            if len(pcm_float32_bytes) % 4 != 0:
+                trimmed = len(pcm_float32_bytes) - (len(pcm_float32_bytes) % 4)
+                if trimmed <= 0:
+                    return
+                logger.warning(
+                    f"⚠️ Аудио чанк некратен float32 ({len(pcm_float32_bytes)} байт), "
+                    f"обрезаем до {trimmed}"
+                )
+                pcm_float32_bytes = pcm_float32_bytes[:trimmed]
+
             audio = np.frombuffer(pcm_float32_bytes, dtype=np.float32)
-            int16_data = (audio * 32767).clip(-32768, 32767).astype(np.int16)
+            if audio.size == 0:
+                return
+
+            if np.any(np.isnan(audio)) or np.any(np.isinf(audio)):
+                logger.warning("⚠️ Аудио чанк содержит NaN/Inf — пропускаем")
+                return
+
+            input_sr = self._input_sample_rate or SAMPLE_RATE
+            raw_samples = int(audio.size)
+            rms = float(np.sqrt(np.mean(np.square(audio)))) if audio.size else 0.0
+            peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+
+            if input_sr != SAMPLE_RATE:
+                audio = resample_audio(audio, input_sr, SAMPLE_RATE)
+
+            audio = np.clip(audio, -1.0, 1.0)
+            int16_data = (audio * 32767.0).astype(np.int16)
+
+            self._debug_audio_chunks_seen += 1
+            if self._debug_audio_chunks_seen <= 5 or self._debug_audio_chunks_seen % 250 == 0:
+                approx_ms_in = (raw_samples / input_sr) * 1000.0 if input_sr else 0.0
+                approx_ms_out = (len(audio) / SAMPLE_RATE) * 1000.0 if len(audio) else 0.0
+                logger.info(
+                    "🎚️ Deepgram chunk #%s: in_sr=%s raw_samples=%s out_samples=%s "
+                    "rms=%.5f peak=%.5f in_ms=%.1f out_ms=%.1f",
+                    self._debug_audio_chunks_seen,
+                    input_sr,
+                    raw_samples,
+                    len(audio),
+                    rms,
+                    peak,
+                    approx_ms_in,
+                    approx_ms_out,
+                )
+
             await self._ws.send(int16_data.tobytes())
         except websockets.ConnectionClosed:
             logger.warning("⚠️ Deepgram соединение закрыто при отправке")

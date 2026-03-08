@@ -809,6 +809,7 @@
             // Изначально хост говорит
             document.getElementById('speakerName').textContent = '🎤 ' + t('hostSpeaking');
             document.getElementById('speakerIndicator').style.display = 'block';
+            sendGuestAudioMeta();
         };
 
         ws.onclose = () => {
@@ -936,6 +937,8 @@
     // =================================================================
     async function _mic(name, onChunk) {
         const st = await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+        const track = st.getAudioTracks()[0] || null;
+        const settings = track?.getSettings ? track.getSettings() : {};
         const cx = new AudioContext({sampleRate:16000});
         const code = `class ${name} extends AudioWorkletProcessor{constructor(){super();this.b=[];}process(i){const c=i[0]?.[0];if(!c)return true;this.b.push(...c);while(this.b.length>=2048){const ch=new Float32Array(this.b.splice(0,2048));this.port.postMessage(ch.buffer,[ch.buffer]);}return true;}}registerProcessor('${name}',${name});`;
         const bl = new Blob([code],{type:'application/javascript'}); const u = URL.createObjectURL(bl);
@@ -944,13 +947,41 @@
         const nd = new AudioWorkletNode(cx, name);
         nd.port.onmessage = e => onChunk(e.data);
         src.connect(nd); nd.connect(cx.destination);
-        return { stop(){ nd.disconnect(); cx.close(); st.getTracks().forEach(t=>t.stop()); } };
+
+        const meta = {
+            requested_sample_rate: 16000,
+            context_sample_rate: Number(cx.sampleRate) || null,
+            track_sample_rate: Number(settings.sampleRate) || null,
+            track_channel_count: Number(settings.channelCount) || 1,
+            echo_cancellation: settings.echoCancellation ?? true,
+            noise_suppression: settings.noiseSuppression ?? true,
+            auto_gain_control: settings.autoGainControl ?? true,
+            sample_format: 'float32',
+            chunk_frames: 2048,
+        };
+        console.info('[VOX guest mic]', meta);
+
+        return {
+            meta,
+            stop(){ nd.disconnect(); cx.close(); st.getTracks().forEach(t=>t.stop()); }
+        };
     }
 
     // =================================================================
     // Hand raise — точно как roomToggleMic() у хоста
     // =================================================================
     let guestMicObj = null;
+    let guestMicMeta = null;
+
+    function sendGuestAudioMeta() {
+        if (!guestMicMeta) return;
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({
+            type: 'audio_meta',
+            source: 'guest',
+            ...guestMicMeta,
+        }));
+    }
 
     async function toggleHandRaise() {
         if (myState === 'listening') {
@@ -962,6 +993,8 @@
                     }
                     animateVAD(new Float32Array(buf));
                 });
+                guestMicMeta = guestMicObj?.meta || null;
+                sendGuestAudioMeta();
             } catch(e) {
                 console.error('Guest mic err:', e);
             }
@@ -978,6 +1011,7 @@
                 ws.send(JSON.stringify({action: 'cancel_request'}));
             }
             guestMicObj?.stop(); guestMicObj = null;
+            guestMicMeta = null;
             resetVAD();
             updateHandButton();
         }
@@ -1001,13 +1035,14 @@
         speakBanner.classList.remove('active');
         handBtn.style.display = 'block';
         guestMicObj?.stop(); guestMicObj = null;
+        guestMicMeta = null;
         resetVAD();
         updateHandButton();
     }
 
     // startGuestMic / stopGuestMic — для совместимости с handleJsonMsg
     function startGuestMic() { /* mic уже запущен в toggleHandRaise */ }
-    function stopGuestMic() { guestMicObj?.stop(); guestMicObj = null; resetVAD(); }
+    function stopGuestMic() { guestMicObj?.stop(); guestMicObj = null; guestMicMeta = null; resetVAD(); }
 
     // =================================================================
     // Audio playback (с разблокировкой AudioContext после рефреша)
