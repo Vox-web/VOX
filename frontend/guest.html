@@ -1019,6 +1019,13 @@
 
         return {
             meta,
+            async resume(){
+                if (cx.state !== 'running') {
+                    await cx.resume();
+                }
+                return cx.state;
+            },
+            getState(){ return cx.state; },
             stop(){ nd.disconnect(); cx.close(); st.getTracks().forEach(t=>t.stop()); }
         };
     }
@@ -1029,6 +1036,8 @@
     let guestMicObj = null;
     let guestMicMeta = null;
     let guestMicPreparing = null;
+    let guestFirstChunkArrived = false;
+    let guestFirstChunkBlocked = false;
     let guestFirstChunkSent = false;
 
     function sendGuestAudioMeta(reason = 'unknown') {
@@ -1072,29 +1081,56 @@
             const mic = await _mic('VoxGP', buf => {
                 const floatBuf = new Float32Array(buf);
 
+                if (!guestFirstChunkArrived) {
+                    guestFirstChunkArrived = true;
+                    serverLog('first_chunk_arrived', {
+                        bytes: buf.byteLength,
+                        frames: floatBuf.length,
+                        state: myState,
+                        ws_state: ws ? ws.readyState : null,
+                        cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
+                        context_sr: guestMicMeta?.context_sample_rate || null,
+                        track_sr: guestMicMeta?.track_sample_rate || null,
+                    });
+                }
+
                 if ((myState === 'requesting' || myState === 'speaking')) {
                     animateVAD(floatBuf);
                 }
 
-                if (myState === 'speaking' && ws?.readyState === WebSocket.OPEN) {
-                    if (!guestFirstChunkSent) {
-                        serverLog('first_chunk_gate_open', {
+                if (!(myState === 'speaking' && ws?.readyState === WebSocket.OPEN)) {
+                    if (!guestFirstChunkBlocked) {
+                        guestFirstChunkBlocked = true;
+                        serverLog('first_chunk_blocked', {
                             bytes: buf.byteLength,
                             frames: floatBuf.length,
+                            state: myState,
                             ws_state: ws ? ws.readyState : null,
-                            context_sr: guestMicMeta?.context_sample_rate || null,
-                            track_sr: guestMicMeta?.track_sample_rate || null,
-                        });
-                        guestFirstChunkSent = true;
-                        serverLog('first_audio_chunk_sent', {
-                            bytes: buf.byteLength,
-                            frames: floatBuf.length,
-                            context_sr: guestMicMeta?.context_sample_rate || null,
-                            track_sr: guestMicMeta?.track_sample_rate || null,
+                            cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
                         });
                     }
-                    ws.send(buf);
+                    return;
                 }
+
+                if (!guestFirstChunkSent) {
+                    serverLog('first_chunk_gate_open', {
+                        bytes: buf.byteLength,
+                        frames: floatBuf.length,
+                        ws_state: ws ? ws.readyState : null,
+                        cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
+                        context_sr: guestMicMeta?.context_sample_rate || null,
+                        track_sr: guestMicMeta?.track_sample_rate || null,
+                    });
+                    guestFirstChunkSent = true;
+                    serverLog('first_audio_chunk_sent', {
+                        bytes: buf.byteLength,
+                        frames: floatBuf.length,
+                        cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
+                        context_sr: guestMicMeta?.context_sample_rate || null,
+                        track_sr: guestMicMeta?.track_sample_rate || null,
+                    });
+                }
+                ws.send(buf);
             });
 
             guestMicObj = mic;
@@ -1177,6 +1213,16 @@
                 context_sr: guestMicMeta?.context_sample_rate || null,
                 track_sr: guestMicMeta?.track_sample_rate || null,
                 ws_state: ws ? ws.readyState : null,
+                cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
+            });
+
+            serverLog('audio_context_state_before_resume', {
+                cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
+            });
+            const resumedState = guestMicObj?.resume ? await guestMicObj.resume() : null;
+            serverLog('audio_context_state_after_resume', {
+                cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
+                resumed_state: resumedState,
             });
 
             const metaSent = sendGuestAudioMeta('speak_granted');
@@ -1185,12 +1231,14 @@
                 has_meta: !!guestMicMeta,
                 meta_sent: !!metaSent,
                 ws_state: ws ? ws.readyState : null,
+                cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
             });
 
             serverLog('start_guest_mic_ready', {
                 has_mic: !!guestMicObj,
                 context_sr: guestMicMeta?.context_sample_rate || null,
                 track_sr: guestMicMeta?.track_sample_rate || null,
+                cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
             });
         } catch (e) {
             console.error('Guest mic err:', e);
@@ -1208,6 +1256,8 @@
         guestMicObj = null;
         guestMicMeta = null;
         guestMicPreparing = null;
+        guestFirstChunkArrived = false;
+        guestFirstChunkBlocked = false;
         guestFirstChunkSent = false;
         resetVAD();
     }
