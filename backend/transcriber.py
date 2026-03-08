@@ -68,10 +68,12 @@ class DeepgramTranscriber:
         self._language: Optional[str] = None
         self._finals_buffer: list[str] = []
         self._flush_task: Optional[asyncio.Task] = None  # таймер авто-flush
-        self._interim_watchdog: Optional[asyncio.Task] = None  # watchdog для зависших interims
-        self._has_pending_interim: bool = False  # есть interim без последующего final
         self._last_lang: str = "unknown"
         self._last_confidence: float = 0.0
+
+        # Клиентский flush зависших interim'ов (без Finalize — он ломает Deepgram)
+        self._pending_interim_text: Optional[str] = None
+        self._interim_flush_task: Optional[asyncio.Task] = None
 
         # Очередь результатов — читается обработчиком в main.py
         self.results: asyncio.Queue[TranscriptResult] = asyncio.Queue()
@@ -101,46 +103,26 @@ class DeepgramTranscriber:
         except asyncio.CancelledError:
             pass
 
-    async def _interim_watchdog_fn(self, delay: float = 3.0):
+    async def _interim_flush(self, delay: float = 2.0):
         """
-        Watchdog: если получили interim но final не пришёл за `delay` секунд,
-        отправляем Deepgram команду Finalize — она заставляет Deepgram
-        немедленно выдать final result из текущего буфера.
-
-        Это решает проблему когда:
-        - Фоновый шум не даёт сработать endpointing
-        - Языковая модель не уверена и не коммитит final
-        - Спикер замолчал но микрофон продолжает слать ambient noise
+        Клиентский flush зависших interim'ов.
+        
+        Если interim пришёл, но final не появился за `delay` секунд —
+        сами отправляем interim как final. БЕЗ Finalize-команды в Deepgram,
+        потому что Finalize ломает сессию (GitHub #1035).
         """
         try:
             await asyncio.sleep(delay)
-            if self._has_pending_interim and self.is_active:
-                logger.info(f"⏰ [{self._last_lang}] Interim watchdog: отправляю Finalize в Deepgram")
-                await self._send_finalize()
-        except asyncio.CancelledError:
-            pass
-
-    async def _send_finalize(self):
-        """Отправить Finalize в Deepgram — форсирует выдачу final result."""
-        if not self.is_active:
-            return
-        try:
-            await self._ws.send(json.dumps({"type": "Finalize"}))
-        except Exception as e:
-            logger.warning(f"⚠️ Не удалось отправить Finalize: {e}")
-
-    async def finalize(self):
-        """
-        Публичный метод: форсировать финализацию текущего буфера Deepgram.
-        Вызывается перед stop() когда нужно получить последний результат
-        (например, когда хост забирает слово у гостя).
-        """
-        if not self.is_active:
-            return
-        await self._send_finalize()
-        # Даём Deepgram 1.5с чтобы вернуть финальный результат
-        try:
-            await asyncio.sleep(1.5)
+            if self._pending_interim_text:
+                text = self._pending_interim_text
+                self._pending_interim_text = None
+                logger.info(f"📝 [{self._last_lang}] (interim flush) {text}")
+                await self.results.put(TranscriptResult(
+                    text=text,
+                    is_final=True,
+                    language=self._last_lang,
+                    confidence=self._last_confidence,
+                ))
         except asyncio.CancelledError:
             pass
 
@@ -159,10 +141,10 @@ class DeepgramTranscriber:
 
         # Очищаем очередь и буфер
         self._finals_buffer = []
-        self._has_pending_interim = False
-        if self._interim_watchdog and not self._interim_watchdog.done():
-            self._interim_watchdog.cancel()
-            self._interim_watchdog = None
+        self._pending_interim_text = None
+        if self._interim_flush_task and not self._interim_flush_task.done():
+            self._interim_flush_task.cancel()
+            self._interim_flush_task = None
         while not self.results.empty():
             try:
                 self.results.get_nowait()
@@ -240,11 +222,33 @@ class DeepgramTranscriber:
 
     async def stop(self):
         """Закрыть сессию Deepgram."""
-        # Отменяем watchdog
-        if self._interim_watchdog and not self._interim_watchdog.done():
-            self._interim_watchdog.cancel()
-            self._interim_watchdog = None
-        self._has_pending_interim = False
+        # Flush зависший interim перед закрытием
+        if self._pending_interim_text:
+            text = self._pending_interim_text
+            self._pending_interim_text = None
+            logger.info(f"📝 [{self._last_lang}] (stop flush) {text}")
+            await self.results.put(TranscriptResult(
+                text=text,
+                is_final=True,
+                language=self._last_lang,
+                confidence=self._last_confidence,
+            ))
+
+        # Flush finals buffer
+        if self._finals_buffer:
+            full_text = " ".join(self._finals_buffer)
+            self._finals_buffer = []
+            logger.info(f"📝 [{self._last_lang}] (stop flush) {full_text}")
+            await self.results.put(TranscriptResult(
+                text=full_text,
+                is_final=True,
+                language=self._last_lang,
+                confidence=self._last_confidence,
+            ))
+
+        if self._interim_flush_task and not self._interim_flush_task.done():
+            self._interim_flush_task.cancel()
+            self._interim_flush_task = None
 
         if self._receive_task:
             self._receive_task.cancel()
@@ -303,10 +307,20 @@ class DeepgramTranscriber:
                             language=self._last_lang or "unknown",
                             confidence=self._last_confidence,
                         ))
-                    elif self._has_pending_interim:
-                        # Есть interim без final — заставляем Deepgram финализировать
-                        logger.info(f"⏰ [{self._last_lang}] UtteranceEnd + pending interim → Finalize")
-                        await self._send_finalize()
+                    elif self._pending_interim_text:
+                        # Зависший interim — flush клиентски
+                        text = self._pending_interim_text
+                        self._pending_interim_text = None
+                        if self._interim_flush_task and not self._interim_flush_task.done():
+                            self._interim_flush_task.cancel()
+                            self._interim_flush_task = None
+                        logger.info(f"📝 [{self._last_lang}] (UtteranceEnd interim flush) {text}")
+                        await self.results.put(TranscriptResult(
+                            text=text,
+                            is_final=True,
+                            language=self._last_lang or "unknown",
+                            confidence=self._last_confidence,
+                        ))
                     continue
 
                 if msg_type != "Results":
@@ -342,20 +356,20 @@ class DeepgramTranscriber:
                         language=lang or "unknown",
                         confidence=confidence,
                     ))
-                    # Запускаем watchdog: если за 3с не придёт final — отправим Finalize
-                    self._has_pending_interim = True
+                    # Запоминаем interim и запускаем таймер клиентского flush (2с)
+                    self._pending_interim_text = full_text
                     self._last_lang = lang or "unknown"
                     self._last_confidence = confidence
-                    if self._interim_watchdog and not self._interim_watchdog.done():
-                        self._interim_watchdog.cancel()
-                    self._interim_watchdog = asyncio.create_task(self._interim_watchdog_fn(1.5))
+                    if self._interim_flush_task and not self._interim_flush_task.done():
+                        self._interim_flush_task.cancel()
+                    self._interim_flush_task = asyncio.create_task(self._interim_flush(2.0))
 
                 elif is_final:
-                    # Final пришёл — отменяем watchdog
-                    self._has_pending_interim = False
-                    if self._interim_watchdog and not self._interim_watchdog.done():
-                        self._interim_watchdog.cancel()
-                        self._interim_watchdog = None
+                    # Final пришёл — отменяем interim flush
+                    self._pending_interim_text = None
+                    if self._interim_flush_task and not self._interim_flush_task.done():
+                        self._interim_flush_task.cancel()
+                        self._interim_flush_task = None
 
                     self._finals_buffer.append(text)
                     self._last_lang = lang or "unknown"

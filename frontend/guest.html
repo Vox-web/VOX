@@ -339,7 +339,6 @@
                     <div class="vad-bar"></div><div class="vad-bar"></div>
                     <div class="vad-bar"></div>
                 </div>
-                <!-- Live transcript — гость видит что Deepgram слышит -->
                 <div id="liveSpeechText" style="
                     margin-top:10px; padding:8px 12px; min-height:24px;
                     font-size:16px; color:var(--accent); font-weight:500;
@@ -652,9 +651,6 @@
     let ws = null;
     let _wasKicked = false;
     let myState = 'listening'; // listening | requesting | speaking
-    let audioContext = null;
-    let audioWorkletNode = null;
-    let mediaStream = null;
     let currentSpeaker = 'Host';
 
     // DOM
@@ -845,7 +841,6 @@
                 speakBanner.classList.add('active');
                 handBtn.style.display = 'none';
                 document.getElementById('speakerIndicator').style.display = 'none';
-                document.getElementById('liveSpeechText').textContent = '';
                 startGuestMic();
                 break;
 
@@ -853,7 +848,6 @@
                 myState = 'listening';
                 speakBanner.classList.remove('active');
                 handBtn.style.display = 'block';
-                document.getElementById('liveSpeechText').textContent = '';
                 stopGuestMic();
                 updateHandButton();
                 break;
@@ -916,10 +910,10 @@
                     originalText.textContent = '🎤 ' + (msg.text || (GUEST_I18N[guestLang]?.recording || 'Recording') + '...');
                     originalText.style.opacity='0.7';
                 }
-                // Показываем live transcript в speak banner когда гость говорит
+                // Live transcript в speak banner — гость видит свои слова
                 if (myState === 'speaking') {
-                    const liveEl = document.getElementById('liveSpeechText');
-                    if (liveEl) liveEl.textContent = msg.text || '';
+                    const el = document.getElementById('liveSpeechText');
+                    if (el) el.textContent = msg.text || '';
                 }
                 break;
 
@@ -938,86 +932,38 @@
 }
 
     // =================================================================
-    // Hand raise
+    // _mic() — СКОПИРОВАНО ИЗ HOST.HTML ОДИН В ОДИН
     // =================================================================
-    // Hand raise — getUserMedia + AudioContext в user gesture (как у хоста)
+    async function _mic(name, onChunk) {
+        const st = await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+        const cx = new AudioContext({sampleRate:16000});
+        const code = `class ${name} extends AudioWorkletProcessor{constructor(){super();this.b=[];}process(i){const c=i[0]?.[0];if(!c)return true;this.b.push(...c);while(this.b.length>=2048){const ch=new Float32Array(this.b.splice(0,2048));this.port.postMessage(ch.buffer,[ch.buffer]);}return true;}}registerProcessor('${name}',${name});`;
+        const bl = new Blob([code],{type:'application/javascript'}); const u = URL.createObjectURL(bl);
+        await cx.audioWorklet.addModule(u); URL.revokeObjectURL(u);
+        const src = cx.createMediaStreamSource(st);
+        const nd = new AudioWorkletNode(cx, name);
+        nd.port.onmessage = e => onChunk(e.data);
+        src.connect(nd); nd.connect(cx.destination);
+        return { stop(){ nd.disconnect(); cx.close(); st.getTracks().forEach(t=>t.stop()); } };
+    }
+
     // =================================================================
-    let _micReady = false;  // флаг: getUserMedia + AudioContext + worklet готовы
+    // Hand raise — точно как roomToggleMic() у хоста
+    // =================================================================
+    let guestMicObj = null;
 
     async function toggleHandRaise() {
         if (myState === 'listening') {
+            // Запускаем микрофон В КЛИКЕ — точно как хост
             try {
-                // ВСЁ делаем здесь, в user gesture — точно как хост в _mic():
-                // 1. getUserMedia, 2. AudioContext, 3. AudioWorklet
-                if (!_micReady) {
-                    // getUserMedia — ОБЯЗАТЕЛЬНО в user gesture на Android!
-                    mediaStream = await navigator.mediaDevices.getUserMedia({
-                        audio: {
-                            sampleRate: 16000,
-                            channelCount: 1,
-                            echoCancellation: true,
-                            noiseSuppression: true,
-                            autoGainControl: true,
-                        }
-                    });
-
-                    audioContext = new AudioContext({sampleRate: 16000});
-
-                    // AudioWorklet
-                    const workletCode = `
-                        class VoxGuestProcessor extends AudioWorkletProcessor {
-                            constructor() { super(); this.buffer = []; this.CHUNK_SIZE = 2048; }
-                            process(inputs) {
-                                const input = inputs[0];
-                                if (!input || !input[0]) return true;
-                                this.buffer.push(...input[0]);
-                                while (this.buffer.length >= this.CHUNK_SIZE) {
-                                    const chunk = new Float32Array(this.buffer.splice(0, this.CHUNK_SIZE));
-                                    this.port.postMessage(chunk.buffer, [chunk.buffer]);
-                                }
-                                return true;
-                            }
-                        }
-                        registerProcessor('vox-guest-processor', VoxGuestProcessor);
-                    `;
-                    const blob = new Blob([workletCode], {type: 'application/javascript'});
-                    const blobUrl = URL.createObjectURL(blob);
-                    await audioContext.audioWorklet.addModule(blobUrl);
-                    URL.revokeObjectURL(blobUrl);
-
-                    // Подключаем граф: mic → worklet → destination
-                    const source = audioContext.createMediaStreamSource(mediaStream);
-                    audioWorkletNode = new AudioWorkletNode(audioContext, 'vox-guest-processor');
-
-                    let _sentChunks = 0;
-                    audioWorkletNode.port.onmessage = (e) => {
-                        // Отправляем аудио ТОЛЬКО когда myState === 'speaking'
-                        if (myState === 'speaking' && ws && ws.readyState === WebSocket.OPEN) {
-                            ws.send(e.data);
-                            _sentChunks++;
-                            if (_sentChunks % 50 === 1) {
-                                console.log(`[MIC] sent #${_sentChunks}, ctx=${audioContext?.state}`);
-                            }
-                        }
-                        // VAD анимируем всегда когда микрофон активен
-                        animateVAD(new Float32Array(e.data));
-                    };
-
-                    source.connect(audioWorkletNode);
-                    audioWorkletNode.connect(audioContext.destination);
-
-                    _micReady = true;
-                    console.log('[MIC] Mic fully initialized in user gesture, ctx:', audioContext.state);
-                }
-
-                // Resume если suspended
-                if (audioContext && audioContext.state === 'suspended') {
-                    await audioContext.resume();
-                }
-
+                guestMicObj = await _mic('VoxGP', buf => {
+                    if (myState === 'speaking' && ws?.readyState === WebSocket.OPEN) {
+                        ws.send(buf);
+                    }
+                    animateVAD(new Float32Array(buf));
+                });
             } catch(e) {
-                console.error('[MIC] toggleHandRaise mic init failed:', e);
-                // Не блокируем — пусть хотя бы request_speak уйдёт
+                console.error('Guest mic err:', e);
             }
 
             myState = 'requesting';
@@ -1031,6 +977,8 @@
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({action: 'cancel_request'}));
             }
+            guestMicObj?.stop(); guestMicObj = null;
+            resetVAD();
             updateHandButton();
         }
     }
@@ -1052,32 +1000,14 @@
         myState = 'listening';
         speakBanner.classList.remove('active');
         handBtn.style.display = 'block';
-        document.getElementById('liveSpeechText').textContent = '';
-        stopGuestMic();
+        guestMicObj?.stop(); guestMicObj = null;
+        resetVAD();
         updateHandButton();
     }
 
-    // =================================================================
-    // Guest microphone — start/stop
-    // =================================================================
-    async function startGuestMic() {
-        // Всё уже инициализировано в toggleHandRaise (user gesture).
-        // Здесь только resume если Android суспенднул контекст.
-        if (audioContext && audioContext.state === 'suspended') {
-            try { await audioContext.resume(); } catch(e) {}
-        }
-        console.log('[MIC] startGuestMic, ctx:', audioContext?.state, '_micReady:', _micReady);
-    }
-
-    function stopGuestMic() {
-        // Полностью освобождаем ресурсы — при следующем "Хочу сказать"
-        // всё пересоздастся заново в user gesture.
-        _micReady = false;
-        if (audioWorkletNode) { audioWorkletNode.disconnect(); audioWorkletNode = null; }
-        if (audioContext) { audioContext.close().catch(()=>{}); audioContext = null; }
-        if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
-        resetVAD();
-    }
+    // startGuestMic / stopGuestMic — для совместимости с handleJsonMsg
+    function startGuestMic() { /* mic уже запущен в toggleHandRaise */ }
+    function stopGuestMic() { guestMicObj?.stop(); guestMicObj = null; resetVAD(); }
 
     // =================================================================
     // Audio playback (с разблокировкой AudioContext после рефреша)
@@ -1187,7 +1117,7 @@
 
     // Init i18n
     applyI18n();
-    console.log('VOX Guest v0.5.1');
+    console.log('VOX Guest v0.6.0');
     </script>
 </body>
 </html>

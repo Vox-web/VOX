@@ -820,11 +820,9 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                 if participant.state != ParticipantState.SPEAKING:
                     if guest_speaking:
                         logger.info(
-                            f"🔇 [GUEST] Слово забрано у '{participant.display_name}' — "
-                            f"финализирую Deepgram"
+                            f"🔇 [GUEST] Слово забрано у '{participant.display_name}'"
                         )
-                        await dg.finalize()  # Форсируем final из Deepgram
-                        await dg.stop()
+                        await dg.stop()  # stop() сам флашит зависшие interim/final
                         guest_speaking = False
                     continue
 
@@ -859,8 +857,7 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                     await room_manager.cancel_request(room_id, guest_id)
                 elif action == "done_speaking":
                     if guest_speaking:
-                        await dg.finalize()  # Форсируем final из Deepgram
-                        await dg.stop()
+                        await dg.stop()  # stop() сам флашит зависшие interim/final
                         guest_speaking = False
                     translator.clear_context()
                     await room_manager.revoke_speak(room_id, guest_id)
