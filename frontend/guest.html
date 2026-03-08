@@ -671,6 +671,24 @@
         }
     }
 
+    window.addEventListener('error', (e) => {
+        serverLog('window_error', {
+            message: e?.message || 'unknown error',
+            source: e?.filename || null,
+            lineno: e?.lineno || null,
+            colno: e?.colno || null,
+            stack: e?.error?.stack || null,
+        });
+    });
+
+    window.addEventListener('unhandledrejection', (e) => {
+        const reason = e?.reason;
+        serverLog('unhandled_rejection', {
+            message: reason?.message || String(reason),
+            stack: reason?.stack || null,
+        });
+    });
+
     // DOM
     const screenJoin = document.getElementById('screenJoin');
     const screenRoom = document.getElementById('screenRoom');
@@ -1014,20 +1032,27 @@
     let guestFirstChunkSent = false;
 
     function sendGuestAudioMeta(reason = 'unknown') {
+        serverLog('send_audio_meta_begin', {
+            reason,
+            has_meta: !!guestMicMeta,
+            ws_state: ws ? ws.readyState : null,
+        });
+
         if (!guestMicMeta) {
             serverLog('send_audio_meta_skip_no_meta', { reason });
-            return;
+            return false;
         }
         if (!ws || ws.readyState !== WebSocket.OPEN) {
             serverLog('send_audio_meta_skip_ws_not_open', { reason, ws_state: ws ? ws.readyState : null });
-            return;
+            return false;
         }
         ws.send(JSON.stringify({
             type: 'audio_meta',
             source: 'guest',
             ...guestMicMeta,
         }));
-        serverLog('send_audio_meta', { reason, ...guestMicMeta });
+        serverLog('send_audio_meta_done', { reason, ...guestMicMeta });
+        return true;
     }
 
     async function prepareGuestMic(reason = 'unknown') {
@@ -1053,6 +1078,13 @@
 
                 if (myState === 'speaking' && ws?.readyState === WebSocket.OPEN) {
                     if (!guestFirstChunkSent) {
+                        serverLog('first_chunk_gate_open', {
+                            bytes: buf.byteLength,
+                            frames: floatBuf.length,
+                            ws_state: ws ? ws.readyState : null,
+                            context_sr: guestMicMeta?.context_sample_rate || null,
+                            track_sr: guestMicMeta?.track_sample_rate || null,
+                        });
                         guestFirstChunkSent = true;
                         serverLog('first_audio_chunk_sent', {
                             bytes: buf.byteLength,
@@ -1139,7 +1171,22 @@
 
         try {
             await prepareGuestMic('speak_granted');
-            sendGuestAudioMeta('speak_granted');
+            serverLog('start_guest_mic_after_prepare', {
+                has_mic: !!guestMicObj,
+                has_meta: !!guestMicMeta,
+                context_sr: guestMicMeta?.context_sample_rate || null,
+                track_sr: guestMicMeta?.track_sample_rate || null,
+                ws_state: ws ? ws.readyState : null,
+            });
+
+            const metaSent = sendGuestAudioMeta('speak_granted');
+            serverLog('start_guest_mic_after_send_meta', {
+                has_mic: !!guestMicObj,
+                has_meta: !!guestMicMeta,
+                meta_sent: !!metaSent,
+                ws_state: ws ? ws.readyState : null,
+            });
+
             serverLog('start_guest_mic_ready', {
                 has_mic: !!guestMicObj,
                 context_sr: guestMicMeta?.context_sample_rate || null,
@@ -1147,7 +1194,11 @@
             });
         } catch (e) {
             console.error('Guest mic err:', e);
-            serverLog('start_guest_mic_error', { message: String(e) });
+            serverLog('start_guest_mic_error', {
+                message: e?.message || String(e),
+                stack: e?.stack || null,
+                name: e?.name || null,
+            });
         }
     }
 
