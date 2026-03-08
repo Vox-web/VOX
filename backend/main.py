@@ -382,6 +382,13 @@ async def kick_participant(room_id: str, guest_id: str):
     await room_manager.kick_participant(room_id, guest_id)
     return JSONResponse({"status": "ok"})
 
+@app.get("/docs")
+async def serve_docs():
+    html_path = FRONTEND_DIR / "docs.html"
+    if not html_path.exists():
+        raise HTTPException(status_code=404, detail="docs.html not found")
+    return FileResponse(html_path)
+
 
 # ===========================================================================
 # WebSocket: Solo режим (Phase 3 proxy: аудіо → Railway → Deepgram)

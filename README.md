@@ -1,20 +1,44 @@
 # VOX — Real-Time AI Translation Platform
 
-Мультиязычная платформа для перевода речи в режиме реального времени.
+Мультиязычная платформа для перевода речи в реальном времени.
 15 языков, задержка ~1 сек, участникам нужен только браузер.
 
-## Быстрый старт (локально)
+🌐 **Live:** [web-production-bd9a.up.railway.app](https://web-production-bd9a.up.railway.app)
 
-### 1. Клонировать и перейти в папку
+---
+
+## Что это
+
+VOX — карманный синхронный переводчик. Один человек (хост) управляет всем через смартфон. Участникам не нужно скачивать приложение — достаточно отсканировать QR-код и открыть страницу в браузере.
+
+**Сценарии:**
+- Деловые переговоры с иностранными партнёрами
+- Международные вебинары и онлайн-встречи
+- Экскурсии для мультиязычных групп
+- Медицинские консультации с иностранными пациентами
+- Конференции — синхронный перевод в карманном формате
+
+## Режимы работы
+
+### Solo — персональный перевод
+Один микрофон, один слушатель. Выбираешь язык источника и перевода, нажимаешь «Слушать» — и слышишь перевод в наушниках в реальном времени.
+
+### Room — мультиязычная комната
+Хост создаёт комнату → на экране QR-код → участники сканируют → каждый выбирает свой язык → слышит перевод. Хост управляет: даёт слово, заглушает, отключает.
+
+## Быстрый старт
+
+### 1. Клонировать
 ```bash
+git clone https://github.com/Vox-web/VOX.git
 cd VOX
 ```
 
-### 2. Создать виртуальное окружение
+### 2. Виртуальное окружение
 ```bash
 python -m venv venv
-venv\Scripts\activate        # Windows
-# source venv/bin/activate   # Linux/Mac
+source venv/bin/activate        # Linux/Mac
+# venv\Scripts\activate         # Windows
 ```
 
 ### 3. Установить зависимости
@@ -22,98 +46,163 @@ venv\Scripts\activate        # Windows
 pip install -r backend/requirements.txt
 ```
 
-### 4. Создать .env файл
+### 4. Настроить переменные окружения
 ```bash
-copy .env.example .env
+cp .env.example .env
 ```
-Заполнить:
+
+Минимальные переменные:
 ```env
-DEEPGRAM_API_KEY=dg_...       # deepgram.com → бесплатно 200 мин/мес
+DEEPGRAM_API_KEY=dg_...       # deepgram.com — бесплатно 200 мин/мес
 OPENAI_API_KEY=sk-...         # platform.openai.com
 PORT=8080
 ```
 
-### 5. Запустить сервер
+### 5. Запустить
 ```bash
 cd backend
 python main.py
 ```
 
-### 6. Открыть в браузере
+### 6. Открыть
 ```
 http://localhost:8080
 ```
 
-## Режимы работы
-
-**Solo** — персональный перевод. Один микрофон, один слушатель. Выбираешь язык источника и перевода, нажимаешь «Слушать».
-
-**Room** — мультиязычная комната. Хост создаёт комнату → участники сканируют QR-код → каждый слышит перевод на своём языке. Хост управляет: даёт слово, заглушает, отключает.
-
-## Деплой на Railway
-
-1. Создать GitHub репозиторий и запушить код
-2. Подключить репозиторий к Railway
-3. Добавить переменные окружения (`DEEPGRAM_API_KEY`, `OPENAI_API_KEY`, `PORT=8080`)
-4. Deploy!
-
-## Структура
+## Структура проекта
 
 ```
 VOX/
 ├── backend/
-│   ├── main.py              # FastAPI сервер (WebSocket + REST)
-│   ├── room_manager.py      # Управление комнатами и участниками
-│   ├── transcriber.py       # Deepgram Nova-2 Streaming
+│   ├── main.py              # FastAPI сервер — WebSocket + REST + раздача HTML
+│   ├── room_manager.py      # Управление комнатами, участниками, broadcast
+│   ├── transcriber.py       # Deepgram Nova-2 Streaming транскрипция
 │   ├── translator.py        # GPT-4o-mini контекстный перевод
-│   ├── tts_engine.py        # edge-tts + OpenAI TTS fallback
+│   ├── tts_engine.py        # edge-tts (primary) + OpenAI TTS (fallback)
+│   ├── audio_utils.py       # PCM конвертация, ресэмплинг, валидация
+│   ├── billing.py           # Stripe Checkout, webhook, баланс, email верификация
+│   ├── billing_db.py        # Миграции и SQL для биллинга
+│   ├── vox_db.py            # SQLite: users, sessions, reviews
+│   └── requirements.txt
+│
+├── frontend/
+│   ├── index.html           # Landing page + кабинет пользователя
 │   ├── host.html            # Интерфейс хоста (Solo + Room)
-│   ├── guest.html           # Интерфейс участника (15 языков)
-│   └── requirements.txt     # Зависимости
+│   ├── guest.html           # Интерфейс участника (15 языков, i18n)
+│   ├── solo.html            # Отдельная Solo-страница
+│   ├── admin.html           # Админ-панель (пользователи, отзывы, платежи)
+│   ├── review_form.html     # Форма отзыва (UK/EN/DE)
+│   ├── docs.html            # Документация / О продукте (UK/EN/DE)
+│   └── sw.js                # Service Worker (PWA, Network-first)
+│
 ├── .env.example
 ├── .gitignore
 ├── Procfile
 ├── railway.toml
-└── README.md
+├── README.md
+└── VOX_PROJECT_SPEC.md
 ```
 
 ## Технологии
 
-- **Backend:** FastAPI, WebSocket, Python 3.11+
-- **STT:** Deepgram Nova-2 Streaming API (~300мс)
-- **Translation:** GPT-4o-mini с контекстом разговора
-- **TTS:** edge-tts (primary, бесплатный) + OpenAI TTS (fallback)
-- **Frontend:** Vanilla HTML/JS, AudioWorklet API, Web Audio API
+| Слой | Технология | Назначение |
+|------|-----------|------------|
+| Web-сервер | FastAPI + Uvicorn | HTTP, WebSocket, REST API |
+| STT | Deepgram Nova-2 Streaming | Транскрипция ~300мс, встроенный VAD |
+| Перевод | GPT-4o-mini | Контекстный перевод с rolling history |
+| TTS (основной) | edge-tts (Microsoft) | Бесплатный, ~300мс |
+| TTS (fallback) | OpenAI TTS tts-1 | Платный, автоматический fallback |
+| Биллинг | Stripe Checkout + Webhooks | Пополнение баланса, поминутная тарификация |
+| Email | Resend API | Верификация email, $3 бонус |
+| БД | SQLite (WAL mode) | Users, sessions, reviews, payments |
+| Frontend | Vanilla HTML/JS | AudioWorklet, Web Audio API, WebSocket |
 
 ## Поддерживаемые языки
 
 🇺🇦 Українська · 🇷🇺 Русский · 🇬🇧 English · 🇩🇪 Deutsch · 🇵🇱 Polski · 🇫🇷 Français · 🇨🇳 中文 · 🇪🇸 Español · 🇮🇹 Italiano · 🇧🇷 Português · 🇯🇵 日本語 · 🇰🇷 한국어 · 🇸🇦 العربية · 🇹🇷 Türkçe · 🇮🇳 हिन्दी
 
+## Переменные окружения
 
+```env
+# Обязательные
+DEEPGRAM_API_KEY=dg_...          # STT
+OPENAI_API_KEY=sk-...            # Перевод + TTS fallback
+PORT=8080
 
-https://deepgram.com/
-Аккаунт привязан к obivan.ua@gmaul.com
+# Биллинг (опционально)
+STRIPE_SECRET_KEY=sk_...         # Stripe
+STRIPE_WEBHOOK_SECRET=whsec_...  # Stripe Webhooks
+RESEND_API_KEY=re_...            # Email верификация
+BASE_URL=https://your-domain.com # Для email-ссылок и Stripe redirect
 
+# Админка
+ADMIN_LOGIN=admin
+ADMIN_PASSWORD=your_secure_password
 
-cd /путь/к/проекту
+# Настройки
+DEFAULT_TARGET_LANG=uk
+MAX_ROOM_PARTICIPANTS=10
+ROOM_TIMEOUT_MINUTES=120
+```
 
-git init
-git add .
-git commit -m "initial commit"
+## Деплой на Railway
 
-# Вставь свою ссылку из GitHub:
-git remote add origin https://github.com/Vox-web/VOX.git   
-git branch -M main
-git push -u origin main
+1. Создать репозиторий на GitHub и запушить код
+2. Подключить репозиторий к [Railway](https://railway.com/)
+3. Добавить переменные окружения
+4. Deploy
 
-https://railway.com/
-https://web-production-bd9a.up.railway.app     -   адрес сайта!
+```
+# Procfile
+web: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+```
 
-https://www.producthunt.com/    -  опубликовать для продвижения и поиска инвестора уже после биллинга!
+## API эндпоинты
 
+### Страницы
+| Маршрут | Описание |
+|---------|----------|
+| `GET /` | Landing page |
+| `GET /host` | Интерфейс хоста |
+| `GET /solo` | Solo-страница |
+| `GET /room/{id}` | Интерфейс гостя |
+| `GET /admin` | Админ-панель |
+| `GET /review` | Форма отзыва |
+| `GET /docs` | Документация |
 
-Моя тесовая карта
-Номер:  4242 4242 4242 4242
-Дата:   будь-яка майбутня (напр. 12/27)
-CVV:    будь-які 3 цифри (напр. 123)
-Адреса: будь-яка
+### WebSocket
+| Эндпоинт | Описание |
+|----------|----------|
+| `WS /ws/solo` | Solo-режим (аудио → перевод → TTS) |
+| `WS /ws/room/{id}/host` | Хост комнаты |
+| `WS /ws/room/{id}/guest/{gid}` | Участник комнаты |
+
+### REST API
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `POST` | `/api/register` | Регистрация |
+| `POST` | `/api/login` | Вход |
+| `GET` | `/api/me` | Текущий пользователь |
+| `GET` | `/api/balance` | Баланс |
+| `POST` | `/api/create-checkout` | Stripe Checkout |
+| `POST` | `/api/webhook` | Stripe Webhook |
+| `POST` | `/api/reviews` | Оставить отзыв |
+| `GET` | `/api/reviews/public` | Публичные отзывы |
+| `POST` | `/room/create` | Создать комнату |
+| `POST` | `/room/{id}/join` | Присоединиться |
+| `POST` | `/room/{id}/grant-speak/{gid}` | Дать слово |
+| `POST` | `/room/{id}/revoke-speak/{gid}` | Забрать слово |
+
+## Стоимость
+
+| Режим | Стоимость | Примечание |
+|-------|-----------|------------|
+| Solo | $0.05/мин | 1 спикер |
+| Room | $0.05 × гостей/мин | Параллельный перевод |
+| Бонус | $3 при верификации email | ~60 минут Solo |
+
+---
+
+**VOX** — часть экосистемы AI-продуктов: AURA (healthcare voice assistant), ATHENA (smart companion), VOX (real-time translation).
+
+*Версия 3.1 — Март 2026*
