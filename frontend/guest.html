@@ -928,14 +928,21 @@
     // =================================================================
     // Hand raise
     // =================================================================
-    function toggleHandRaise() {
-        if (myState === 'listening') {
-            myState = 'requesting';
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({action: 'request_speak'}));
-            }
-            updateHandButton();
-        } else if (myState === 'requesting') {
+    async function toggleHandRaise() {
+    if (myState === 'listening') {
+        // Создаём AudioContext прямо здесь — в user gesture — как у хоста
+        if (!audioContext) {
+            audioContext = new AudioContext({sampleRate: 16000});
+        }
+        if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+        }
+        myState = 'requesting';
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({action: 'request_speak'}));
+        }
+        updateHandButton();
+    } else if (myState === 'requesting') {
             myState = 'listening';
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({action: 'cancel_request'}));
@@ -973,12 +980,13 @@
             mediaStream = await navigator.mediaDevices.getUserMedia({
                 audio: {sampleRate:16000, channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true}
             });
-            audioContext = new AudioContext({sampleRate: 16000});
+            if (!audioContext) {
+                audioContext = new AudioContext({sampleRate: 16000});
+            }
             if (audioContext.state === 'suspended') {
                 await audioContext.resume();
-}
-
-            const workletCode = `
+            }
+                        const workletCode = `
                 class VoxGuestProcessor extends AudioWorkletProcessor {
                     constructor() { super(); this.buffer = []; this.CHUNK_SIZE = 2048; }
                     process(inputs) {
