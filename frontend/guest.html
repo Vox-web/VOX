@@ -851,6 +851,9 @@
             document.getElementById('speakerName').textContent = '🎤 ' + t('hostSpeaking');
             document.getElementById('speakerIndicator').style.display = 'block';
             sendGuestAudioMeta('ws_open');
+            if (myState === 'speaking') {
+                flushGuestPreRoll('ws_open');
+            }
         };
 
         ws.onclose = () => {
@@ -887,7 +890,13 @@
     function handleJsonMsg(msg) {
         switch (msg.type) {
             case 'speak_granted':
-                serverLog('recv_speak_granted', { by: 'server', has_mic: !!guestMicObj, preparing: !!guestMicPreparing });
+                serverLog('recv_speak_granted', {
+                    by: 'server',
+                    has_mic: !!guestMicObj,
+                    preparing: !!guestMicPreparing,
+                    preroll_chunks: guestPreRoll.length,
+                    preroll_frames: guestPreRollFrames,
+                });
                 myState = 'speaking';
                 speakBanner.classList.add('active');
                 handBtn.style.display = 'none';
@@ -988,50 +997,98 @@
         if (prefix === 'AUDIO:') playAudio(data.slice(6));
 }
 
+    
+// =================================================================
+    // _mic() — guest-оптимизация для realtime STT
     // =================================================================
-    // _mic() — СКОПИРОВАНО ИЗ HOST.HTML ОДИН В ОДИН
-    // =================================================================
+    const GUEST_TARGET_SAMPLE_RATE = 16000;
+    const GUEST_CHUNK_FRAMES = 1024;      // ~64 ms @ 16 kHz
+    const GUEST_PREROLL_CHUNKS = 16;      // ~1.0 s pre-roll
+
     async function _mic(name, onChunk) {
-        const st = await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+        const requestedConstraints = {
+            sampleRate: GUEST_TARGET_SAMPLE_RATE,
+            channelCount: 1,
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+        };
+
+        const st = await navigator.mediaDevices.getUserMedia({
+            audio: requestedConstraints
+        });
+
         const track = st.getAudioTracks()[0] || null;
         const settings = track?.getSettings ? track.getSettings() : {};
-        const cx = new AudioContext({sampleRate:16000});
-        const code = `class ${name} extends AudioWorkletProcessor{constructor(){super();this.b=[];}process(i){const c=i[0]?.[0];if(!c)return true;this.b.push(...c);while(this.b.length>=2048){const ch=new Float32Array(this.b.splice(0,2048));this.port.postMessage(ch.buffer,[ch.buffer]);}return true;}}registerProcessor('${name}',${name});`;
-        const bl = new Blob([code],{type:'application/javascript'}); const u = URL.createObjectURL(bl);
-        await cx.audioWorklet.addModule(u); URL.revokeObjectURL(u);
+        const cx = new AudioContext({ sampleRate: GUEST_TARGET_SAMPLE_RATE });
+
+        const code = `
+            class ${name} extends AudioWorkletProcessor {
+                constructor() {
+                    super();
+                    this.b = [];
+                }
+                process(inputs) {
+                    const c = inputs[0]?.[0];
+                    if (!c) return true;
+                    this.b.push(...c);
+                    while (this.b.length >= ${GUEST_CHUNK_FRAMES}) {
+                        const ch = new Float32Array(this.b.splice(0, ${GUEST_CHUNK_FRAMES}));
+                        this.port.postMessage(ch.buffer, [ch.buffer]);
+                    }
+                    return true;
+                }
+            }
+            registerProcessor('${name}', ${name});
+        `;
+
+        const bl = new Blob([code], { type: 'application/javascript' });
+        const u = URL.createObjectURL(bl);
+        await cx.audioWorklet.addModule(u);
+        URL.revokeObjectURL(u);
+
         const src = cx.createMediaStreamSource(st);
         const nd = new AudioWorkletNode(cx, name);
         nd.port.onmessage = e => onChunk(e.data);
-        src.connect(nd); nd.connect(cx.destination);
+        src.connect(nd);
+        // Не подключаем к destination: это capture-only тракт.
 
         const meta = {
-            requested_sample_rate: 16000,
+            requested_sample_rate: GUEST_TARGET_SAMPLE_RATE,
             context_sample_rate: Number(cx.sampleRate) || null,
             track_sample_rate: Number(settings.sampleRate) || null,
             track_channel_count: Number(settings.channelCount) || 1,
-            echo_cancellation: settings.echoCancellation ?? true,
-            noise_suppression: settings.noiseSuppression ?? true,
-            auto_gain_control: settings.autoGainControl ?? true,
+            echo_cancellation: settings.echoCancellation ?? false,
+            noise_suppression: settings.noiseSuppression ?? false,
+            auto_gain_control: settings.autoGainControl ?? false,
             sample_format: 'float32',
-            chunk_frames: 2048,
+            chunk_frames: GUEST_CHUNK_FRAMES,
         };
-        console.info('[VOX guest mic]', meta);
+        console.info('[VOX guest mic]', {
+            requested: requestedConstraints,
+            actual: meta,
+        });
 
         return {
             meta,
-            async resume(){
+            async resume() {
                 if (cx.state !== 'running') {
                     await cx.resume();
                 }
                 return cx.state;
             },
-            getState(){ return cx.state; },
-            stop(){ nd.disconnect(); cx.close(); st.getTracks().forEach(t=>t.stop()); }
+            getState() { return cx.state; },
+            stop() {
+                try { nd.disconnect(); } catch (_) {}
+                try { src.disconnect(); } catch (_) {}
+                try { cx.close(); } catch (_) {}
+                st.getTracks().forEach(t => t.stop());
+            }
         };
     }
 
     // =================================================================
-    // Hand raise — точно как roomToggleMic() у хоста
+    // Hand raise — realtime-safe guest mic flow
     // =================================================================
     let guestMicObj = null;
     let guestMicMeta = null;
@@ -1039,6 +1096,62 @@
     let guestFirstChunkArrived = false;
     let guestFirstChunkBlocked = false;
     let guestFirstChunkSent = false;
+    let guestPreRoll = [];
+    let guestPreRollFrames = 0;
+
+    function clearGuestPreRoll() {
+        guestPreRoll = [];
+        guestPreRollFrames = 0;
+    }
+
+    function pushGuestPreRoll(buf) {
+        const copy = buf.slice(0);
+        guestPreRoll.push(copy);
+        guestPreRollFrames += copy.byteLength / 4;
+
+        while (guestPreRoll.length > GUEST_PREROLL_CHUNKS) {
+            const dropped = guestPreRoll.shift();
+            guestPreRollFrames -= dropped.byteLength / 4;
+        }
+    }
+
+    function canStreamGuestAudio() {
+        return myState === 'speaking' && ws?.readyState === WebSocket.OPEN;
+    }
+
+    function flushGuestPreRoll(reason = 'unknown') {
+        if (!canStreamGuestAudio()) {
+            serverLog('preroll_flush_skip_gate_closed', {
+                reason,
+                buffered_chunks: guestPreRoll.length,
+                buffered_frames: guestPreRollFrames,
+                state: myState,
+                ws_state: ws ? ws.readyState : null,
+            });
+            return 0;
+        }
+
+        if (!guestPreRoll.length) {
+            serverLog('preroll_flush_skip_empty', { reason });
+            return 0;
+        }
+
+        const chunks = guestPreRoll.slice();
+        const frames = guestPreRollFrames;
+        clearGuestPreRoll();
+
+        for (const chunk of chunks) {
+            ws.send(chunk);
+        }
+
+        serverLog('preroll_flushed', {
+            reason,
+            chunks: chunks.length,
+            frames,
+            approx_ms: Math.round(frames / GUEST_TARGET_SAMPLE_RATE * 1000),
+        });
+        return chunks.length;
+    }
 
     function sendGuestAudioMeta(reason = 'unknown') {
         serverLog('send_audio_meta_begin', {
@@ -1066,7 +1179,11 @@
 
     async function prepareGuestMic(reason = 'unknown') {
         if (guestMicObj) {
-            serverLog('mic_prepare_skip_existing', { reason, context_sr: guestMicMeta?.context_sample_rate || null, track_sr: guestMicMeta?.track_sample_rate || null });
+            serverLog('mic_prepare_skip_existing', {
+                reason,
+                context_sr: guestMicMeta?.context_sample_rate || null,
+                track_sr: guestMicMeta?.track_sample_rate || null
+            });
             return guestMicObj;
         }
         if (guestMicPreparing) {
@@ -1075,6 +1192,8 @@
         }
 
         guestFirstChunkSent = false;
+        guestFirstChunkBlocked = false;
+        clearGuestPreRoll();
         serverLog('mic_prepare_begin', { reason });
 
         guestMicPreparing = (async () => {
@@ -1094,11 +1213,27 @@
                     });
                 }
 
-                if ((myState === 'requesting' || myState === 'speaking')) {
+                if (myState === 'requesting' || myState === 'speaking') {
                     animateVAD(floatBuf);
                 }
 
-                if (!(myState === 'speaking' && ws?.readyState === WebSocket.OPEN)) {
+                if (myState === 'requesting') {
+                    pushGuestPreRoll(buf);
+                    if (!guestFirstChunkBlocked) {
+                        guestFirstChunkBlocked = true;
+                        serverLog('first_chunk_buffered_in_requesting', {
+                            bytes: buf.byteLength,
+                            frames: floatBuf.length,
+                            buffered_chunks: guestPreRoll.length,
+                            buffered_frames: guestPreRollFrames,
+                            ws_state: ws ? ws.readyState : null,
+                            cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
+                        });
+                    }
+                    return;
+                }
+
+                if (!canStreamGuestAudio()) {
                     if (!guestFirstChunkBlocked) {
                         guestFirstChunkBlocked = true;
                         serverLog('first_chunk_blocked', {
@@ -1121,6 +1256,9 @@
                         context_sr: guestMicMeta?.context_sample_rate || null,
                         track_sr: guestMicMeta?.track_sample_rate || null,
                     });
+
+                    flushGuestPreRoll('first_live_chunk');
+
                     guestFirstChunkSent = true;
                     serverLog('first_audio_chunk_sent', {
                         bytes: buf.byteLength,
@@ -1130,6 +1268,7 @@
                         track_sr: guestMicMeta?.track_sample_rate || null,
                     });
                 }
+
                 ws.send(buf);
             });
 
@@ -1162,7 +1301,7 @@
         if (myState === 'listening') {
             myState = 'requesting';
             if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({action: 'request_speak'}));
+                ws.send(JSON.stringify({ action: 'request_speak' }));
                 serverLog('send_request_speak', { state: myState });
             }
             updateHandButton();
@@ -1176,7 +1315,7 @@
         } else if (myState === 'requesting') {
             myState = 'listening';
             if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({action: 'cancel_request'}));
+                ws.send(JSON.stringify({ action: 'cancel_request' }));
                 serverLog('send_cancel_request', { state: myState });
             }
             stopGuestMic('cancel_request');
@@ -1197,7 +1336,7 @@
     function doneSpeaking() {
         serverLog('send_done_speaking');
         if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({action: 'done_speaking'}));
+            ws.send(JSON.stringify({ action: 'done_speaking' }));
         }
         myState = 'listening';
         speakBanner.classList.remove('active');
@@ -1212,6 +1351,8 @@
             has_mic: !!guestMicObj,
             preparing: !!guestMicPreparing,
             ws_state: ws ? ws.readyState : null,
+            preroll_chunks: guestPreRoll.length,
+            preroll_frames: guestPreRollFrames,
         });
 
         try {
@@ -1223,6 +1364,8 @@
                 track_sr: guestMicMeta?.track_sample_rate || null,
                 ws_state: ws ? ws.readyState : null,
                 cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
+                preroll_chunks: guestPreRoll.length,
+                preroll_frames: guestPreRollFrames,
             });
 
             serverLog('audio_context_state_before_resume', {
@@ -1235,10 +1378,12 @@
             });
 
             const metaSent = sendGuestAudioMeta('speak_granted');
+            const prerollFlushed = flushGuestPreRoll('speak_granted');
             serverLog('start_guest_mic_after_send_meta', {
                 has_mic: !!guestMicObj,
                 has_meta: !!guestMicMeta,
                 meta_sent: !!metaSent,
+                preroll_flushed_chunks: prerollFlushed,
                 ws_state: ws ? ws.readyState : null,
                 cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
             });
@@ -1260,7 +1405,13 @@
     }
 
     function stopGuestMic(reason = 'unknown') {
-        serverLog('stop_guest_mic_called', { reason, had_mic: !!guestMicObj, preparing: !!guestMicPreparing });
+        serverLog('stop_guest_mic_called', {
+            reason,
+            had_mic: !!guestMicObj,
+            preparing: !!guestMicPreparing,
+            preroll_chunks: guestPreRoll.length,
+            preroll_frames: guestPreRollFrames,
+        });
         guestMicObj?.stop();
         guestMicObj = null;
         guestMicMeta = null;
@@ -1268,6 +1419,7 @@
         guestFirstChunkArrived = false;
         guestFirstChunkBlocked = false;
         guestFirstChunkSent = false;
+        clearGuestPreRoll();
         resetVAD();
     }
 
