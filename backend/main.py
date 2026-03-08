@@ -818,12 +818,12 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
             if "bytes" in message and message["bytes"]:
                 chunk_size = len(message["bytes"])
                 if participant.state != ParticipantState.SPEAKING:
-                    logger.warning(
-                        f"🚫 [GUEST DEBUG] Аудио от '{participant.display_name}' проигнорировано — "
-                        f"state={participant.state} (ожидается SPEAKING). "
-                        f"Байт: {chunk_size}. guest_speaking={guest_speaking}"
-                    )
                     if guest_speaking:
+                        logger.info(
+                            f"🔇 [GUEST] Слово забрано у '{participant.display_name}' — "
+                            f"финализирую Deepgram"
+                        )
+                        await dg.finalize()  # Форсируем final из Deepgram
                         await dg.stop()
                         guest_speaking = False
                     continue
@@ -859,6 +859,7 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                     await room_manager.cancel_request(room_id, guest_id)
                 elif action == "done_speaking":
                     if guest_speaking:
+                        await dg.finalize()  # Форсируем final из Deepgram
                         await dg.stop()
                         guest_speaking = False
                     translator.clear_context()

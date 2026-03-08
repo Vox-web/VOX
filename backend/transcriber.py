@@ -68,6 +68,8 @@ class DeepgramTranscriber:
         self._language: Optional[str] = None
         self._finals_buffer: list[str] = []
         self._flush_task: Optional[asyncio.Task] = None  # таймер авто-flush
+        self._interim_watchdog: Optional[asyncio.Task] = None  # watchdog для зависших interims
+        self._has_pending_interim: bool = False  # есть interim без последующего final
         self._last_lang: str = "unknown"
         self._last_confidence: float = 0.0
 
@@ -99,6 +101,49 @@ class DeepgramTranscriber:
         except asyncio.CancelledError:
             pass
 
+    async def _interim_watchdog_fn(self, delay: float = 3.0):
+        """
+        Watchdog: если получили interim но final не пришёл за `delay` секунд,
+        отправляем Deepgram команду Finalize — она заставляет Deepgram
+        немедленно выдать final result из текущего буфера.
+
+        Это решает проблему когда:
+        - Фоновый шум не даёт сработать endpointing
+        - Языковая модель не уверена и не коммитит final
+        - Спикер замолчал но микрофон продолжает слать ambient noise
+        """
+        try:
+            await asyncio.sleep(delay)
+            if self._has_pending_interim and self.is_active:
+                logger.info(f"⏰ [{self._last_lang}] Interim watchdog: отправляю Finalize в Deepgram")
+                await self._send_finalize()
+        except asyncio.CancelledError:
+            pass
+
+    async def _send_finalize(self):
+        """Отправить Finalize в Deepgram — форсирует выдачу final result."""
+        if not self.is_active:
+            return
+        try:
+            await self._ws.send(json.dumps({"type": "Finalize"}))
+        except Exception as e:
+            logger.warning(f"⚠️ Не удалось отправить Finalize: {e}")
+
+    async def finalize(self):
+        """
+        Публичный метод: форсировать финализацию текущего буфера Deepgram.
+        Вызывается перед stop() когда нужно получить последний результат
+        (например, когда хост забирает слово у гостя).
+        """
+        if not self.is_active:
+            return
+        await self._send_finalize()
+        # Даём Deepgram 1.5с чтобы вернуть финальный результат
+        try:
+            await asyncio.sleep(1.5)
+        except asyncio.CancelledError:
+            pass
+
     async def start(self, language: Optional[str] = None):
         """
         Открыть новую сессию транскрипции.
@@ -114,6 +159,10 @@ class DeepgramTranscriber:
 
         # Очищаем очередь и буфер
         self._finals_buffer = []
+        self._has_pending_interim = False
+        if self._interim_watchdog and not self._interim_watchdog.done():
+            self._interim_watchdog.cancel()
+            self._interim_watchdog = None
         while not self.results.empty():
             try:
                 self.results.get_nowait()
@@ -191,6 +240,12 @@ class DeepgramTranscriber:
 
     async def stop(self):
         """Закрыть сессию Deepgram."""
+        # Отменяем watchdog
+        if self._interim_watchdog and not self._interim_watchdog.done():
+            self._interim_watchdog.cancel()
+            self._interim_watchdog = None
+        self._has_pending_interim = False
+
         if self._receive_task:
             self._receive_task.cancel()
             try:
@@ -248,6 +303,10 @@ class DeepgramTranscriber:
                             language=self._last_lang or "unknown",
                             confidence=self._last_confidence,
                         ))
+                    elif self._has_pending_interim:
+                        # Есть interim без final — заставляем Deepgram финализировать
+                        logger.info(f"⏰ [{self._last_lang}] UtteranceEnd + pending interim → Finalize")
+                        await self._send_finalize()
                     continue
 
                 if msg_type != "Results":
@@ -283,8 +342,21 @@ class DeepgramTranscriber:
                         language=lang or "unknown",
                         confidence=confidence,
                     ))
+                    # Запускаем watchdog: если за 3с не придёт final — отправим Finalize
+                    self._has_pending_interim = True
+                    self._last_lang = lang or "unknown"
+                    self._last_confidence = confidence
+                    if self._interim_watchdog and not self._interim_watchdog.done():
+                        self._interim_watchdog.cancel()
+                    self._interim_watchdog = asyncio.create_task(self._interim_watchdog_fn(3.0))
 
                 elif is_final:
+                    # Final пришёл — отменяем watchdog
+                    self._has_pending_interim = False
+                    if self._interim_watchdog and not self._interim_watchdog.done():
+                        self._interim_watchdog.cancel()
+                        self._interim_watchdog = None
+
                     self._finals_buffer.append(text)
                     self._last_lang = lang or "unknown"
                     self._last_confidence = confidence
