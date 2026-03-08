@@ -1023,23 +1023,6 @@
 
     async function toggleHandRaise() {
         if (myState === 'listening') {
-            // Запускаем микрофон В КЛИКЕ — точно как хост
-            try {
-                console.info('[VOX guest] init mic before request_speak');
-                guestMicObj = await _mic('VoxGP', buf => {
-                    if (myState === 'speaking' && ws?.readyState === WebSocket.OPEN) {
-                        ws.send(buf);
-                    }
-                    animateVAD(new Float32Array(buf));
-                });
-                guestMicMeta = guestMicObj?.meta || null;
-                serverLog('mic_initialized', guestMicMeta || {});
-                sendGuestAudioMeta();
-            } catch(e) {
-                console.error('Guest mic err:', e);
-                serverLog('mic_init_error', { message: String(e) });
-            }
-
             myState = 'requesting';
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({action: 'request_speak'}));
@@ -1053,10 +1036,6 @@
                 ws.send(JSON.stringify({action: 'cancel_request'}));
                 serverLog('send_cancel_request', { state: myState });
             }
-            guestMicObj?.stop(); guestMicObj = null;
-            serverLog('mic_stopped_after_cancel');
-            guestMicMeta = null;
-            resetVAD();
             updateHandButton();
         }
     }
@@ -1086,9 +1065,38 @@
         updateHandButton();
     }
 
-    // startGuestMic / stopGuestMic — для совместимости с handleJsonMsg
-    function startGuestMic() { /* mic уже запущен в toggleHandRaise */ }
-    function stopGuestMic() { serverLog('stop_guest_mic_called'); guestMicObj?.stop(); guestMicObj = null; guestMicMeta = null; resetVAD(); }
+    // startGuestMic / stopGuestMic — реальный старт/стоп микрофона гостя
+    async function startGuestMic() {
+        if (guestMicObj) {
+            sendGuestAudioMeta();
+            serverLog('start_guest_mic_skip_existing');
+            return;
+        }
+
+        try {
+            console.info('[VOX guest] start mic after speak_granted');
+            guestMicObj = await _mic('VoxGP', buf => {
+                if (myState === 'speaking' && ws?.readyState === WebSocket.OPEN) {
+                    ws.send(buf);
+                }
+                animateVAD(new Float32Array(buf));
+            });
+            guestMicMeta = guestMicObj?.meta || null;
+            serverLog('mic_initialized', guestMicMeta || {});
+            sendGuestAudioMeta();
+        } catch (e) {
+            console.error('Guest mic err:', e);
+            serverLog('mic_init_error', { message: String(e) });
+        }
+    }
+
+    function stopGuestMic() {
+        serverLog('stop_guest_mic_called');
+        guestMicObj?.stop();
+        guestMicObj = null;
+        guestMicMeta = null;
+        resetVAD();
+    }
 
     // =================================================================
     // Audio playback (с разблокировкой AudioContext после рефреша)
