@@ -1136,6 +1136,15 @@
             guestMicObj = mic;
             guestMicMeta = mic?.meta || null;
             serverLog('mic_prepare_ok', guestMicMeta || {});
+
+            serverLog('mic_prepare_resume_begin', {
+                cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
+            });
+            const prepareResumedState = guestMicObj?.resume ? await guestMicObj.resume() : null;
+            serverLog('mic_prepare_resume_done', {
+                cx_state: guestMicObj?.getState ? guestMicObj.getState() : null,
+                resumed_state: prepareResumedState,
+            });
             return mic;
         })();
 
