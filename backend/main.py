@@ -138,7 +138,11 @@ def _pick_client_sample_rate(meta: dict | None, default: int = 16000) -> int:
 # Pydantic модели
 
 
-def _log_guest_trace(participant_name: str, room_id: str, stage: str, **fields):
+def _log_guest_trace(participant_name: str, room_code: str, stage: str, **fields):
+    extra = " ".join(f"{k}={v!r}" for k, v in fields.items())
+    logger.info(
+        f"🧭 [GUEST TRACE] room={room_code} guest={participant_name!r} stage={stage} {extra}"
+    )
     payload = " ".join(f"{k}={fields[k]!r}" for k in sorted(fields))
     logger.info(
         f"🧭 [GUEST TRACE] room={room_id} guest={participant_name!r} stage={stage}"
