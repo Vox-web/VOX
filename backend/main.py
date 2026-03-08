@@ -561,6 +561,40 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
 
     billing_tasks = [asyncio.create_task(billing_tick())]
 
+    async def _host_process_final(final_result: TranscriptResult):
+        """
+        Фоновая обработка финальной фразы хоста.
+        Запускается как отдельная задача, НЕ блокирует handle_results.
+        """
+        try:
+            source_lang = final_result.language
+
+            # Перевод + TTS + рассылка гостям (возвращает dict переводов)
+            translations = await _process_room_speech(room, final_result, speaker_guest_id=None)
+
+            # Отправляем хосту переводы (чтобы он видел что получили гости)
+            if translations:
+                for lang, translated in translations.items():
+                    await ws.send_json({
+                        "type": "translation",
+                        "text": translated,
+                        "lang_from": source_lang,
+                        "lang_to": lang,
+                    })
+            else:
+                await ws.send_json({
+                    "type": "translation",
+                    "text": final_result.text,
+                    "lang_from": source_lang,
+                    "lang_to": source_lang,
+                    "note": "same_language",
+                })
+        except Exception as e:
+            if "disconnect" not in str(e).lower():
+                logger.error(f"Host _process_final error: {e}")
+
+    _bg_tasks_host = set()  # prevent garbage collection
+
     async def handle_results():
         while True:
             try:
@@ -578,34 +612,10 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                 })
 
                 if result.is_final and result.text.strip():
-                    source_lang = result.language
-
-                    await _process_room_speech(room, result, speaker_guest_id=None)
-
-                    target_langs = set()
-                    for gid, p in room.participants.items():
-                        if p.state != ParticipantState.MUTED and p.language != source_lang:
-                            target_langs.add(p.language)
-
-                    if target_langs:
-                        translations = await translator.translate_parallel(
-                            result.text, source_lang, list(target_langs),
-                        )
-                        for lang, translated in translations.items():
-                            await ws.send_json({
-                                "type": "translation",
-                                "text": translated,
-                                "lang_from": source_lang,
-                                "lang_to": lang,
-                            })
-                    else:
-                        await ws.send_json({
-                            "type": "translation",
-                            "text": result.text,
-                            "lang_from": source_lang,
-                            "lang_to": source_lang,
-                            "note": "same_language",
-                        })
+                    # НЕ БЛОКИРУЕМ — запускаем перевод+TTS+broadcast в фоне
+                    task = asyncio.create_task(_host_process_final(result))
+                    _bg_tasks_host.add(task)
+                    task.add_done_callback(_bg_tasks_host.discard)
 
             except Exception as e:
                 if "disconnect" in str(e).lower():
@@ -692,6 +702,9 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
     finally:
         result_task.cancel()
         billing_tasks[0].cancel()
+        # Отменяем фоновые задачи перевода/TTS
+        for t in _bg_tasks_host:
+            t.cancel()
         try:
             await result_task
         except (asyncio.CancelledError, Exception):
@@ -725,6 +738,40 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
     dg = DeepgramTranscriber()
     guest_speaking = False
 
+    async def _guest_process_final(final_result: TranscriptResult):
+        """
+        Фоновая обработка финальной фразы гостя.
+        Запускается как отдельная задача, НЕ блокирует handle_results.
+        """
+        try:
+            # 1. Перевод + TTS + рассылка хосту и другим гостям
+            translations = await _process_room_speech(room, final_result, speaker_guest_id=guest_id)
+
+            # 2. Отправляем говорящему гостю перевод на язык хоста (фидбек)
+            target_lang = room.host_language
+            translated = translations.get(target_lang)
+            if not translated and target_lang != final_result.language:
+                # Перевод на язык хоста не был в _process_room_speech
+                # (это бывает когда нет других гостей с этим языком)
+                translated = await asyncio.to_thread(
+                    translator.translate,
+                    final_result.text, final_result.language, target_lang,
+                )
+            elif not translated:
+                translated = final_result.text
+
+            await ws.send_json({
+                "type": "translation",
+                "text": translated,
+                "lang_from": final_result.language,
+                "lang_to": target_lang,
+            })
+        except Exception as e:
+            if "disconnect" not in str(e).lower():
+                logger.error(f"Guest _process_final error: {e}")
+
+    _background_tasks = set()  # prevent garbage collection of fire-and-forget tasks
+
     async def handle_results():
         while True:
             try:
@@ -746,22 +793,10 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                 })
 
                 if result.is_final and result.text.strip():
-                    await _process_room_speech(room, result, speaker_guest_id=guest_id)
-
-                    target_lang = room.host_language
-                    if target_lang != result.language:
-                        translated = await asyncio.to_thread(
-                            translator.translate,
-                            result.text, result.language, target_lang,
-                        )
-                    else:
-                        translated = result.text
-                    await ws.send_json({
-                        "type": "translation",
-                        "text": translated,
-                        "lang_from": result.language,
-                        "lang_to": target_lang,
-                    })
+                    # НЕ БЛОКИРУЕМ — запускаем перевод+TTS+broadcast в фоне
+                    task = asyncio.create_task(_guest_process_final(result))
+                    _background_tasks.add(task)
+                    task.add_done_callback(_background_tasks.discard)
 
             except Exception as e:
                 if "disconnect" in str(e).lower():
@@ -770,6 +805,8 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                 # Не виходимо — продовжуємо чекати наступний результат
 
     result_task = asyncio.create_task(handle_results())
+
+    _audio_chunk_count = 0
 
     try:
         while True:
@@ -796,13 +833,16 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                         f"🎤 [GUEST DEBUG] Запуск Deepgram для '{participant.display_name}' "
                         f"(lang={participant.language}, guest_speaking={guest_speaking}, dg.is_active={dg.is_active})"
                     )
+                    _audio_chunk_count = 0
                     await dg.start(participant.language)
                     guest_speaking = True
 
-                logger.debug(
-                    f"🎵 [GUEST DEBUG] Аудио → Deepgram: {chunk_size} байт, "
-                    f"dg.is_active={dg.is_active}, ws.state={ws.client_state}"
-                )
+                _audio_chunk_count += 1
+                if _audio_chunk_count % 100 == 1:
+                    logger.info(
+                        f"🎵 [GUEST] Аудио чанк #{_audio_chunk_count} от '{participant.display_name}' "
+                        f"({chunk_size} байт)"
+                    )
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
@@ -845,6 +885,9 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
             await room_manager.leave_room(room_id, guest_id)
     finally:
         result_task.cancel()
+        # Отменяем фоновые задачи перевода/TTS
+        for t in _background_tasks:
+            t.cancel()
         try:
             await result_task
         except (asyncio.CancelledError, Exception):
@@ -859,7 +902,10 @@ async def _process_room_speech(
     room,
     result: TranscriptResult,
     speaker_guest_id: str | None,
-):
+) -> dict[str, str]:
+    """
+    Перевод + TTS + broadcast. Возвращает dict {lang: translated_text}.
+    """
     source_lang = result.language
     target_langs = set()
 
@@ -883,7 +929,7 @@ async def _process_room_speech(
             audio_chunks={},
             speaker_guest_id=speaker_guest_id,
         )
-        return
+        return {}
 
     translations = await translator.translate_parallel(
         result.text, source_lang, list(target_langs),
@@ -903,6 +949,8 @@ async def _process_room_speech(
         f"📢 Комната '{room.room_id}': "
         f"'{result.text[:40]}...' → {len(translations)} переводов"
     )
+
+    return translations
 
 
 # ===========================================================================

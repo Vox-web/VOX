@@ -918,9 +918,10 @@
     }
 
     function handleAudioMsg(data) {
+        if (myState === 'speaking') return;  // НЕ играть TTS пока говоришь!
         const prefix = new TextDecoder().decode(new Uint8Array(data, 0, 6));
         if (prefix === 'AUDIO:') playAudio(data.slice(6));
-    }
+}
 
     // =================================================================
     // Hand raise
