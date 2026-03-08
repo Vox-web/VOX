@@ -139,13 +139,9 @@ def _pick_client_sample_rate(meta: dict | None, default: int = 16000) -> int:
 
 
 def _log_guest_trace(participant_name: str, room_code: str, stage: str, **fields):
-    extra = " ".join(f"{k}={v!r}" for k, v in fields.items())
-    logger.info(
-        f"🧭 [GUEST TRACE] room={room_code} guest={participant_name!r} stage={stage} {extra}"
-    )
     payload = " ".join(f"{k}={fields[k]!r}" for k in sorted(fields))
     logger.info(
-        f"🧭 [GUEST TRACE] room={room_id} guest={participant_name!r} stage={stage}"
+        f"🧭 [GUEST TRACE] room={room_code} guest={participant_name!r} stage={stage}"
         + (f" {payload}" if payload else "")
     )
 
@@ -911,7 +907,19 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                     continue
 
                 if action == "client_log":
-                    _log_guest_trace(participant.display_name, room_id, f"client::{msg.get('event', 'unknown')}", client_state=msg.get('state'), client_ts=msg.get('client_ts'), **(msg.get('data') or {}))
+                    client_data = dict(msg.get("data") or {})
+                    client_data.pop("room_id", None)
+                    client_data.pop("guest_id", None)
+                    client_data.pop("stage", None)
+
+                    _log_guest_trace(
+                        participant.display_name,
+                        room_id,
+                        f"client::{msg.get('event', 'unknown')}",
+                        client_state=msg.get('state'),
+                        client_ts=msg.get('client_ts'),
+                        **client_data,
+                    )
                     continue
 
                 _log_guest_trace(participant.display_name, room_id, 'client_action', action=action, msg_type=msg_type, keys=sorted(list(msg.keys())))
