@@ -733,6 +733,10 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                 break
 
             try:
+                logger.info(
+                    f"📝 [GUEST DEBUG] Deepgram результат '{participant.display_name}': "
+                    f"is_final={result.is_final} lang={result.language} text='{result.text[:50]}'"
+                )
                 await ws.send_json({
                     "type": "transcript",
                     "text": result.text,
@@ -775,16 +779,30 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                 break
 
             if "bytes" in message and message["bytes"]:
+                chunk_size = len(message["bytes"])
                 if participant.state != ParticipantState.SPEAKING:
+                    logger.warning(
+                        f"🚫 [GUEST DEBUG] Аудио от '{participant.display_name}' проигнорировано — "
+                        f"state={participant.state} (ожидается SPEAKING). "
+                        f"Байт: {chunk_size}. guest_speaking={guest_speaking}"
+                    )
                     if guest_speaking:
                         await dg.stop()
                         guest_speaking = False
                     continue
 
                 if not guest_speaking or not dg.is_active:
+                    logger.info(
+                        f"🎤 [GUEST DEBUG] Запуск Deepgram для '{participant.display_name}' "
+                        f"(lang={participant.language}, guest_speaking={guest_speaking}, dg.is_active={dg.is_active})"
+                    )
                     await dg.start(participant.language)
                     guest_speaking = True
 
+                logger.debug(
+                    f"🎵 [GUEST DEBUG] Аудио → Deepgram: {chunk_size} байт, "
+                    f"dg.is_active={dg.is_active}, ws.state={ws.client_state}"
+                )
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
