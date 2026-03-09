@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>VOX — Documentation</title>
+<title>VOX — Посібник користувача та правила конфіденційних даних ЄС</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙</text></svg>"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&display=swap"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --bg:#09080f;
-  --bg2:#0d0b16;
+  --bg2:#110e1c;
   --surface:#15121f;
   --surface2:#1e1930;
   --surface3:#241f36;
@@ -22,841 +22,576 @@
   --text3:#5e5880;
   --accent:#7c6aff;
   --accent2:#a594ff;
-  --accent3:#bfb3ff;
-  --accent-dim:rgba(124,106,255,.10);
-  --accent-glow:rgba(124,106,255,.30);
+  --accent-dim:rgba(124,106,255,.12);
+  --accent-glow:rgba(124,106,255,.35);
   --green:#2dd4a0;
   --green-dim:rgba(45,212,160,.12);
   --yellow:#f0c050;
-  --yellow-dim:rgba(240,192,80,.10);
+  --yellow-dim:rgba(240,192,80,.12);
   --red:#ff5f7e;
   --radius:16px;
-  --radius-sm:10px;
-  --max-w:860px;
 }
 html{scroll-behavior:smooth}
 body{
-  font-family:'DM Sans',system-ui,sans-serif;
+  font-family:'DM Sans',sans-serif;
   background:var(--bg);
   color:var(--text);
   min-height:100vh;
   overflow-x:hidden;
-  line-height:1.7;
-  font-size:15px;
 }
+a{color:inherit}
 
-/* ── Ambient blobs ── */
-.ambient{position:fixed;pointer-events:none;z-index:0}
-.ambient-1{width:800px;height:800px;top:-300px;left:-200px;background:radial-gradient(circle,rgba(124,106,255,.13) 0%,transparent 60%)}
-.ambient-2{width:600px;height:600px;bottom:-200px;right:-150px;background:radial-gradient(circle,rgba(160,100,255,.09) 0%,transparent 60%)}
-
-/* ── Top bar ── */
-.topbar{
-  position:sticky;top:0;z-index:100;
-  background:rgba(9,8,15,.85);
-  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  border-bottom:1px solid var(--border);
-  padding:0 24px;
+.mesh-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.mesh-bg::before{
+  content:'';position:absolute;width:900px;height:900px;top:-250px;left:-200px;
+  background:radial-gradient(circle,rgba(124,106,255,.18) 0%,transparent 65%);
+  animation:pulse1 8s ease-in-out infinite alternate;
 }
-.topbar-inner{
-  max-width:var(--max-w);margin:0 auto;
+.mesh-bg::after{
+  content:'';position:absolute;width:700px;height:700px;bottom:-200px;right:-150px;
+  background:radial-gradient(circle,rgba(160,100,255,.14) 0%,transparent 65%);
+  animation:pulse1 10s ease-in-out 2s infinite alternate;
+}
+@keyframes pulse1{from{transform:scale(1) rotate(0deg)}to{transform:scale(1.15) rotate(12deg)}}
+
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  padding:0 24px;height:64px;
   display:flex;align-items:center;justify-content:space-between;
-  height:56px;
+  background:rgba(9,8,15,.72);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
 }
-.topbar-logo{
-  font-family:'Syne',sans-serif;font-weight:800;font-size:20px;
-  color:var(--accent);letter-spacing:4px;text-decoration:none;
+.nav-logo{
+  font-family:'Syne',sans-serif;font-size:22px;font-weight:800;
+  color:var(--accent);letter-spacing:5px;text-decoration:none;
 }
-.topbar-logo:hover{color:var(--accent2)}
-.topbar-right{display:flex;align-items:center;gap:6px}
-
-.lang-btn{
-  background:transparent;border:1px solid transparent;color:var(--text3);
-  font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;
-  padding:5px 12px;border-radius:8px;cursor:pointer;
-  transition:all .2s;letter-spacing:.5px;
-}
-.lang-btn:hover{color:var(--text2);border-color:var(--border2)}
-.lang-btn.active{color:var(--accent2);border-color:var(--accent);background:var(--accent-dim)}
-
+.nav-right{display:flex;align-items:center;gap:10px;min-width:0}
 .back-link{
-  color:var(--text3);text-decoration:none;font-size:13px;
-  display:flex;align-items:center;gap:5px;margin-right:16px;
-  transition:color .2s;
+  border:1px solid var(--border2);background:transparent;color:var(--text2);
+  font-size:13px;font-weight:500;text-decoration:none;padding:8px 14px;border-radius:10px;
+  transition:all .25s;white-space:nowrap;
 }
-.back-link:hover{color:var(--accent2)}
-
-/* ── Main ── */
-.main{
-  position:relative;z-index:1;
-  max-width:var(--max-w);margin:0 auto;
-  padding:48px 24px 80px;
+.back-link:hover{border-color:var(--accent);color:var(--accent2)}
+.lang-switch{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;gap:2px}
+.lang-btn{
+  border:none;background:transparent;color:var(--text3);
+  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;
+  padding:5px 10px;border-radius:7px;cursor:pointer;transition:all .25s;
 }
+.lang-btn:hover{color:var(--text2)}
+.lang-btn.active{color:#fff;background:var(--accent);box-shadow:0 2px 12px var(--accent-glow)}
 
-/* ── Hero ── */
-.hero{text-align:center;margin-bottom:64px}
+main{position:relative;z-index:1}
+.section{padding:92px 24px}
+.container{max-width:1100px;margin:0 auto}
+.hero{min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding-top:110px}
+.hero .container{max-width:980px}
 .hero-badge{
   display:inline-flex;align-items:center;gap:8px;
-  background:var(--accent-dim);border:1px solid rgba(124,106,255,.25);
-  color:var(--accent2);font-size:12px;font-weight:600;
-  padding:6px 18px;border-radius:99px;margin-bottom:24px;
-  letter-spacing:.5px;text-transform:uppercase;
+  background:var(--accent-dim);border:1px solid rgba(124,106,255,.3);
+  color:var(--accent2);font-size:13px;font-weight:600;
+  padding:8px 16px;border-radius:99px;margin-bottom:28px;
 }
 .hero h1{
-  font-family:'Syne',sans-serif;font-weight:800;
-  font-size:clamp(32px,5vw,48px);line-height:1.15;
-  margin-bottom:16px;
-  background:linear-gradient(135deg,var(--text) 40%,var(--accent2));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  background-clip:text;
+  font-family:'Syne',sans-serif;font-size:clamp(42px,7vw,84px);font-weight:800;
+  line-height:1.02;letter-spacing:-2px;margin-bottom:18px;white-space:pre-line;
 }
-.hero-sub{
-  color:var(--text2);font-size:17px;line-height:1.7;max-width:600px;margin:0 auto;
+.hero h1 .accent{background:linear-gradient(135deg,var(--accent) 0%,#c084fc 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub{max-width:820px;margin:0 auto 22px;color:var(--text2);font-size:18px;line-height:1.7}
+.hero-note{
+  max-width:820px;margin:0 auto 36px;padding:16px 18px;
+  background:rgba(255,255,255,.03);border:1px solid var(--border);
+  border-radius:16px;color:var(--text2);font-size:14px;line-height:1.7;
 }
-
-/* ── Section ── */
-.section{margin-bottom:56px}
-.section-label{
-  font-family:'Syne',sans-serif;font-weight:700;font-size:11px;
-  color:var(--accent);letter-spacing:3px;text-transform:uppercase;
-  margin-bottom:10px;
-}
-.section h2{
-  font-family:'Syne',sans-serif;font-weight:700;font-size:26px;
-  margin-bottom:16px;line-height:1.3;
-}
-.section p{color:var(--text2);margin-bottom:14px}
-
-/* ── Cards grid ── */
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:20px}
-.card{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);padding:28px 24px;
-  transition:border-color .25s, transform .25s;
-}
-.card:hover{border-color:var(--border2);transform:translateY(-2px)}
-.card-icon{font-size:28px;margin-bottom:14px}
-.card h3{
-  font-family:'Syne',sans-serif;font-weight:700;font-size:16px;
-  margin-bottom:8px;
-}
-.card p{color:var(--text2);font-size:14px;line-height:1.6;margin:0}
-
-/* ── Pipeline diagram ── */
-.pipeline{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);padding:32px 28px;margin-top:20px;
-  overflow-x:auto;
-}
-.pipe-step{
-  display:flex;align-items:flex-start;gap:16px;
-  margin-bottom:20px;position:relative;
-  padding-left:36px;
-}
-.pipe-step:last-child{margin-bottom:0}
-.pipe-step::before{
-  content:'';position:absolute;left:13px;top:28px;bottom:-20px;
-  width:1px;background:var(--border2);
-}
-.pipe-step:last-child::before{display:none}
-.pipe-dot{
-  position:absolute;left:6px;top:6px;
-  width:16px;height:16px;border-radius:50%;
-  background:var(--accent-dim);border:2px solid var(--accent);
-  flex-shrink:0;
-}
-.pipe-step .pipe-name{
-  font-family:'Syne',sans-serif;font-weight:600;font-size:14px;
-  color:var(--accent2);margin-bottom:3px;
-}
-.pipe-step .pipe-desc{color:var(--text2);font-size:13px;line-height:1.5}
-.pipe-step .pipe-time{
-  display:inline-block;
-  background:var(--green-dim);color:var(--green);
-  font-size:11px;font-weight:600;padding:2px 8px;
-  border-radius:6px;margin-left:8px;
-}
-
-/* ── Languages grid ── */
-.langs{
-  display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;
-}
-.lang-tag{
-  background:var(--surface2);border:1px solid var(--border);
-  color:var(--text2);font-size:13px;padding:6px 14px;
-  border-radius:8px;display:flex;align-items:center;gap:6px;
-}
-.lang-tag .flag{font-size:16px}
-
-/* ── Pricing ── */
-.price-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:20px}
-.price-card{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);padding:24px;text-align:center;
-}
-.price-card.highlight{border-color:var(--accent);box-shadow:0 0 30px var(--accent-dim)}
-.price-amount{
-  font-family:'Syne',sans-serif;font-weight:800;font-size:28px;
-  color:var(--text);margin-bottom:4px;
-}
-.price-unit{color:var(--text3);font-size:13px;margin-bottom:12px}
-.price-desc{color:var(--text2);font-size:13px;line-height:1.5}
-.price-badge{
-  display:inline-block;background:var(--green-dim);color:var(--green);
-  font-size:11px;font-weight:600;padding:3px 10px;border-radius:6px;
-  margin-top:10px;
-}
-
-/* ── API table ── */
-.api-table{margin-top:16px;overflow-x:auto}
-.api-table table{width:100%;border-collapse:collapse;font-size:13px}
-.api-table th{
-  text-align:left;padding:10px 14px;
-  background:var(--surface2);color:var(--text2);
-  font-weight:600;font-size:12px;letter-spacing:.5px;
-  text-transform:uppercase;border-bottom:1px solid var(--border);
-}
-.api-table td{
-  padding:10px 14px;border-bottom:1px solid var(--border);
-  color:var(--text2);vertical-align:top;
-}
-.api-table tr:hover td{background:var(--surface)}
-.api-method{
-  display:inline-block;font-family:'DM Sans',monospace;font-weight:600;
-  font-size:11px;padding:2px 8px;border-radius:4px;letter-spacing:.5px;
-}
-.api-method.get{background:var(--green-dim);color:var(--green)}
-.api-method.post{background:rgba(100,140,255,.12);color:#7ca0ff}
-.api-method.ws{background:var(--yellow-dim);color:var(--yellow)}
-.api-method.del{background:rgba(255,95,126,.1);color:var(--red)}
-.api-path{font-family:'DM Sans',monospace;color:var(--text);font-size:13px}
-
-/* ── CTA ── */
-.cta-section{
-  text-align:center;padding:48px 32px;
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:20px;margin-top:56px;
-}
-.cta-section h2{
-  font-family:'Syne',sans-serif;font-weight:800;font-size:28px;
-  margin-bottom:12px;
-}
-.cta-section p{color:var(--text2);margin-bottom:28px;font-size:16px}
-.cta-btn{
-  display:inline-flex;align-items:center;gap:8px;
-  background:var(--accent);color:#fff;
+.hero-cta{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:26px}
+.btn-primary,.btn-secondary{
   font-family:'DM Sans',sans-serif;font-size:16px;font-weight:600;
-  padding:14px 36px;border-radius:14px;border:none;
-  cursor:pointer;text-decoration:none;
-  box-shadow:0 6px 24px var(--accent-glow);
+  padding:14px 28px;border-radius:14px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;
   transition:all .25s;
 }
-.cta-btn:hover{background:var(--accent2);transform:translateY(-2px)}
+.btn-primary{background:var(--accent);color:#fff;box-shadow:0 8px 32px var(--accent-glow)}
+.btn-primary:hover{background:var(--accent2);transform:translateY(-2px)}
+.btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border2)}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent2);transform:translateY(-2px)}
 
-/* ── Footer ── */
-.footer{
-  text-align:center;padding:32px 24px;
-  color:var(--text3);font-size:12px;
-  border-top:1px solid var(--border);
-  margin-top:64px;
+.anchor-row{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+.anchor-pill{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:10px 16px;border-radius:999px;text-decoration:none;
+  background:rgba(255,255,255,.03);border:1px solid var(--border);
+  color:var(--text2);font-size:14px;transition:all .25s;
 }
-.footer a{color:var(--text3);text-decoration:none}
-.footer a:hover{color:var(--accent2)}
+.anchor-pill:hover{border-color:var(--accent);color:var(--accent2);transform:translateY(-1px)}
 
-/* ── Responsive ── */
-@media(max-width:640px){
-  .topbar-inner{height:48px}
-  .main{padding:32px 16px 60px}
-  .hero{margin-bottom:48px}
-  .cards{grid-template-columns:1fr}
-  .price-grid{grid-template-columns:1fr}
-  .pipe-step{padding-left:32px}
-  .cta-section{padding:36px 20px}
+.section-head{text-align:center;margin-bottom:46px}
+.section-tag{
+  display:inline-block;background:var(--accent-dim);color:var(--accent2);
+  font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;
+  padding:6px 14px;border-radius:99px;border:1px solid rgba(124,106,255,.3);margin-bottom:18px;
+}
+.section-title{
+  font-family:'Syne',sans-serif;font-size:clamp(30px,5vw,54px);font-weight:800;
+  line-height:1.08;letter-spacing:-1px;margin-bottom:16px;white-space:pre-line;
+}
+.section-desc{max-width:760px;margin:0 auto;color:var(--text2);font-size:17px;line-height:1.7}
+
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px;
+  transition:all .3s;position:relative;overflow:hidden;
+}
+.card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0;transition:opacity .25s;
+}
+.card:hover{border-color:rgba(124,106,255,.45);transform:translateY(-4px)}
+.card:hover::before{opacity:1}
+.card-icon{font-size:34px;margin-bottom:18px;display:block}
+.card h3{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:10px}
+.card p{color:var(--text2);font-size:15px;line-height:1.7}
+
+.steps-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+.step-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px}
+.step-num{
+  width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:var(--accent);color:#fff;font-family:'Syne',sans-serif;font-size:18px;font-weight:800;
+  box-shadow:0 8px 24px var(--accent-glow);margin-bottom:18px;
+}
+.step-card h3{font-family:'Syne',sans-serif;font-size:19px;font-weight:700;margin-bottom:10px}
+.step-card p{color:var(--text2);font-size:15px;line-height:1.7}
+
+.timeline{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;
+}
+.timeline-item{
+  background:linear-gradient(135deg,var(--surface) 0%,var(--surface2) 100%);
+  border:1px solid rgba(124,106,255,.22);border-radius:20px;padding:24px;
+}
+.timeline-item h3{font-family:'Syne',sans-serif;font-size:18px;margin-bottom:10px}
+.timeline-item p{color:var(--text2);font-size:15px;line-height:1.7}
+
+.price-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+.price-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px;text-align:center;
+}
+.price-card.highlight{border-color:var(--accent);box-shadow:0 0 26px rgba(124,106,255,.14)}
+.price-amount{font-family:'Syne',sans-serif;font-size:42px;font-weight:800;margin-bottom:6px}
+.price-unit{color:var(--text3);font-size:14px;margin-bottom:14px}
+.price-desc{color:var(--text2);font-size:15px;line-height:1.7}
+.price-badge{
+  display:inline-block;margin-top:14px;background:var(--green-dim);border:1px solid rgba(45,212,160,.25);
+  color:var(--green);font-size:12px;font-weight:700;padding:5px 10px;border-radius:999px;
 }
 
-/* ── Animations ── */
+.notice{
+  margin:0 auto 28px;max-width:920px;padding:18px 20px;border-radius:18px;
+  background:rgba(240,192,80,.08);border:1px solid rgba(240,192,80,.2);
+  color:#e7d8a3;line-height:1.7;font-size:14px;
+}
+.notice strong{color:#fff}
+
+.table-wrap{
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;overflow:hidden;
+  box-shadow:0 10px 30px rgba(0,0,0,.18);
+}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:860px}
+th,td{padding:18px 18px;vertical-align:top;text-align:left}
+thead th{
+  background:var(--surface2);color:var(--accent2);font-size:12px;letter-spacing:1px;text-transform:uppercase;
+  border-bottom:1px solid var(--border);
+}
+tbody tr{border-bottom:1px solid var(--border)}
+tbody tr:last-child{border-bottom:none}
+tbody td{color:var(--text2);font-size:14px;line-height:1.7}
+tbody td:first-child{color:var(--text);font-weight:600;width:24%}
+
+.sources-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.source-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:22px;
+  display:flex;flex-direction:column;gap:12px;
+}
+.source-card h3{font-size:17px;line-height:1.45}
+.source-card p{color:var(--text2);font-size:14px;line-height:1.7}
+.source-link{color:var(--accent2);text-decoration:none;font-weight:600;font-size:14px}
+.source-link:hover{text-decoration:underline}
+.sources-block{margin-top:28px}
+
+.cta-section{
+  background:linear-gradient(135deg,rgba(124,106,255,.15) 0%,rgba(160,100,255,.1) 100%);
+  border-top:1px solid rgba(124,106,255,.2);border-bottom:1px solid rgba(124,106,255,.2);
+  text-align:center;
+}
+.cta-card{
+  max-width:920px;margin:0 auto;background:rgba(9,8,15,.22);border:1px solid rgba(124,106,255,.22);
+  border-radius:24px;padding:42px 28px;
+}
+.cta-card .section-title{margin-bottom:12px}
+.cta-card .section-desc{margin-bottom:28px}
+
+footer{background:var(--bg2);border-top:1px solid var(--border);padding:48px 24px 32px;position:relative;z-index:1}
+.footer-inner{max-width:1100px;margin:0 auto;display:flex;flex-wrap:wrap;gap:32px;justify-content:space-between;align-items:flex-start}
+.footer-logo{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--accent);letter-spacing:5px;margin-bottom:8px}
+.footer-tagline{color:var(--text3);font-size:14px}
+.footer-links{display:flex;flex-direction:column;gap:10px}
+.footer-links a{color:var(--text2);font-size:14px;text-decoration:none;transition:color .2s}
+.footer-links a:hover{color:var(--accent2)}
+.footer-bottom{max-width:1100px;margin:32px auto 0;padding-top:24px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;color:var(--text3);font-size:13px}
+
+.fade-up{animation:fadeUp .6s ease both}
 @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-.hero,.section,.cta-section{animation:fadeUp .6s ease both}
-.section:nth-child(2){animation-delay:.1s}
-.section:nth-child(3){animation-delay:.15s}
-.section:nth-child(4){animation-delay:.2s}
+
+@media(max-width:900px){
+  nav{padding:0 14px}
+  .back-link{display:none}
+}
+@media(max-width:640px){
+  .section{padding:72px 16px}
+  .hero{padding-top:90px}
+  .hero-note{font-size:13px}
+  .btn-primary,.btn-secondary{width:100%;justify-content:center}
+  .anchor-row{gap:8px}
+  .anchor-pill{font-size:13px;padding:9px 12px}
+  .cards-grid,.steps-grid,.price-grid,.timeline,.sources-grid{grid-template-columns:1fr}
+  .nav-logo{letter-spacing:3px;font-size:19px}
+  .lang-btn{padding:4px 7px;font-size:11px}
+}
 </style>
 </head>
 <body>
+<div class="mesh-bg"></div>
 
-<div class="ambient ambient-1"></div>
-<div class="ambient ambient-2"></div>
-
-<!-- ─── Top Bar ─── -->
-<nav class="topbar">
-  <div class="topbar-inner">
-    <a href="/" class="topbar-logo">VOX</a>
-    <div class="topbar-right">
-      <a href="/" class="back-link" id="backLink">← <span data-i18n="back">Назад</span></a>
-      <button class="lang-btn active" onclick="setLang('uk')">UA</button>
-      <button class="lang-btn" onclick="setLang('en')">EN</button>
-      <button class="lang-btn" onclick="setLang('de')">DE</button>
+<nav>
+  <a href="/" class="nav-logo">VOX</a>
+  <div class="nav-right">
+    <a href="/" class="back-link" data-i18n="nav_back">Назад на головну</a>
+    <div class="lang-switch">
+      <button class="lang-btn active" data-lang="uk">UA</button>
+      <button class="lang-btn" data-lang="en">EN</button>
+      <button class="lang-btn" data-lang="de">DE</button>
     </div>
   </div>
 </nav>
 
-<!-- ─── Main Content ─── -->
-<main class="main">
+<main>
+  <section class="hero section fade-up">
+    <div class="container">
+      <div class="hero-badge" data-i18n="hero_badge"></div>
+      <h1 id="heroTitle"></h1>
+      <p class="hero-sub" data-i18n="hero_sub"></p>
+      <div class="hero-note"><strong id="noticeStrong"></strong><span id="heroNoteText"></span></div>
+      <div class="hero-cta">
+        <a href="#start" class="btn-primary" data-i18n="hero_cta_start"></a>
+        <a href="#privacy" class="btn-secondary" data-i18n="hero_cta_privacy"></a>
+      </div>
+      <div class="anchor-row" id="anchorRow"></div>
+    </div>
+  </section>
 
-  <!-- Hero -->
-  <div class="hero">
-    <div class="hero-badge">📖 <span data-i18n="badge">Документація</span></div>
-    <h1 data-i18n="hero_title">Синхронний AI-переклад у реальному часі</h1>
-    <p class="hero-sub" data-i18n="hero_sub">VOX перетворює ваш смартфон на професійного синхронного перекладача. 15 мов, затримка ~1 секунда, учасникам потрібен лише браузер.</p>
-  </div>
+  <section class="section fade-up" id="overview">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-tag" data-i18n="overview_label"></div>
+        <h2 class="section-title" data-i18n="overview_title"></h2>
+        <p class="section-desc" data-i18n="overview_desc"></p>
+      </div>
+      <div class="cards-grid" id="overviewGrid"></div>
+    </div>
+  </section>
 
-  <!-- ─── How It Works ─── -->
-  <div class="section">
-    <div class="section-label" data-i18n="section_how">Як це працює</div>
-    <h2 data-i18n="how_title">Від голосу до перекладу за 1 секунду</h2>
-    <p data-i18n="how_desc">VOX використовує конвеєр з трьох AI-сервісів, які працюють паралельно. Затримка не залежить від кількості мов — всі переклади йдуть одночасно.</p>
+  <section class="section fade-up" id="start">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-tag" data-i18n="start_label"></div>
+        <h2 class="section-title" data-i18n="start_title"></h2>
+        <p class="section-desc" data-i18n="start_desc"></p>
+      </div>
+      <div class="steps-grid" id="startGrid"></div>
+    </div>
+  </section>
 
-    <div class="pipeline">
-      <div class="pipe-step">
-        <div class="pipe-dot"></div>
-        <div>
-          <div class="pipe-name">Deepgram Nova-2 <span class="pipe-time">~300ms</span></div>
-          <div class="pipe-desc" data-i18n="pipe_stt">Потокова транскрипція мовлення. Текст з'являється по мірі того, як ви говорите. Вбудований VAD, розділові знаки, 98%+ точність.</div>
+  <section class="section fade-up" id="modes">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-tag" data-i18n="modes_label"></div>
+        <h2 class="section-title" data-i18n="modes_title"></h2>
+        <p class="section-desc" data-i18n="modes_desc"></p>
+      </div>
+      <div class="cards-grid" id="modesGrid"></div>
+    </div>
+  </section>
+
+  <section class="section fade-up" id="flow">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-tag" data-i18n="flow_label"></div>
+        <h2 class="section-title" data-i18n="flow_title"></h2>
+        <p class="section-desc" data-i18n="flow_desc"></p>
+      </div>
+      <div class="timeline" id="flowGrid"></div>
+    </div>
+  </section>
+
+  <section class="section fade-up" id="pricing">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-tag" data-i18n="pricing_label"></div>
+        <h2 class="section-title" data-i18n="pricing_title"></h2>
+        <p class="section-desc" data-i18n="pricing_desc"></p>
+      </div>
+      <div class="price-grid" id="pricingGrid"></div>
+    </div>
+  </section>
+
+  <section class="section fade-up" id="privacy">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-tag" data-i18n="privacy_label"></div>
+        <h2 class="section-title" data-i18n="privacy_title"></h2>
+        <p class="section-desc" data-i18n="privacy_desc"></p>
+      </div>
+      <div class="notice"><strong id="privacyNoticeTitle"></strong> <span id="privacyNoticeText"></span></div>
+      <div class="cards-grid" id="privacyGrid"></div>
+    </div>
+  </section>
+
+  <section class="section fade-up" id="matrix">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-tag" data-i18n="matrix_label"></div>
+        <h2 class="section-title" data-i18n="matrix_title"></h2>
+        <p class="section-desc" data-i18n="matrix_desc"></p>
+      </div>
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table>
+            <thead><tr id="matrixHeadRow"></tr></thead>
+            <tbody id="matrixBody"></tbody>
+          </table>
         </div>
       </div>
-      <div class="pipe-step">
-        <div class="pipe-dot"></div>
-        <div>
-          <div class="pipe-name">GPT-4o-mini <span class="pipe-time">~700ms</span></div>
-          <div class="pipe-desc" data-i18n="pipe_translate">Контекстний переклад з урахуванням попередніх фраз. Промпт враховує помилки розпізнавання і відновлює сенс. Паралельний переклад на N мов одночасно.</div>
+    </div>
+  </section>
+
+  <section class="section fade-up" id="rights">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-tag" data-i18n="rights_label"></div>
+        <h2 class="section-title" data-i18n="rights_title"></h2>
+        <p class="section-desc" data-i18n="rights_desc"></p>
+      </div>
+      <div class="cards-grid" id="rightsGrid"></div>
+    </div>
+  </section>
+
+  <section class="section fade-up" id="sources">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-tag" data-i18n="sources_label"></div>
+        <h2 class="section-title" data-i18n="sources_title"></h2>
+        <p class="section-desc" data-i18n="sources_desc"></p>
+      </div>
+
+      <div class="sources-block">
+        <div class="section-head" style="margin-bottom:24px">
+          <div class="section-tag" data-i18n="sources_official_title"></div>
         </div>
+        <div class="sources-grid" id="officialSources"></div>
       </div>
-      <div class="pipe-step">
-        <div class="pipe-dot"></div>
-        <div>
-          <div class="pipe-name">edge-tts <span class="pipe-time">~300ms</span></div>
-          <div class="pipe-desc" data-i18n="pipe_tts">Синтез мовлення на цільовій мові. Основний рушій безкоштовний (Microsoft). Автоматичний fallback на OpenAI TTS при збоях.</div>
+
+      <div class="sources-block">
+        <div class="section-head" style="margin-bottom:24px">
+          <div class="section-tag" data-i18n="sources_industry_title"></div>
         </div>
+        <div class="sources-grid" id="industrySources"></div>
+      </div>
+
+      <div class="notice" style="margin-top:24px"><span data-i18n="source_notes"></span></div>
+    </div>
+  </section>
+
+  <section class="section cta-section fade-up">
+    <div class="cta-card">
+      <div class="section-tag" data-i18n="cta_tag"></div>
+      <h2 class="section-title" data-i18n="cta_title"></h2>
+      <p class="section-desc" data-i18n="cta_desc"></p>
+      <div class="hero-cta" style="margin-bottom:0">
+        <a href="/" class="btn-primary" data-i18n="cta_primary"></a>
+        <a href="/" class="btn-secondary" data-i18n="cta_secondary"></a>
       </div>
     </div>
-  </div>
-
-  <!-- ─── Modes ─── -->
-  <div class="section">
-    <div class="section-label" data-i18n="section_modes">Режими</div>
-    <h2 data-i18n="modes_title">Solo та Room — два способи перекладу</h2>
-
-    <div class="cards">
-      <div class="card">
-        <div class="card-icon">🎧</div>
-        <h3 data-i18n="solo_title">Solo — персональний</h3>
-        <p data-i18n="solo_desc">Один мікрофон, один слухач. Оберіть мову джерела та перекладу, натисніть «Слухати» — і чуйте переклад у навушниках у реальному часі. Антиехо-система запобігає зацикленню.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">🌐</div>
-        <h3 data-i18n="room_title">Room — мультимовна кімната</h3>
-        <p data-i18n="room_desc">Хост створює кімнату → QR-код → учасники сканують → кожен обирає свою мову → чує переклад. Хост керує: дає слово, вимикає, відключає. Один спікер у кожен момент.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">✋</div>
-        <h3 data-i18n="handraise_title">Протокол «Піднята рука»</h3>
-        <p data-i18n="handraise_desc">Учасник натискає «Хочу сказати» → хост бачить запит → дозволяє або відхиляє. При дозволі мікрофон активується, голос перекладається для всіх.</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─── Features ─── -->
-  <div class="section">
-    <div class="section-label" data-i18n="section_features">Можливості</div>
-    <h2 data-i18n="features_title">Що робить VOX особливим</h2>
-
-    <div class="cards">
-      <div class="card">
-        <div class="card-icon">⚡</div>
-        <h3 data-i18n="feat_speed_title">Швидкість</h3>
-        <p data-i18n="feat_speed_desc">Затримка ~1 секунда. Проміжні результати з'являються миттєво, поки ви ще говорите.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">🔗</div>
-        <h3 data-i18n="feat_noapp_title">Без додатку</h3>
-        <p data-i18n="feat_noapp_desc">Учасникам не потрібно нічого встановлювати. Сканують QR-код → відкривають сторінку в браузері → готово.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">🎯</div>
-        <h3 data-i18n="feat_context_title">Контекстний переклад</h3>
-        <p data-i18n="feat_context_desc">AI враховує попередні 5 фраз розмови для точнішого перекладу. Автоматично виправляє помилки розпізнавання.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">🎛️</div>
-        <h3 data-i18n="feat_control_title">Повний контроль</h3>
-        <p data-i18n="feat_control_desc">Хост керує всім: дає/забирає слово, вимикає звук, відключає учасників. Як дирижер оркестру.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">🔊</div>
-        <h3 data-i18n="feat_speaker_title">Speaker Tracking</h3>
-        <p data-i18n="feat_speaker_desc">Всі бачать хто зараз говорить. Історія розмови з іменами спікерів і часовими мітками.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">💳</div>
-        <h3 data-i18n="feat_billing_title">Прозора тарифікація</h3>
-        <p data-i18n="feat_billing_desc">Поповнення через Stripe. Попередження за 2 хвилини до вичерпання балансу. $3 бонус за верифікацію email.</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─── Languages ─── -->
-  <div class="section">
-    <div class="section-label" data-i18n="section_langs">Мови</div>
-    <h2 data-i18n="langs_title">15 мов підтримуються</h2>
-    <p data-i18n="langs_desc">Кожна мова має власний голос для синтезу мовлення. Всі переклади у кімнаті відбуваються паралельно.</p>
-    <div class="langs">
-      <span class="lang-tag"><span class="flag">🇺🇦</span> Українська</span>
-      <span class="lang-tag"><span class="flag">🇷🇺</span> Русский</span>
-      <span class="lang-tag"><span class="flag">🇬🇧</span> English</span>
-      <span class="lang-tag"><span class="flag">🇩🇪</span> Deutsch</span>
-      <span class="lang-tag"><span class="flag">🇵🇱</span> Polski</span>
-      <span class="lang-tag"><span class="flag">🇫🇷</span> Français</span>
-      <span class="lang-tag"><span class="flag">🇨🇳</span> 中文</span>
-      <span class="lang-tag"><span class="flag">🇪🇸</span> Español</span>
-      <span class="lang-tag"><span class="flag">🇮🇹</span> Italiano</span>
-      <span class="lang-tag"><span class="flag">🇧🇷</span> Português</span>
-      <span class="lang-tag"><span class="flag">🇯🇵</span> 日本語</span>
-      <span class="lang-tag"><span class="flag">🇰🇷</span> 한국어</span>
-      <span class="lang-tag"><span class="flag">🇸🇦</span> العربية</span>
-      <span class="lang-tag"><span class="flag">🇹🇷</span> Türkçe</span>
-      <span class="lang-tag"><span class="flag">🇮🇳</span> हिन्दी</span>
-    </div>
-  </div>
-
-  <!-- ─── Pricing ─── -->
-  <div class="section">
-    <div class="section-label" data-i18n="section_pricing">Тарифи</div>
-    <h2 data-i18n="pricing_title">Проста і прозора тарифікація</h2>
-    <p data-i18n="pricing_desc">Оплата за хвилину використання. Без підписок, без прихованих платежів.</p>
-
-    <div class="price-grid">
-      <div class="price-card">
-        <div class="price-amount">$0.05</div>
-        <div class="price-unit" data-i18n="price_solo_unit">/ хвилина</div>
-        <div class="price-desc" data-i18n="price_solo_desc">Solo — персональний переклад. Один спікер, один слухач.</div>
-      </div>
-      <div class="price-card">
-        <div class="price-amount">$0.05 × N</div>
-        <div class="price-unit" data-i18n="price_room_unit">/ хвилина × гостей</div>
-        <div class="price-desc" data-i18n="price_room_desc">Room — мультимовна кімната. N = кількість гостей у кімнаті.</div>
-      </div>
-      <div class="price-card highlight">
-        <div class="price-amount">$3</div>
-        <div class="price-unit" data-i18n="price_bonus_unit">бонус</div>
-        <div class="price-desc" data-i18n="price_bonus_desc">Зареєструйтесь і підтвердіть email — отримаєте $3 на баланс. Це ~60 хвилин Solo-перекладу.</div>
-        <div class="price-badge" data-i18n="price_bonus_badge">Безкоштовний старт</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─── API ─── -->
-  <div class="section">
-    <div class="section-label" data-i18n="section_api">API</div>
-    <h2 data-i18n="api_title">WebSocket та REST API</h2>
-    <p data-i18n="api_desc">VOX працює через WebSocket для аудіо-потоку та REST API для управління. Нижче — основні ендпоінти.</p>
-
-    <div class="api-table">
-      <table>
-        <thead>
-          <tr>
-            <th data-i18n="api_col_method">Метод</th>
-            <th data-i18n="api_col_endpoint">Ендпоінт</th>
-            <th data-i18n="api_col_desc">Опис</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><span class="api-method ws">WS</span></td>
-            <td class="api-path">/ws/solo</td>
-            <td data-i18n="api_ws_solo">Solo-режим: аудіо → транскрипція → переклад → TTS</td>
-          </tr>
-          <tr>
-            <td><span class="api-method ws">WS</span></td>
-            <td class="api-path">/ws/room/{id}/host</td>
-            <td data-i18n="api_ws_host">Хост кімнати: аудіо + управління учасниками</td>
-          </tr>
-          <tr>
-            <td><span class="api-method ws">WS</span></td>
-            <td class="api-path">/ws/room/{id}/guest/{gid}</td>
-            <td data-i18n="api_ws_guest">Гість кімнати: отримує переклад, може говорити при дозволі</td>
-          </tr>
-          <tr>
-            <td><span class="api-method post">POST</span></td>
-            <td class="api-path">/room/create</td>
-            <td data-i18n="api_room_create">Створити кімнату → room_id + QR-код</td>
-          </tr>
-          <tr>
-            <td><span class="api-method post">POST</span></td>
-            <td class="api-path">/room/{id}/join</td>
-            <td data-i18n="api_room_join">Приєднатися до кімнати</td>
-          </tr>
-          <tr>
-            <td><span class="api-method post">POST</span></td>
-            <td class="api-path">/api/register</td>
-            <td data-i18n="api_register">Реєстрація нового користувача</td>
-          </tr>
-          <tr>
-            <td><span class="api-method post">POST</span></td>
-            <td class="api-path">/api/login</td>
-            <td data-i18n="api_login">Авторизація → session token</td>
-          </tr>
-          <tr>
-            <td><span class="api-method get">GET</span></td>
-            <td class="api-path">/api/balance</td>
-            <td data-i18n="api_balance">Поточний баланс користувача</td>
-          </tr>
-          <tr>
-            <td><span class="api-method post">POST</span></td>
-            <td class="api-path">/api/create-checkout</td>
-            <td data-i18n="api_checkout">Створити Stripe Checkout Session</td>
-          </tr>
-          <tr>
-            <td><span class="api-method get">GET</span></td>
-            <td class="api-path">/api/reviews/public</td>
-            <td data-i18n="api_reviews">Публічні відгуки</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- ─── Tech Stack ─── -->
-  <div class="section">
-    <div class="section-label" data-i18n="section_tech">Технології</div>
-    <h2 data-i18n="tech_title">Побудовано на</h2>
-
-    <div class="cards">
-      <div class="card">
-        <div class="card-icon">🐍</div>
-        <h3>FastAPI + Uvicorn</h3>
-        <p data-i18n="tech_fastapi">Асинхронний Python-сервер. WebSocket + REST API. Розгортання на Railway.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">🎤</div>
-        <h3>Deepgram Nova-2</h3>
-        <p data-i18n="tech_deepgram">Streaming STT з проміжними результатами. Точність 98%+, вбудований VAD, ~300мс затримка.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">🧠</div>
-        <h3>GPT-4o-mini</h3>
-        <p data-i18n="tech_gpt">Контекстний переклад з rolling history. ASR-aware промпт, що враховує помилки розпізнавання.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">🔊</div>
-        <h3>edge-tts + OpenAI TTS</h3>
-        <p data-i18n="tech_tts">Безкоштовний Microsoft TTS як основний рушій. OpenAI TTS tts-1 як автоматичний fallback.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">💳</div>
-        <h3>Stripe</h3>
-        <p data-i18n="tech_stripe">Checkout Sessions для поповнення балансу. Webhooks для автоматичного зарахування коштів.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">🌐</div>
-        <h3>Web Audio API</h3>
-        <p data-i18n="tech_webaudio">AudioWorklet для захоплення мікрофона. Web Audio API для відтворення TTS. Без фреймворків.</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─── CTA ─── -->
-  <div class="cta-section">
-    <h2 data-i18n="cta_title">Готові спробувати?</h2>
-    <p data-i18n="cta_desc">Зареєструйтесь, отримайте $3 бонусу і почніть перекладати прямо зараз.</p>
-    <a href="/host" class="cta-btn" data-i18n="cta_btn">🎙 Почати переклад</a>
-  </div>
-
+  </section>
 </main>
 
-<!-- ─── Footer ─── -->
-<footer class="footer">
-  <div data-i18n="footer">© 2026 VOX AI Translation. Частина екосистеми: <a href="#">AURA</a> · <a href="#">ATHENA</a> · <a href="#">VOX</a></div>
+<footer>
+  <div class="footer-inner">
+    <div>
+      <div class="footer-logo">VOX</div>
+      <p class="footer-tagline" data-i18n="footer_tag"></p>
+    </div>
+    <div>
+      <p style="font-weight:600;margin-bottom:12px;font-size:14px" data-i18n="footer_product"></p>
+      <div class="footer-links">
+        <a href="/host" data-i18n="footer_host"></a>
+        <a href="/#features" data-i18n="footer_features"></a>
+        <a href="/docs" data-i18n="footer_docs"></a>
+      </div>
+    </div>
+    <div>
+      <p style="font-weight:600;margin-bottom:12px;font-size:14px" data-i18n="footer_support"></p>
+      <div class="footer-links">
+        <a href="/docs" data-i18n="footer_docs"></a>
+        <a href="mailto:privacy@your-domain.com" data-i18n="footer_contact"></a>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 VOX. <span data-i18n="footer_rights"></span></span>
+    <span data-i18n="footer_made"></span>
+  </div>
 </footer>
 
 <script>
-// ─── i18n data ───────────────────────────────────────────
-const I18N = {
-  uk: {
-    back: 'Назад',
-    badge: 'Документація',
-    hero_title: 'Синхронний AI-переклад\nу реальному часі',
-    hero_sub: 'VOX перетворює ваш смартфон на професійного синхронного перекладача. 15 мов, затримка ~1 секунда, учасникам потрібен лише браузер.',
-    section_how: 'Як це працює',
-    how_title: 'Від голосу до перекладу за 1 секунду',
-    how_desc: 'VOX використовує конвеєр з трьох AI-сервісів, які працюють паралельно. Затримка не залежить від кількості мов — всі переклади йдуть одночасно.',
-    pipe_stt: 'Потокова транскрипція мовлення. Текст з\'являється по мірі того, як ви говорите. Вбудований VAD, розділові знаки, 98%+ точність.',
-    pipe_translate: 'Контекстний переклад з урахуванням попередніх фраз. Промпт враховує помилки розпізнавання і відновлює сенс. Паралельний переклад на N мов одночасно.',
-    pipe_tts: 'Синтез мовлення на цільовій мові. Основний рушій безкоштовний (Microsoft). Автоматичний fallback на OpenAI TTS при збоях.',
-    section_modes: 'Режими',
-    modes_title: 'Solo та Room — два способи перекладу',
-    solo_title: 'Solo — персональний',
-    solo_desc: 'Один мікрофон, один слухач. Оберіть мову джерела та перекладу, натисніть «Слухати» — і чуйте переклад у навушниках у реальному часі. Антиехо-система запобігає зацикленню.',
-    room_title: 'Room — мультимовна кімната',
-    room_desc: 'Хост створює кімнату → QR-код → учасники сканують → кожен обирає свою мову → чує переклад. Хост керує: дає слово, вимикає, відключає. Один спікер у кожен момент.',
-    handraise_title: 'Протокол «Піднята рука»',
-    handraise_desc: 'Учасник натискає «Хочу сказати» → хост бачить запит → дозволяє або відхиляє. При дозволі мікрофон активується, голос перекладається для всіх.',
-    section_features: 'Можливості',
-    features_title: 'Що робить VOX особливим',
-    feat_speed_title: 'Швидкість',
-    feat_speed_desc: 'Затримка ~1 секунда. Проміжні результати з\'являються миттєво, поки ви ще говорите.',
-    feat_noapp_title: 'Без додатку',
-    feat_noapp_desc: 'Учасникам не потрібно нічого встановлювати. Сканують QR-код → відкривають сторінку в браузері → готово.',
-    feat_context_title: 'Контекстний переклад',
-    feat_context_desc: 'AI враховує попередні 5 фраз розмови для точнішого перекладу. Автоматично виправляє помилки розпізнавання.',
-    feat_control_title: 'Повний контроль',
-    feat_control_desc: 'Хост керує всім: дає/забирає слово, вимикає звук, відключає учасників. Як дирижер оркестру.',
-    feat_speaker_title: 'Speaker Tracking',
-    feat_speaker_desc: 'Всі бачать хто зараз говорить. Історія розмови з іменами спікерів і часовими мітками.',
-    feat_billing_title: 'Прозора тарифікація',
-    feat_billing_desc: 'Поповнення через Stripe. Попередження за 2 хвилини до вичерпання балансу. $3 бонус за верифікацію email.',
-    section_langs: 'Мови',
-    langs_title: '15 мов підтримуються',
-    langs_desc: 'Кожна мова має власний голос для синтезу мовлення. Всі переклади у кімнаті відбуваються паралельно.',
-    section_pricing: 'Тарифи',
-    pricing_title: 'Проста і прозора тарифікація',
-    pricing_desc: 'Оплата за хвилину використання. Без підписок, без прихованих платежів.',
-    price_solo_unit: '/ хвилина',
-    price_solo_desc: 'Solo — персональний переклад. Один спікер, один слухач.',
-    price_room_unit: '/ хвилина × гостей',
-    price_room_desc: 'Room — мультимовна кімната. N = кількість гостей у кімнаті.',
-    price_bonus_unit: 'бонус',
-    price_bonus_desc: 'Зареєструйтесь і підтвердіть email — отримаєте $3 на баланс. Це ~60 хвилин Solo-перекладу.',
-    price_bonus_badge: 'Безкоштовний старт',
-    section_api: 'API',
-    api_title: 'WebSocket та REST API',
-    api_desc: 'VOX працює через WebSocket для аудіо-потоку та REST API для управління. Нижче — основні ендпоінти.',
-    api_col_method: 'Метод',
-    api_col_endpoint: 'Ендпоінт',
-    api_col_desc: 'Опис',
-    api_ws_solo: 'Solo-режим: аудіо → транскрипція → переклад → TTS',
-    api_ws_host: 'Хост кімнати: аудіо + управління учасниками',
-    api_ws_guest: 'Гість кімнати: отримує переклад, може говорити при дозволі',
-    api_room_create: 'Створити кімнату → room_id + QR-код',
-    api_room_join: 'Приєднатися до кімнати',
-    api_register: 'Реєстрація нового користувача',
-    api_login: 'Авторизація → session token',
-    api_balance: 'Поточний баланс користувача',
-    api_checkout: 'Створити Stripe Checkout Session',
-    api_reviews: 'Публічні відгуки',
-    section_tech: 'Технології',
-    tech_title: 'Побудовано на',
-    tech_fastapi: 'Асинхронний Python-сервер. WebSocket + REST API. Розгортання на Railway.',
-    tech_deepgram: 'Streaming STT з проміжними результатами. Точність 98%+, вбудований VAD, ~300мс затримка.',
-    tech_gpt: 'Контекстний переклад з rolling history. ASR-aware промпт, що враховує помилки розпізнавання.',
-    tech_tts: 'Безкоштовний Microsoft TTS як основний рушій. OpenAI TTS tts-1 як автоматичний fallback.',
-    tech_stripe: 'Checkout Sessions для поповнення балансу. Webhooks для автоматичного зарахування коштів.',
-    tech_webaudio: 'AudioWorklet для захоплення мікрофона. Web Audio API для відтворення TTS. Без фреймворків.',
-    cta_title: 'Готові спробувати?',
-    cta_desc: 'Зареєструйтесь, отримайте $3 бонусу і почніть перекладати прямо зараз.',
-    cta_btn: '🎙 Почати переклад',
-    footer: '© 2026 VOX AI Translation. Частина екосистеми: <a href="#">AURA</a> · <a href="#">ATHENA</a> · <a href="#">VOX</a>',
-  },
+const CONTENT = {"uk": {"lang_code": "uk", "page_title": "VOX — Посібник користувача та правила конфіденційних даних ЄС", "nav_back": "Назад на головну", "hero_badge": "Посібник користувача · Конфіденційність · EU-ready", "hero_title": "VOX: інструкція для користувача\nта правила роботи з конфіденційними даними", "hero_sub": "Одна сторінка для користувача: як почати роботу з VOX, як проводити переклад у Solo та Room, як поповнювати баланс, а також як оформити правила обробки персональних і конфіденційних даних за стандартами ЄС.", "hero_note": "Практичний гайд + шаблон політики. Перед продакшн-публікацією замініть контакти, строки зберігання та перелік підрядників на фактичні.", "hero_cta_start": "До початку роботи", "hero_cta_privacy": "До правил ЄС", "anchors": [["start", "Старт"], ["modes", "Режими"], ["privacy", "Дані ЄС"], ["sources", "Джерела"]], "overview_label": "Що на сторінці", "overview_title": "Все, що потрібно користувачу — без Swagger і технічного шуму", "overview_desc": "Нижче — людська документація замість API-списку: що натискати, як запускати кімнату, як підключати гостей та які правила застосовувати до голосу, транскриптів і платіжних даних.", "overview_cards": [{"icon": "🚀", "title": "Швидкий старт", "text": "Реєстрація → підтвердження email → бонус $3 → перехід у VOX Host → запуск перекладу."}, {"icon": "🌐", "title": "Без додатку для гостей", "text": "Гості підключаються через браузер за QR-кодом або посиланням і обирають свою мову."}, {"icon": "🛡️", "title": "EU-ready правила", "text": "Окремий розділ нижче пояснює принципи GDPR: прозорість, мінімізацію, строки зберігання, права осіб, безпеку та міжнародні передачі."}], "start_label": "Початок роботи", "start_title": "Почніть за кілька хвилин", "start_desc": "Це базовий сценарій для нового користувача. Точні назви кнопок можуть трохи відрізнятися залежно від версії інтерфейсу, але логіка роботи лишається такою самою.", "start_steps": [{"num": "1", "title": "Створіть акаунт", "text": "На головній сторінці натисніть кнопку реєстрації, введіть email, ім'я та пароль."}, {"num": "2", "title": "Підтвердьте email", "text": "Після верифікації email сервіс нараховує стартовий бонус $3 на баланс."}, {"num": "3", "title": "Перевірте баланс", "text": "У профілі та дашборді відображається поточний баланс і приблизна кількість хвилин перекладу."}, {"num": "4", "title": "Відкрийте VOX Host", "text": "Перейдіть у хост-панель, оберіть режим роботи та мови перекладу."}], "modes_label": "Режими використання", "modes_title": "Як користуватися VOX у реальному сценарії", "modes_desc": "VOX підходить як для персонального використання, так і для багатомовних зустрічей. Нижче — коротко по кожному режиму.", "modes_cards": [{"icon": "🎧", "title": "Solo", "text": "Один спікер і один слухач. Оберіть мову джерела та мову перекладу, натисніть запуск і слухайте переклад майже в реальному часі."}, {"icon": "🏠", "title": "Room / Host", "text": "Хост створює кімнату, показує QR-код або надсилає посилання, контролює право голосу, мікрофони та склад учасників."}, {"icon": "🙋", "title": "Guest", "text": "Гість входить у кімнату з браузера, обирає свою мову, слухає переклад і може запросити право говорити через сценарій «піднята рука»."}], "flow_label": "Практичний сценарій", "flow_title": "Рекомендований порядок роботи під час зустрічі", "flow_desc": "Цей блок підходить для публічної інструкції користувача, який вперше проводить мультимовну сесію.", "flow_items": [{"title": "1. Перед початком", "text": "Переконайтеся, що мікрофон дозволено в браузері, а навушники підключені, якщо потрібно уникнути ехо."}, {"title": "2. Створення кімнати", "text": "У VOX Host створіть кімнату, задайте мову спікера та мови аудиторії, відкрийте QR-код або посилання для гостей."}, {"title": "3. Підключення гостей", "text": "Гості сканують QR-код, відкривають сторінку, обирають свою мову та чекають дозволу хоста, якщо їм потрібно говорити."}, {"title": "4. Модерація", "text": "Хост керує чергою виступів: дозволяє говорити, вимикає звук, завершує доступ або відключає учасника за потреби."}, {"title": "5. Завершення", "text": "Після завершення сесії закрийте кімнату, перегляньте баланс і за потреби поповніть його через Stripe Checkout."}], "pricing_label": "Баланс і тарифікація", "pricing_title": "Що користувач має знати про оплату", "pricing_desc": "У поточній документації проєкту вказано модель pay-as-you-go: без підписки, з оплатою за хвилину використання.", "pricing_cards": [{"amount": "$3", "unit": "стартовий бонус", "desc": "Нараховується після підтвердження email. Це хороший спосіб протестувати сервіс без додаткових витрат.", "badge": "Після верифікації"}, {"amount": "$0.05", "unit": "за хвилину", "desc": "Базова ставка для Solo-сценарію — персонального перекладу один-на-один.", "badge": "Solo"}, {"amount": "$0.05 × N", "unit": "за хвилину × гостей", "desc": "Для кімнати вартість масштабується на кількість гостей, які отримують переклад одночасно.", "badge": "Room"}], "privacy_label": "Конфіденційні дані та ЄС", "privacy_title": "Правила використання конфіденційних і персональних даних", "privacy_desc": "Нижче — практичний шаблон правил для VOX, складений за структурою, яку використовують зрілі SaaS/AI-сервіси: що саме обробляється, навіщо, на якій правовій підставі, як довго зберігається, хто має доступ і які права має користувач.", "privacy_notice_title": "Важливо", "privacy_notice_text": "Це не індивідуальна юридична консультація. Це робоча основа для сторінки «Privacy / Confidential Data Rules» під стандарти ЄС. Перед публікацією замініть шаблонні контакти, фактичні строки зберігання, перелік субпроцесорів і налаштування міжнародних передач.", "privacy_cards": [{"icon": "👤", "title": "Хто є контролером/процесором", "text": "У типовому B2B-сценарії компанія, що проводить зустріч, визначає цілі та засоби обробки контенту зустрічі й виступає контролером. Платформа VOX та інтегровані провайдери можуть виступати процесорами або субпроцесорами — це має бути зафіксовано в договорі та DPA."}, {"icon": "📦", "title": "Які дані можуть оброблятися", "text": "Дані акаунта (ім'я, email, пароль/хеш), платіжні дані та транзакційні метадані, технічні логи, аудіо мовлення, транскрипти, налаштування мови, дані підтримки та журнали безпеки."}, {"icon": "⚖️", "title": "Правові підстави", "text": "Зазвичай: виконання договору для акаунта, білінгу та основної функціональності; законний інтерес для захисту сервісу й антифроду; згода — для маркетингових повідомлень або коли вона реально потрібна; для спеціальних категорій даних потрібна окрема підстава за ст. 9 GDPR."}, {"icon": "🎯", "title": "Мінімізація та цільове обмеження", "text": "Збирайте лише те, що дійсно потрібно для перекладу. Не використовуйте аудіо, транскрипти або чати для інших цілей без окремого прозорого повідомлення та належної правової підстави."}, {"icon": "🔐", "title": "Безпека", "text": "Доступ за принципом least privilege, MFA для адміністраторів, шифрування під час передачі, журналювання доступу, розмежування ролей, регулярний перегляд прав, ізоляція середовищ і процедур видалення."}, {"icon": "🌍", "title": "Передачі за межі ЄЕЗ", "text": "Якщо інфраструктура або підрядники розташовані поза ЄЕЗ, потрібен механізм передачі: рішення про адекватність або SCC плюс оцінка ризиків трансферу та додаткові технічні/організаційні заходи."}], "matrix_label": "Операційні правила", "matrix_title": "Матриця допустимого використання даних у VOX", "matrix_desc": "Цей блок зручно залишати на сторінці користувача або в окремому policy-документі. Він описує не абстрактні принципи, а прикладні правила для щоденного використання.", "matrix_headers": ["Дія / дані", "Правило", "Що зробити на практиці"], "matrix_rows": [["Реєстрація, логін, баланс, платежі", "Дозволено як базова функціональність сервісу.", "Надайте privacy notice, договір користувача, безпечне зберігання хешів, обмеження доступу та бухгалтерське зберігання там, де це вимагає закон."], ["Живе аудіо для перекладу", "Дозволено, якщо це потрібно для надання послуги та учасники належно поінформовані.", "До початку сесії покажіть notice: що транслюється, хто отримує переклад, чи створюються транскрипти, як довго вони зберігаються."], ["Транскрипти та записи", "Зберігайте лише якщо це справді потрібно бізнесу або користувачу.", "За замовчуванням — найкоротший строк або вимкнене довготривале зберігання. Дайте адміну керування retention-періодом та видаленням."], ["Спеціальні категорії даних: здоров'я, біометрія для ідентифікації, політичні чи релігійні погляди тощо", "За замовчуванням — не рекомендується.", "Якщо без цього не можна, потрібна не лише підстава за ст. 6 GDPR, а й окрема умова за ст. 9 GDPR, плюс посилені обмеження доступу та часто DPIA."], ["Підтримка та ручний доступ співробітників", "Лише за принципом need-to-know, мінімально та з журналюванням.", "Оберіть політику: доступ за тикетом, авторизація клієнта, логування кожного випадку, часові обмеження, NDA для персоналу."], ["Навчання моделей на контенті клієнта", "Не робіть це мовчки та «за замовчуванням».", "Якщо така опція взагалі існує, її треба явно описати, відокремити від основної послуги та забезпечити належну правову підставу; для B2B найкраща практика — opt-out/disabled by default або повна відмова."], ["Неповнолітні та дитячі дані", "Підвищений ризик.", "Якщо сервіс використовуватиметься в освіті або для неповнолітніх, перевірте вікові пороги згоди у відповідній країні та додайте окремі повідомлення."], ["Передачі даних поза ЄЕЗ", "Допустимо лише з належним механізмом передачі.", "Задокументуйте локації хостингу, підрядників, SCC/adequacy та додаткові гарантії; відобразіть це в privacy notice і DPA."]], "rights_label": "Права осіб та інциденти", "rights_title": "Що потрібно написати користувачу про його права", "rights_desc": "Цей розділ варто залишити у фінальній публічній документації майже без змін, лише замінивши контакти на фактичні.", "rights_cards": [{"icon": "📬", "title": "Права суб'єкта даних", "text": "Користувач повинен мати змогу запросити доступ, виправлення, видалення, обмеження обробки, перенесення даних, заперечення та інформацію про обробку. Канал звернення: [privacy@your-domain.com]."}, {"icon": "⏱️", "title": "Строк відповіді", "text": "На запити щодо прав слід відповідати без невиправданої затримки та, як правило, не пізніше одного місяця. Якщо запит складний, строк може бути подовжений ще максимум на два місяці з повідомленням причин."}, {"icon": "🚨", "title": "Порушення безпеки", "text": "Якщо стався витік або інший інцидент із персональними даними, контролер має оцінити ризик, задокументувати інцидент, а коли це потрібно — повідомити наглядовий орган не пізніше 72 годин та окремо сповістити постраждалих осіб при високому ризику."}, {"icon": "🧭", "title": "DPIA та privacy by design", "text": "Якщо обробка ймовірно створює високий ризик — наприклад, масштабне використання чутливих даних або систематичний моніторинг — треба провести DPIA. За замовчуванням налаштування мають бути максимально приватними: мінімум даних, короткі строки зберігання, обмежений доступ."}], "sources_label": "Юридична база та бенчмарки", "sources_title": "На чому побудовано цей розділ", "sources_desc": "Структура нижче орієнтується на офіційні матеріали ЄС і на те, як зрілі сервіси комунікації/транскрипції описують доступ, зберігання, навчання моделей, retention і підтримку.", "sources_official_title": "Офіційні джерела ЄС", "sources_industry_title": "Як це структурують інші сервіси", "source_notes": "Рекомендація для продакшну: винесіть окремо Privacy Notice, DPA/Subprocessor List, Retention Policy та Incident Response Summary.", "cta_tag": "Готово до публікації", "cta_title": "Залишилося підставити ваші фактичні реквізити", "cta_desc": "Для продакшну замініть email для privacy-запитів, юридичну назву компанії, строки retention, список підрядників і посилання на DPA / Terms / Support.", "cta_primary": "Відкрити VOX", "cta_secondary": "Повернутися на головну", "footer_tag": "AI Real-Time Translation Platform", "footer_product": "Продукт", "footer_host": "Host панель", "footer_features": "Можливості", "footer_support": "Підтримка", "footer_docs": "Документація", "footer_contact": "Контакти", "footer_rights": "Всі права захищені.", "footer_made": "Зроблено ❤️ для багатомовного світу"}, "en": {"lang_code": "en", "page_title": "VOX — User Guide and EU Confidential Data Rules", "nav_back": "Back to home", "hero_badge": "User Guide · Privacy · EU-ready", "hero_title": "VOX: user guide\nand confidential-data rules", "hero_sub": "A single page for end users: how to start with VOX, how to run Solo and Room sessions, how to top up balance, and how to describe personal-data and confidential-data rules in line with EU expectations.", "hero_note": "Practical guide + policy template. Before publishing, replace the placeholder contacts, retention periods, and subcontractor list with your actual information.", "hero_cta_start": "Go to quick start", "hero_cta_privacy": "Go to EU rules", "anchors": [["start", "Start"], ["modes", "Modes"], ["privacy", "EU data"], ["sources", "Sources"]], "overview_label": "What is on this page", "overview_title": "Everything a user needs — no Swagger, no API noise", "overview_desc": "This replaces the technical endpoint list with human documentation: what to click, how to launch a room, how guests join, and what rules apply to voice, transcripts, and payment-related data.", "overview_cards": [{"icon": "🚀", "title": "Quick start", "text": "Register → verify email → receive a $3 bonus → open VOX Host → start translating."}, {"icon": "🌐", "title": "No app for guests", "text": "Guests join in a browser via QR code or link and simply choose their language."}, {"icon": "🛡️", "title": "EU-ready rules", "text": "A dedicated section below explains GDPR-oriented principles: transparency, minimisation, retention, data-subject rights, security, and international transfers."}], "start_label": "Getting started", "start_title": "Start in a few minutes", "start_desc": "This is the baseline path for a new user. Button labels may vary slightly by version, but the overall workflow stays the same.", "start_steps": [{"num": "1", "title": "Create an account", "text": "On the landing page, click sign up and enter your email, name, and password."}, {"num": "2", "title": "Verify your email", "text": "After email verification, the service adds a $3 starter bonus to the account balance."}, {"num": "3", "title": "Check your balance", "text": "Profile and dashboard areas show the current balance and an estimated number of translation minutes."}, {"num": "4", "title": "Open VOX Host", "text": "Go to the host panel, choose the working mode, and set the translation languages."}], "modes_label": "Usage modes", "modes_title": "How to use VOX in a real scenario", "modes_desc": "VOX works for personal translation and multilingual sessions. Here is the user-facing explanation of each mode.", "modes_cards": [{"icon": "🎧", "title": "Solo", "text": "One speaker and one listener. Choose source and target language, start the session, and hear the translated audio almost in real time."}, {"icon": "🏠", "title": "Room / Host", "text": "The host creates a room, shows a QR code or sends a link, and controls speaking permissions, microphones, and participants."}, {"icon": "🙋", "title": "Guest", "text": "A guest joins from a browser, selects a preferred language, listens to the translation, and can request speaking permission using a hand-raise style flow."}], "flow_label": "Practical workflow", "flow_title": "Recommended order during a live meeting", "flow_desc": "This block is suitable for a public end-user guide for someone running a multilingual session for the first time.", "flow_items": [{"title": "1. Before the session", "text": "Make sure browser microphone permission is allowed and headphones are connected if you want to avoid echo."}, {"title": "2. Create the room", "text": "In VOX Host, create a room, set the speaker language and audience languages, then open the QR code or guest link."}, {"title": "3. Let guests join", "text": "Guests scan the QR code, open the page, choose their language, and wait for the host if speaking permission is required."}, {"title": "4. Moderate the floor", "text": "The host manages the speaking queue: approves speaking, mutes, removes access, or disconnects a participant when needed."}, {"title": "5. Finish and review", "text": "After the session, close the room, review the balance, and top it up through Stripe Checkout if needed."}], "pricing_label": "Balance and pricing", "pricing_title": "What users should know about billing", "pricing_desc": "The current project documentation describes a pay-as-you-go model: no subscription, minute-based usage charging.", "pricing_cards": [{"amount": "$3", "unit": "starter bonus", "desc": "Added after email verification. A simple way to test the service without extra spend.", "badge": "After verification"}, {"amount": "$0.05", "unit": "per minute", "desc": "Base rate for the Solo scenario — personal one-to-one translation.", "badge": "Solo"}, {"amount": "$0.05 × N", "unit": "per minute × guests", "desc": "For room mode, the price scales with the number of guests receiving translation at the same time.", "badge": "Room"}], "privacy_label": "Confidential data and the EU", "privacy_title": "Rules for using confidential and personal data", "privacy_desc": "Below is a practical rule set for VOX, structured the way mature SaaS/AI services usually present privacy: what is processed, why, on which legal basis, for how long, who can access it, and what rights users have.", "privacy_notice_title": "Important", "privacy_notice_text": "This is not individual legal advice. It is a production-ready foundation for a VOX “Privacy / Confidential Data Rules” page aligned with EU expectations. Before publishing, replace placeholder contacts, real retention periods, subprocessor information, and international-transfer settings.", "privacy_cards": [{"icon": "👤", "title": "Who is controller / processor", "text": "In a typical B2B setup, the company running the meeting decides why and how meeting content is processed and therefore acts as controller. VOX and integrated providers may act as processors or subprocessors. This should be documented in the contract and DPA."}, {"icon": "📦", "title": "What data may be processed", "text": "Account data (name, email, password hash), payment-related data and transaction metadata, technical logs, live speech audio, transcripts, language settings, support data, and security logs."}, {"icon": "⚖️", "title": "Legal bases", "text": "Usually: contract performance for account, billing, and core functionality; legitimate interests for service protection and anti-fraud; consent for marketing or where consent is genuinely required; special-category data requires an additional Article 9 GDPR condition."}, {"icon": "🎯", "title": "Minimisation and purpose limitation", "text": "Collect only what is genuinely necessary for translation. Do not reuse audio, transcripts, or chat data for unrelated purposes without a clear notice and a valid legal basis."}, {"icon": "🔐", "title": "Security", "text": "Least-privilege access, MFA for admins, encryption in transit, access logging, role separation, regular access review, environment isolation, and reliable deletion procedures."}, {"icon": "🌍", "title": "Transfers outside the EEA", "text": "If infrastructure or vendors are outside the EEA, a transfer mechanism is needed: an adequacy decision or SCCs together with a transfer-risk assessment and supplementary measures where required."}], "matrix_label": "Operational rules", "matrix_title": "Allowed-use matrix for VOX data handling", "matrix_desc": "This block works well on a public user page or in a separate policy document. It turns abstract principles into operational rules for day-to-day usage.", "matrix_headers": ["Action / data", "Rule", "What to do in practice"], "matrix_rows": [["Registration, login, balance, payments", "Allowed as core service functionality.", "Provide a privacy notice, user terms, secure password-hash storage, strict access control, and statutory accounting retention where required."], ["Live audio for translation", "Allowed when necessary to provide the service and participants are properly informed.", "Before the session, show a notice explaining what is streamed, who receives the translation, whether transcripts are created, and how long they are stored."], ["Transcripts and recordings", "Store only if there is a real business or user need.", "Default to the shortest period possible or disable long-term storage by default. Give admins retention controls and deletion options."], ["Special-category data: health data, biometric data used for identification, political or religious views, etc.", "Not recommended by default.", "If unavoidable, you need not only an Article 6 GDPR basis but also an Article 9 GDPR condition, stronger access limits, and often a DPIA."], ["Support and human staff access", "Need-to-know only, minimal, and logged.", "Adopt a case-based support access policy: customer authorisation where feasible, event logging, time limits, and confidentiality obligations for staff."], ["Model training on customer content", "Do not do this silently or by default.", "If such an option exists at all, describe it explicitly, separate it from the core service, and rely on an appropriate legal basis; in B2B the best practice is opt-out / disabled by default or no training at all."], ["Minors and children’s data", "Higher-risk area.", "If the service will be used in education or with minors, check national age-of-consent rules and add dedicated notices and controls."], ["Transfers outside the EEA", "Allowed only with a valid transfer mechanism.", "Document hosting locations, vendors, SCCs / adequacy basis, and supplementary safeguards; reflect this in the privacy notice and DPA."]], "rights_label": "User rights and incidents", "rights_title": "What the user should be told about their rights", "rights_desc": "This section can stay almost unchanged in the final public documentation, apart from replacing placeholder contact details.", "rights_cards": [{"icon": "📬", "title": "Data-subject rights", "text": "Users should be able to request access, rectification, erasure, restriction, portability, objection, and information about the processing. Contact channel: [privacy@your-domain.com]."}, {"icon": "⏱️", "title": "Response time", "text": "Rights requests should be answered without undue delay and generally no later than one month. For complex requests, the period may be extended by up to two more months if the person is informed of the reason within the first month."}, {"icon": "🚨", "title": "Security incidents", "text": "If a personal-data breach occurs, the controller should assess the risk, document the incident, and where required notify the supervisory authority within 72 hours and inform affected individuals when the risk is high."}, {"icon": "🧭", "title": "DPIA and privacy by design", "text": "If the processing is likely to create high risk — for example large-scale sensitive data or systematic monitoring — a DPIA is required. Default settings should be privacy-protective: minimum data, short retention, restricted access."}], "sources_label": "Legal basis and benchmarks", "sources_title": "What this section is based on", "sources_desc": "The structure below follows official EU materials and the way mature communication / transcription services describe access, retention, model-training use, support access, and privacy controls.", "sources_official_title": "Official EU sources", "sources_industry_title": "How other services structure it", "source_notes": "Production recommendation: publish separate documents for the Privacy Notice, DPA/Subprocessor List, Retention Policy, and Incident Response Summary.", "cta_tag": "Ready to publish", "cta_title": "Now replace the placeholders with your real details", "cta_desc": "For production, replace the privacy email, legal entity name, retention periods, vendor list, and links to your DPA / Terms / Support pages.", "cta_primary": "Open VOX", "cta_secondary": "Back to home", "footer_tag": "AI Real-Time Translation Platform", "footer_product": "Product", "footer_host": "Host panel", "footer_features": "Features", "footer_support": "Support", "footer_docs": "Documentation", "footer_contact": "Contact", "footer_rights": "All rights reserved.", "footer_made": "Made with ❤️ for multilingual world"}, "de": {"lang_code": "de", "page_title": "VOX — Benutzerhandbuch und EU-Regeln für vertrauliche Daten", "nav_back": "Zurück zur Startseite", "hero_badge": "Benutzerhandbuch · Datenschutz · EU-ready", "hero_title": "VOX: Benutzerhandbuch\nund Regeln für vertrauliche Daten", "hero_sub": "Eine Seite für Endnutzer: wie man mit VOX startet, Solo- und Room-Sitzungen nutzt, Guthaben auflädt und Regeln für personenbezogene und vertrauliche Daten nach EU-Standards beschreibt.", "hero_note": "Praxisleitfaden + Policy-Vorlage. Vor der Veröffentlichung bitte Platzhalter für Kontakte, Aufbewahrungsfristen und Unterauftragsverarbeiter durch reale Angaben ersetzen.", "hero_cta_start": "Zum Schnellstart", "hero_cta_privacy": "Zu den EU-Regeln", "anchors": [["start", "Start"], ["modes", "Modi"], ["privacy", "EU-Daten"], ["sources", "Quellen"]], "overview_label": "Was diese Seite enthält", "overview_title": "Alles, was ein Nutzer braucht — ohne Swagger und API-Lärm", "overview_desc": "Diese Seite ersetzt die technische Endpunkt-Liste durch verständliche Dokumentation: was man anklickt, wie man einen Raum startet, wie Gäste beitreten und welche Regeln für Sprache, Transkripte und Zahlungsdaten gelten.", "overview_cards": [{"icon": "🚀", "title": "Schnellstart", "text": "Registrieren → E-Mail bestätigen → 3-$-Bonus erhalten → VOX Host öffnen → Übersetzung starten."}, {"icon": "🌐", "title": "Keine App für Gäste", "text": "Gäste treten per Browser über QR-Code oder Link bei und wählen einfach ihre Sprache."}, {"icon": "🛡️", "title": "EU-taugliche Regeln", "text": "Ein eigener Abschnitt unten erklärt GDPR-orientierte Prinzipien: Transparenz, Datenminimierung, Aufbewahrung, Betroffenenrechte, Sicherheit und internationale Übermittlungen."}], "start_label": "Erste Schritte", "start_title": "In wenigen Minuten loslegen", "start_desc": "Dies ist der Standardablauf für neue Nutzer. Die Bezeichnungen einzelner Buttons können je nach Version leicht variieren, die Logik bleibt aber gleich.", "start_steps": [{"num": "1", "title": "Konto anlegen", "text": "Auf der Startseite auf Registrieren klicken und E-Mail, Name und Passwort eingeben."}, {"num": "2", "title": "E-Mail bestätigen", "text": "Nach der E-Mail-Verifizierung wird dem Konto ein Startbonus von 3 $ gutgeschrieben."}, {"num": "3", "title": "Guthaben prüfen", "text": "Im Profil und im Dashboard werden das aktuelle Guthaben und die geschätzten Übersetzungsminuten angezeigt."}, {"num": "4", "title": "VOX Host öffnen", "text": "Zum Host-Panel wechseln, den Arbeitsmodus wählen und die Übersetzungssprachen festlegen."}], "modes_label": "Nutzungsmodi", "modes_title": "So wird VOX im echten Einsatz verwendet", "modes_desc": "VOX eignet sich für persönliche Übersetzung und für mehrsprachige Sitzungen. Hier ist die nutzerorientierte Erklärung der Modi.", "modes_cards": [{"icon": "🎧", "title": "Solo", "text": "Ein Sprecher und ein Zuhörer. Ausgangs- und Zielsprache wählen, Sitzung starten und die übersetzte Sprache nahezu in Echtzeit hören."}, {"icon": "🏠", "title": "Room / Host", "text": "Der Host erstellt einen Raum, zeigt einen QR-Code oder sendet einen Link und steuert Sprechrechte, Mikrofone und Teilnehmer."}, {"icon": "🙋", "title": "Gast", "text": "Ein Gast tritt per Browser bei, wählt eine bevorzugte Sprache, hört die Übersetzung und kann über einen Hand-raise-Ablauf um Sprechrecht bitten."}], "flow_label": "Praktischer Ablauf", "flow_title": "Empfohlene Reihenfolge während eines Live-Meetings", "flow_desc": "Dieser Block eignet sich als öffentliche Endnutzer-Anleitung für Personen, die erstmals eine mehrsprachige Sitzung moderieren.", "flow_items": [{"title": "1. Vor dem Start", "text": "Sicherstellen, dass das Mikrofon im Browser freigegeben ist und ggf. Kopfhörer verbunden sind, um Echo zu vermeiden."}, {"title": "2. Raum erstellen", "text": "In VOX Host einen Raum erstellen, Sprache des Sprechers und Zielsprachen festlegen und dann QR-Code oder Gast-Link öffnen."}, {"title": "3. Gäste beitreten lassen", "text": "Gäste scannen den QR-Code, öffnen die Seite, wählen ihre Sprache und warten auf Freigabe, falls Sprechrecht nötig ist."}, {"title": "4. Moderation", "text": "Der Host verwaltet die Wortmeldungen: Sprechen erlauben, stummschalten, Zugriff entziehen oder Teilnehmer trennen."}, {"title": "5. Sitzung beenden", "text": "Nach dem Meeting den Raum schließen, das Guthaben prüfen und bei Bedarf über Stripe Checkout aufladen."}], "pricing_label": "Guthaben und Abrechnung", "pricing_title": "Was Nutzer über die Bezahlung wissen sollten", "pricing_desc": "Die aktuelle Projektdokumentation beschreibt ein Pay-as-you-go-Modell: kein Abo, minutengenaue Abrechnung.", "pricing_cards": [{"amount": "$3", "unit": "Startbonus", "desc": "Wird nach der E-Mail-Bestätigung gutgeschrieben. Eine einfache Möglichkeit, den Dienst ohne Zusatzkosten zu testen.", "badge": "Nach Verifizierung"}, {"amount": "$0.05", "unit": "pro Minute", "desc": "Grundpreis für das Solo-Szenario — persönliche Eins-zu-eins-Übersetzung.", "badge": "Solo"}, {"amount": "$0.05 × N", "unit": "pro Minute × Gäste", "desc": "Im Room-Modus skaliert der Preis mit der Anzahl der Gäste, die gleichzeitig Übersetzungen empfangen.", "badge": "Room"}], "privacy_label": "Vertrauliche Daten und EU", "privacy_title": "Regeln für den Umgang mit vertraulichen und personenbezogenen Daten", "privacy_desc": "Unten finden Sie ein praxisnahes Regelwerk für VOX, aufgebaut so, wie reife SaaS/AI-Dienste Datenschutz typischerweise darstellen: was verarbeitet wird, warum, auf welcher Rechtsgrundlage, wie lange, wer Zugriff hat und welche Rechte Nutzer haben.", "privacy_notice_title": "Wichtig", "privacy_notice_text": "Dies ist keine individuelle Rechtsberatung. Es ist eine belastbare Grundlage für eine VOX-Seite „Privacy / Confidential Data Rules“ im Sinne der EU-Erwartungen. Vor Veröffentlichung bitte Platzhalter, reale Aufbewahrungsfristen, Subprozessoren und internationale Übermittlungsmechanismen ersetzen.", "privacy_cards": [{"icon": "👤", "title": "Wer ist Verantwortlicher / Auftragsverarbeiter", "text": "In einem typischen B2B-Setup entscheidet das Unternehmen, das das Meeting durchführt, über Zweck und Mittel der Verarbeitung des Meeting-Inhalts und ist damit Verantwortlicher. VOX und integrierte Anbieter können Auftragsverarbeiter oder Unterauftragsverarbeiter sein. Das sollte vertraglich und im DPA dokumentiert werden."}, {"icon": "📦", "title": "Welche Daten verarbeitet werden können", "text": "Kontodaten (Name, E-Mail, Passwort-Hash), zahlungsbezogene Daten und Transaktionsmetadaten, technische Logs, Live-Sprachaudio, Transkripte, Spracheinstellungen, Supportdaten und Sicherheitsprotokolle."}, {"icon": "⚖️", "title": "Rechtsgrundlagen", "text": "Typischerweise: Vertragserfüllung für Konto, Abrechnung und Kernfunktionalität; berechtigte Interessen für Schutz des Dienstes und Betrugsprävention; Einwilligung für Marketing oder wo Einwilligung wirklich erforderlich ist; bei besonderen Kategorien von Daten zusätzlich eine Voraussetzung nach Art. 9 DSGVO."}, {"icon": "🎯", "title": "Datenminimierung und Zweckbindung", "text": "Nur die Daten erheben, die wirklich für die Übersetzung erforderlich sind. Audio, Transkripte oder Chatdaten nicht für andere Zwecke wiederverwenden, ohne klare Information und gültige Rechtsgrundlage."}, {"icon": "🔐", "title": "Sicherheit", "text": "Least-Privilege-Zugriff, MFA für Admins, Verschlüsselung bei der Übertragung, Zugriffsprotokollierung, Rollentrennung, regelmäßige Überprüfung der Zugriffsrechte, Umgebungsisolation und verlässliche Löschprozesse."}, {"icon": "🌍", "title": "Übermittlungen außerhalb des EWR", "text": "Wenn Infrastruktur oder Anbieter außerhalb des EWR sitzen, ist ein Übermittlungsmechanismus erforderlich: Angemessenheitsbeschluss oder SCCs zusammen mit einer Transfer-Risiko-Bewertung und ggf. zusätzlichen Maßnahmen."}], "matrix_label": "Operative Regeln", "matrix_title": "Matrix für zulässige Datennutzung in VOX", "matrix_desc": "Dieser Block eignet sich gut für eine öffentliche Nutzerseite oder ein separates Policy-Dokument. Er macht aus abstrakten Grundsätzen konkrete Regeln für den täglichen Einsatz.", "matrix_headers": ["Vorgang / Daten", "Regel", "Praktische Umsetzung"], "matrix_rows": [["Registrierung, Login, Guthaben, Zahlungen", "Als Kernfunktion des Dienstes zulässig.", "Privacy Notice, Nutzungsbedingungen, sichere Speicherung von Passwort-Hashes, strenge Zugriffskontrollen und gesetzliche Aufbewahrung für Buchhaltungsdaten bereitstellen."], ["Live-Audio für Übersetzungen", "Zulässig, wenn es für die Leistungserbringung notwendig ist und die Teilnehmer ordnungsgemäß informiert werden.", "Vor der Sitzung einen Hinweis anzeigen: was gestreamt wird, wer die Übersetzung erhält, ob Transkripte erstellt werden und wie lange sie gespeichert werden."], ["Transkripte und Aufzeichnungen", "Nur speichern, wenn ein echter geschäftlicher oder nutzerbezogener Bedarf besteht.", "Standardmäßig möglichst kurze Fristen oder standardmäßig keine Langzeitspeicherung. Admins sollten Retention- und Löschoptionen erhalten."], ["Besondere Kategorien von Daten: Gesundheitsdaten, biometrische Daten zur Identifizierung, politische oder religiöse Ansichten usw.", "Standardmäßig nicht empfohlen.", "Wenn unvermeidbar, ist neben Art. 6 DSGVO auch eine Voraussetzung nach Art. 9 DSGVO erforderlich, dazu stärkere Zugriffsbeschränkungen und oft eine DPIA."], ["Support und menschlicher Zugriff durch Mitarbeitende", "Nur nach dem Need-to-know-Prinzip, minimal und protokolliert.", "Fallbezogene Support-Zugriffspolitik festlegen: Kundenfreigabe soweit machbar, Ereignisprotokollierung, Zeitbegrenzungen und Vertraulichkeitspflichten für Mitarbeitende."], ["Modelltraining auf Kundendaten", "Nicht stillschweigend und nicht standardmäßig.", "Falls eine solche Option überhaupt existiert, muss sie ausdrücklich beschrieben, vom Kerndienst getrennt und auf eine passende Rechtsgrundlage gestützt werden; im B2B ist Opt-out / standardmäßig deaktiviert oder gar kein Training Best Practice."], ["Daten Minderjähriger", "Erhöhter Risikobereich.", "Wenn der Dienst im Bildungsbereich oder mit Minderjährigen eingesetzt wird, nationale Altersgrenzen für Einwilligungen prüfen und gesonderte Hinweise sowie Kontrollen ergänzen."], ["Übermittlungen außerhalb des EWR", "Nur mit gültigem Übermittlungsmechanismus zulässig.", "Hosting-Standorte, Anbieter, SCCs / Angemessenheitsgrundlage und zusätzliche Schutzmaßnahmen dokumentieren; in Privacy Notice und DPA abbilden."]], "rights_label": "Betroffenenrechte und Vorfälle", "rights_title": "Was Nutzer über ihre Rechte lesen sollten", "rights_desc": "Dieser Abschnitt kann in der finalen öffentlichen Dokumentation fast unverändert bleiben; nur die Platzhalter-Kontakte sollten ersetzt werden.", "rights_cards": [{"icon": "📬", "title": "Betroffenenrechte", "text": "Nutzer sollten Zugang, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit, Widerspruch und Informationen zur Verarbeitung verlangen können. Kontaktkanal: [privacy@your-domain.com]."}, {"icon": "⏱️", "title": "Antwortfrist", "text": "Anfragen zu Rechten sollten unverzüglich und grundsätzlich spätestens innerhalb eines Monats beantwortet werden. Bei komplexen Anfragen kann die Frist um bis zu zwei weitere Monate verlängert werden, sofern innerhalb des ersten Monats über Grund und Verlängerung informiert wird."}, {"icon": "🚨", "title": "Sicherheitsvorfälle", "text": "Bei einer Datenschutzverletzung sollte der Verantwortliche das Risiko bewerten, den Vorfall dokumentieren und erforderlichenfalls die Aufsichtsbehörde innerhalb von 72 Stunden benachrichtigen sowie betroffene Personen bei hohem Risiko informieren."}, {"icon": "🧭", "title": "DPIA und Privacy by Design", "text": "Wenn die Verarbeitung voraussichtlich ein hohes Risiko mit sich bringt — etwa bei großflächiger Verarbeitung sensibler Daten oder systematischer Überwachung — ist eine DPIA erforderlich. Voreinstellungen sollten datenschutzfreundlich sein: minimale Daten, kurze Fristen, eingeschränkter Zugriff."}], "sources_label": "Rechtsgrundlagen und Benchmarks", "sources_title": "Worauf dieser Abschnitt basiert", "sources_desc": "Die Struktur orientiert sich an offiziellen EU-Materialien und daran, wie reife Kommunikations- und Transkriptionsdienste Zugriff, Aufbewahrung, Modelltraining, Supportzugriff und Datenschutzkontrollen beschreiben.", "sources_official_title": "Offizielle EU-Quellen", "sources_industry_title": "So strukturieren es andere Dienste", "source_notes": "Empfehlung für Produktion: separate Dokumente für Privacy Notice, DPA/Subprocessor List, Retention Policy und Incident Response Summary veröffentlichen.", "cta_tag": "Bereit zur Veröffentlichung", "cta_title": "Jetzt nur noch echte Daten statt Platzhalter eintragen", "cta_desc": "Für die Produktion bitte Privacy-E-Mail, juristische Unternehmensbezeichnung, Aufbewahrungsfristen, Anbieterliste und Links zu DPA / Terms / Support ersetzen.", "cta_primary": "VOX öffnen", "cta_secondary": "Zurück zur Startseite", "footer_tag": "KI-Echtzeit-Übersetzungsplattform", "footer_product": "Produkt", "footer_host": "Host-Panel", "footer_features": "Funktionen", "footer_support": "Support", "footer_docs": "Dokumentation", "footer_contact": "Kontakt", "footer_rights": "Alle Rechte vorbehalten.", "footer_made": "Mit ❤️ für die mehrsprachige Welt gemacht"}};
+const OFFICIAL_SOURCES = [{"title": "GDPR Article 5 — Principles relating to processing of personal data", "url": "https://www.edpb.europa.eu/gdpr-articles/article-5-principles-relating-processing-personal-data_en", "desc": {"uk": "Базові принципи: законність, прозорість, цільове обмеження, мінімізація даних, точність, строки зберігання, цілісність і конфіденційність.", "en": "Core principles: lawfulness, transparency, purpose limitation, data minimisation, accuracy, storage limitation, integrity, and confidentiality.", "de": "Grundprinzipien: Rechtmäßigkeit, Transparenz, Zweckbindung, Datenminimierung, Richtigkeit, Speicherbegrenzung, Integrität und Vertraulichkeit."}}, {"title": "European Commission — What data can we process and under which conditions?", "url": "https://commission.europa.eu/law/law-topic/data-protection/rules-business-and-organisations/principles-gdpr/overview-principles/what-data-can-we-process-and-under-which-conditions_en", "desc": {"uk": "Практичне пояснення правових підстав і принципів обробки.", "en": "Practical explanation of legal bases and processing principles.", "de": "Praktische Erläuterung zu Rechtsgrundlagen und Verarbeitungsprinzipien."}}, {"title": "GDPR Article 9 — Processing of special categories of personal data", "url": "https://www.edpb.europa.eu/gdpr-articles/article-9-processing-special-categories-personal-data_en", "desc": {"uk": "Що вважається чутливими даними та коли потрібні додаткові умови.", "en": "What counts as sensitive data and when extra conditions are required.", "de": "Welche Daten als sensibel gelten und wann zusätzliche Voraussetzungen nötig sind."}}, {"title": "Article 25 — Data protection by design and by default", "url": "https://www.edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-42019-article-25-data-protection-design-and_en", "desc": {"uk": "Чому приватність має бути вбудована в систему та налаштування за замовчуванням.", "en": "Why privacy must be built into the system and into default settings.", "de": "Warum Datenschutz in das System und in die Voreinstellungen eingebaut sein muss."}}, {"title": "European Commission — What information must be given to individuals?", "url": "https://commission.europa.eu/law/law-topic/data-protection/rules-business-and-organisations/principles-gdpr/what-information-must-be-given-individuals-whose-data-collected_en", "desc": {"uk": "Що саме має містити privacy notice для користувача.", "en": "What a user-facing privacy notice should contain.", "de": "Welche Informationen ein nutzerseitiger Datenschutzhinweis enthalten sollte."}}, {"title": "EDPB — Respect individuals' rights", "url": "https://www.edpb.europa.eu/sme-data-protection-guide/respect-individuals-rights_en", "desc": {"uk": "Як описувати права осіб і строк відповіді на запити.", "en": "How to describe data-subject rights and response timing.", "de": "Wie Betroffenenrechte und Antwortfristen beschrieben werden sollten."}}, {"title": "EDPB — Data breaches", "url": "https://www.edpb.europa.eu/sme-data-protection-guide/data-breaches_en", "desc": {"uk": "Практичне пояснення вимог щодо інцидентів і повідомлення органів/осіб.", "en": "Practical explanation of incident handling and notification duties.", "de": "Praktische Erklärung zu Vorfällen und Benachrichtigungspflichten."}}, {"title": "European Commission — Standard Contractual Clauses (SCCs)", "url": "https://commission.europa.eu/law/law-topic/data-protection/international-dimension-data-protection/standard-contractual-clauses-scc_en", "desc": {"uk": "База для опису міжнародних передач за межі ЄЕЗ.", "en": "Basis for documenting transfers outside the EEA.", "de": "Grundlage zur Beschreibung von Übermittlungen außerhalb des EWR."}}];
+const INDUSTRY_SOURCES = [{"title": "DeepL Voice for Meetings — data handling overview", "url": "https://support.deepl.com/hc/en-us/articles/24005289364636-About-DeepL-Voice-for-Meetings-Unified-experience", "desc": {"uk": "Показує популярну структуру: що зберігається, що тимчасово в пам'яті, скільки зберігається локально, чи використовується контент для тренування.", "en": "Shows a common structure: what is stored, what stays only in memory, local retention periods, and whether customer content is used for training.", "de": "Zeigt eine typische Struktur: was gespeichert wird, was nur im Speicher bleibt, lokale Aufbewahrungsfristen und ob Kundendaten fürs Training genutzt werden."}}, {"title": "Zoom Privacy Statement", "url": "https://www.zoom.com/en/trust/privacy/privacy-statement/", "desc": {"uk": "Корисний приклад того, як окремо описують customer content, доступ співробітників і використання даних для AI.", "en": "Useful example of how customer content, staff access, and AI-related use are described separately.", "de": "Nützliches Beispiel dafür, wie Customer Content, Mitarbeiterzugriff und KI-bezogene Nutzung getrennt beschrieben werden."}}, {"title": "Microsoft Speech to Text — data privacy and security", "url": "https://learn.microsoft.com/en-us/azure/foundry/responsible-ai/speech-service/speech-to-text/data-privacy-security", "desc": {"uk": "Добрий орієнтир для формулювань про real-time speech, зберігання та контроль з боку клієнта.", "en": "A good reference for wording about real-time speech, storage, and customer control.", "de": "Gute Referenz für Formulierungen zu Echtzeit-Sprache, Speicherung und Kontrolle durch den Kunden."}}, {"title": "Otter Privacy & Security", "url": "https://otter.ai/privacy-security", "desc": {"uk": "Корисно для формулювань про контроль поширення транскриптів, ручний доступ для support і згоду на перегляд контенту людьми.", "en": "Helpful for wording on transcript-sharing controls, manual support access, and consent before human review.", "de": "Hilfreich für Formulierungen zu Freigabekontrollen, manuellem Supportzugriff und Einwilligung vor menschlicher Einsicht."}}];
 
-  en: {
-    back: 'Back',
-    badge: 'Documentation',
-    hero_title: 'Real-Time AI Translation\nIn Your Pocket',
-    hero_sub: 'VOX turns your smartphone into a professional simultaneous interpreter. 15 languages, ~1 second latency, participants only need a browser.',
-    section_how: 'How It Works',
-    how_title: 'From voice to translation in 1 second',
-    how_desc: 'VOX uses a pipeline of three AI services running in parallel. Latency doesn\'t depend on the number of languages — all translations happen simultaneously.',
-    pipe_stt: 'Streaming speech transcription. Text appears as you speak. Built-in VAD, punctuation, 98%+ accuracy.',
-    pipe_translate: 'Context-aware translation considering previous phrases. The prompt accounts for recognition errors and reconstructs meaning. Parallel translation to N languages at once.',
-    pipe_tts: 'Speech synthesis in the target language. Primary engine is free (Microsoft). Automatic fallback to OpenAI TTS on failures.',
-    section_modes: 'Modes',
-    modes_title: 'Solo and Room — two ways to translate',
-    solo_title: 'Solo — Personal',
-    solo_desc: 'One microphone, one listener. Choose source and target language, press "Listen" — and hear the translation in your headphones in real time. Anti-echo system prevents loops.',
-    room_title: 'Room — Multilingual Room',
-    room_desc: 'Host creates a room → QR code → participants scan → each picks their language → hears translation. Host controls: grants speaking, mutes, disconnects. One speaker at a time.',
-    handraise_title: '"Hand Raise" Protocol',
-    handraise_desc: 'Participant presses "I want to speak" → host sees the request → approves or denies. On approval, microphone activates and voice is translated for everyone.',
-    section_features: 'Features',
-    features_title: 'What makes VOX special',
-    feat_speed_title: 'Speed',
-    feat_speed_desc: '~1 second latency. Interim results appear instantly while you\'re still speaking.',
-    feat_noapp_title: 'No App Required',
-    feat_noapp_desc: 'Participants don\'t need to install anything. Scan QR code → open page in browser → done.',
-    feat_context_title: 'Context-Aware Translation',
-    feat_context_desc: 'AI considers the last 5 phrases for more accurate translation. Automatically corrects speech recognition errors.',
-    feat_control_title: 'Full Control',
-    feat_control_desc: 'Host manages everything: grants/revokes speaking, mutes, disconnects participants. Like a conductor.',
-    feat_speaker_title: 'Speaker Tracking',
-    feat_speaker_desc: 'Everyone sees who\'s currently speaking. Conversation history with speaker names and timestamps.',
-    feat_billing_title: 'Transparent Pricing',
-    feat_billing_desc: 'Top up via Stripe. Warning 2 minutes before balance runs out. $3 bonus for email verification.',
-    section_langs: 'Languages',
-    langs_title: '15 languages supported',
-    langs_desc: 'Each language has its own voice for speech synthesis. All room translations happen in parallel.',
-    section_pricing: 'Pricing',
-    pricing_title: 'Simple and transparent pricing',
-    pricing_desc: 'Pay per minute of use. No subscriptions, no hidden fees.',
-    price_solo_unit: '/ minute',
-    price_solo_desc: 'Solo — personal translation. One speaker, one listener.',
-    price_room_unit: '/ minute × guests',
-    price_room_desc: 'Room — multilingual room. N = number of guests in the room.',
-    price_bonus_unit: 'bonus',
-    price_bonus_desc: 'Register and verify your email — get $3 on your balance. That\'s ~60 minutes of Solo translation.',
-    price_bonus_badge: 'Free start',
-    section_api: 'API',
-    api_title: 'WebSocket and REST API',
-    api_desc: 'VOX runs on WebSocket for audio streaming and REST API for management. Here are the main endpoints.',
-    api_col_method: 'Method',
-    api_col_endpoint: 'Endpoint',
-    api_col_desc: 'Description',
-    api_ws_solo: 'Solo mode: audio → transcription → translation → TTS',
-    api_ws_host: 'Room host: audio + participant management',
-    api_ws_guest: 'Room guest: receives translation, can speak when allowed',
-    api_room_create: 'Create room → room_id + QR code',
-    api_room_join: 'Join a room',
-    api_register: 'Register new user',
-    api_login: 'Login → session token',
-    api_balance: 'Current user balance',
-    api_checkout: 'Create Stripe Checkout Session',
-    api_reviews: 'Public reviews',
-    section_tech: 'Technology',
-    tech_title: 'Built with',
-    tech_fastapi: 'Async Python server. WebSocket + REST API. Deployed on Railway.',
-    tech_deepgram: 'Streaming STT with interim results. 98%+ accuracy, built-in VAD, ~300ms latency.',
-    tech_gpt: 'Context-aware translation with rolling history. ASR-aware prompt that accounts for recognition errors.',
-    tech_tts: 'Free Microsoft TTS as primary engine. OpenAI TTS tts-1 as automatic fallback.',
-    tech_stripe: 'Checkout Sessions for balance top-up. Webhooks for automatic payment confirmation.',
-    tech_webaudio: 'AudioWorklet for microphone capture. Web Audio API for TTS playback. No frameworks.',
-    cta_title: 'Ready to try?',
-    cta_desc: 'Sign up, get $3 bonus and start translating right now.',
-    cta_btn: '🎙 Start Translating',
-    footer: '© 2026 VOX AI Translation. Part of the ecosystem: <a href="#">AURA</a> · <a href="#">ATHENA</a> · <a href="#">VOX</a>',
-  },
+let currentLang = localStorage.getItem('vox_ui_lang') || localStorage.getItem('vox_docs_lang') || 'uk';
 
-  de: {
-    back: 'Zurück',
-    badge: 'Dokumentation',
-    hero_title: 'KI-Simultanübersetzung\nin Echtzeit',
-    hero_sub: 'VOX verwandelt Ihr Smartphone in einen professionellen Simultandolmetscher. 15 Sprachen, ~1 Sekunde Latenz, Teilnehmer brauchen nur einen Browser.',
-    section_how: 'So funktioniert es',
-    how_title: 'Von der Stimme zur Übersetzung in 1 Sekunde',
-    how_desc: 'VOX nutzt eine Pipeline aus drei KI-Diensten, die parallel arbeiten. Die Latenz hängt nicht von der Anzahl der Sprachen ab — alle Übersetzungen laufen gleichzeitig.',
-    pipe_stt: 'Streaming-Sprachtranskription. Text erscheint, während Sie sprechen. Integrierte VAD, Interpunktion, 98%+ Genauigkeit.',
-    pipe_translate: 'Kontextbezogene Übersetzung unter Berücksichtigung vorheriger Sätze. Der Prompt berücksichtigt Erkennungsfehler und rekonstruiert den Sinn. Parallele Übersetzung in N Sprachen gleichzeitig.',
-    pipe_tts: 'Sprachsynthese in der Zielsprache. Die Haupt-Engine ist kostenlos (Microsoft). Automatisches Fallback auf OpenAI TTS bei Fehlern.',
-    section_modes: 'Modi',
-    modes_title: 'Solo und Room — zwei Übersetzungswege',
-    solo_title: 'Solo — Persönlich',
-    solo_desc: 'Ein Mikrofon, ein Zuhörer. Wählen Sie Quell- und Zielsprache, drücken Sie «Zuhören» — und hören Sie die Übersetzung in Echtzeit über Kopfhörer. Anti-Echo-System verhindert Schleifen.',
-    room_title: 'Room — Mehrsprachiger Raum',
-    room_desc: 'Host erstellt einen Raum → QR-Code → Teilnehmer scannen → jeder wählt seine Sprache → hört die Übersetzung. Host steuert: erteilt Wort, stumm schalten, trennen. Ein Sprecher gleichzeitig.',
-    handraise_title: '«Hand heben»-Protokoll',
-    handraise_desc: 'Teilnehmer drückt «Ich möchte sprechen» → Host sieht die Anfrage → genehmigt oder ablehnt. Bei Genehmigung wird das Mikrofon aktiviert und die Stimme für alle übersetzt.',
-    section_features: 'Funktionen',
-    features_title: 'Was VOX besonders macht',
-    feat_speed_title: 'Geschwindigkeit',
-    feat_speed_desc: '~1 Sekunde Latenz. Zwischenergebnisse erscheinen sofort, während Sie noch sprechen.',
-    feat_noapp_title: 'Keine App nötig',
-    feat_noapp_desc: 'Teilnehmer müssen nichts installieren. QR-Code scannen → Seite im Browser öffnen → fertig.',
-    feat_context_title: 'Kontextbezogene Übersetzung',
-    feat_context_desc: 'KI berücksichtigt die letzten 5 Sätze für genauere Übersetzung. Korrigiert automatisch Spracherkennungsfehler.',
-    feat_control_title: 'Volle Kontrolle',
-    feat_control_desc: 'Host verwaltet alles: erteilt/entzieht Wort, schaltet stumm, trennt Teilnehmer. Wie ein Dirigent.',
-    feat_speaker_title: 'Speaker Tracking',
-    feat_speaker_desc: 'Alle sehen, wer gerade spricht. Gesprächsverlauf mit Sprechernamen und Zeitstempeln.',
-    feat_billing_title: 'Transparente Preise',
-    feat_billing_desc: 'Aufladen über Stripe. Warnung 2 Minuten vor Guthabenende. $3 Bonus für E-Mail-Verifizierung.',
-    section_langs: 'Sprachen',
-    langs_title: '15 Sprachen unterstützt',
-    langs_desc: 'Jede Sprache hat eine eigene Stimme für die Sprachsynthese. Alle Raumübersetzungen erfolgen parallel.',
-    section_pricing: 'Preise',
-    pricing_title: 'Einfache und transparente Preise',
-    pricing_desc: 'Bezahlung pro Nutzungsminute. Keine Abonnements, keine versteckten Gebühren.',
-    price_solo_unit: '/ Minute',
-    price_solo_desc: 'Solo — persönliche Übersetzung. Ein Sprecher, ein Zuhörer.',
-    price_room_unit: '/ Minute × Gäste',
-    price_room_desc: 'Room — mehrsprachiger Raum. N = Anzahl der Gäste im Raum.',
-    price_bonus_unit: 'Bonus',
-    price_bonus_desc: 'Registrieren und E-Mail bestätigen — $3 auf Ihr Guthaben. Das sind ~60 Minuten Solo-Übersetzung.',
-    price_bonus_badge: 'Kostenloser Start',
-    section_api: 'API',
-    api_title: 'WebSocket und REST API',
-    api_desc: 'VOX läuft über WebSocket für Audio-Streaming und REST API für die Verwaltung. Hier sind die wichtigsten Endpunkte.',
-    api_col_method: 'Methode',
-    api_col_endpoint: 'Endpunkt',
-    api_col_desc: 'Beschreibung',
-    api_ws_solo: 'Solo-Modus: Audio → Transkription → Übersetzung → TTS',
-    api_ws_host: 'Raum-Host: Audio + Teilnehmerverwaltung',
-    api_ws_guest: 'Raum-Gast: erhält Übersetzung, kann bei Erlaubnis sprechen',
-    api_room_create: 'Raum erstellen → room_id + QR-Code',
-    api_room_join: 'Einem Raum beitreten',
-    api_register: 'Neuen Benutzer registrieren',
-    api_login: 'Anmelden → Session-Token',
-    api_balance: 'Aktuelles Benutzerguthaben',
-    api_checkout: 'Stripe Checkout Session erstellen',
-    api_reviews: 'Öffentliche Bewertungen',
-    section_tech: 'Technologie',
-    tech_title: 'Gebaut mit',
-    tech_fastapi: 'Asynchroner Python-Server. WebSocket + REST API. Bereitstellung auf Railway.',
-    tech_deepgram: 'Streaming STT mit Zwischenergebnissen. 98%+ Genauigkeit, integrierte VAD, ~300ms Latenz.',
-    tech_gpt: 'Kontextbezogene Übersetzung mit Rolling History. ASR-bewusster Prompt, der Erkennungsfehler berücksichtigt.',
-    tech_tts: 'Kostenloses Microsoft TTS als Haupt-Engine. OpenAI TTS tts-1 als automatisches Fallback.',
-    tech_stripe: 'Checkout Sessions für Guthabenaufladung. Webhooks für automatische Zahlungsbestätigung.',
-    tech_webaudio: 'AudioWorklet für Mikrofonaufnahme. Web Audio API für TTS-Wiedergabe. Ohne Frameworks.',
-    cta_title: 'Bereit zum Ausprobieren?',
-    cta_desc: 'Registrieren Sie sich, erhalten Sie $3 Bonus und starten Sie sofort mit der Übersetzung.',
-    cta_btn: '🎙 Übersetzung starten',
-    footer: '© 2026 VOX AI Translation. Teil des Ökosystems: <a href="#">AURA</a> · <a href="#">ATHENA</a> · <a href="#">VOX</a>',
-  },
-};
-
-// ─── Language switching ──────────────────────────────────
-let currentLang = 'uk';
-
-function setLang(lang) {
-  currentLang = lang;
-  const t = I18N[lang];
-  if (!t) return;
-
-  // Update all data-i18n elements
-  document.querySelectorAll('[data-i18n]').forEach(el => {
-    const key = el.getAttribute('data-i18n');
-    if (t[key] !== undefined) {
-      // Check if value contains HTML (links, etc.)
-      if (t[key].includes('<a ') || t[key].includes('<br')) {
-        el.innerHTML = t[key];
-      } else {
-        el.textContent = t[key];
-      }
-    }
-  });
-
-  // Update lang buttons
-  document.querySelectorAll('.lang-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.textContent.trim().toLowerCase() === lang ||
-      (lang === 'uk' && btn.textContent.trim() === 'UA') ||
-      (lang === 'en' && btn.textContent.trim() === 'EN') ||
-      (lang === 'de' && btn.textContent.trim() === 'DE'));
-  });
-
-  // Update HTML lang
-  document.documentElement.lang = lang === 'uk' ? 'uk' : lang;
-
-  // Save preference
-  try { localStorage.setItem('vox_docs_lang', lang); } catch(e) {}
+function t(key) {
+  return (CONTENT[currentLang] && CONTENT[currentLang][key]) || (CONTENT.uk && CONTENT.uk[key]) || '';
 }
 
-// ─── Init ────────────────────────────────────────────────
-(function init() {
-  // Check URL param or saved preference
-  const params = new URLSearchParams(location.search);
-  const urlLang = params.get('lang');
-  let savedLang;
-  try { savedLang = localStorage.getItem('vox_docs_lang'); } catch(e) {}
+function setText(selector, key) {
+  document.querySelectorAll(selector).forEach(el => {
+    const value = t(key);
+    if (typeof value === 'string') el.textContent = value;
+  });
+}
 
-  const lang = urlLang || savedLang || 'uk';
-  if (I18N[lang]) setLang(lang);
-})();
+function renderCards(targetId, cards) {
+  const root = document.getElementById(targetId);
+  root.innerHTML = cards.map(card => `
+    <article class="card">
+      <span class="card-icon">${card.icon}</span>
+      <h3>${card.title}</h3>
+      <p>${card.text}</p>
+    </article>
+  `).join('');
+}
+
+function renderSteps(targetId, steps) {
+  const root = document.getElementById(targetId);
+  root.innerHTML = steps.map(step => `
+    <article class="step-card">
+      <div class="step-num">${step.num}</div>
+      <h3>${step.title}</h3>
+      <p>${step.text}</p>
+    </article>
+  `).join('');
+}
+
+function renderTimeline(targetId, items) {
+  const root = document.getElementById(targetId);
+  root.innerHTML = items.map(item => `
+    <article class="timeline-item">
+      <h3>${item.title}</h3>
+      <p>${item.text}</p>
+    </article>
+  `).join('');
+}
+
+function renderPricing(cards) {
+  const root = document.getElementById('pricingGrid');
+  root.innerHTML = cards.map((card, idx) => `
+    <article class="price-card ${idx === 1 ? '' : idx === 0 ? '' : 'highlight'}">
+      <div class="price-amount">${card.amount}</div>
+      <div class="price-unit">${card.unit}</div>
+      <div class="price-desc">${card.desc}</div>
+      <div class="price-badge">${card.badge}</div>
+    </article>
+  `).join('');
+}
+
+function renderMatrix(headings, rows) {
+  document.getElementById('matrixHeadRow').innerHTML = headings.map(h => `<th>${h}</th>`).join('');
+  document.getElementById('matrixBody').innerHTML = rows.map(row => `
+    <tr>
+      <td>${row[0]}</td>
+      <td>${row[1]}</td>
+      <td>${row[2]}</td>
+    </tr>
+  `).join('');
+}
+
+function renderSources(targetId, sources) {
+  const root = document.getElementById(targetId);
+  root.innerHTML = sources.map(src => `
+    <article class="source-card">
+      <h3>${src.title}</h3>
+      <p>${src.desc[currentLang] || src.desc.uk}</p>
+      <a class="source-link" href="${src.url}" target="_blank" rel="noopener noreferrer">Open source ↗</a>
+    </article>
+  `).join('');
+}
+
+function renderAnchors(anchors) {
+  const root = document.getElementById('anchorRow');
+  root.innerHTML = anchors.map(item => `
+    <a class="anchor-pill" href="#${item[0]}">${item[1]}</a>
+  `).join('');
+}
+
+function applyI18n() {
+  const langData = CONTENT[currentLang] || CONTENT.uk;
+  document.documentElement.lang = langData.lang_code || currentLang;
+  document.title = langData.page_title || CONTENT.uk.page_title;
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const value = t(key);
+    if (typeof value === 'string') el.textContent = value;
+  });
+
+  const heroTitle = document.getElementById('heroTitle');
+  heroTitle.innerHTML = (langData.hero_title || '').replace('VOX', '<span class="accent">VOX</span>');
+
+  document.getElementById('noticeStrong').textContent = '';
+  document.getElementById('heroNoteText').textContent = ' ' + langData.hero_note;
+  document.getElementById('privacyNoticeTitle').textContent = langData.privacy_notice_title + ':';
+  document.getElementById('privacyNoticeText').textContent = ' ' + langData.privacy_notice_text;
+
+  renderAnchors(langData.anchors || []);
+  renderCards('overviewGrid', langData.overview_cards || []);
+  renderSteps('startGrid', langData.start_steps || []);
+  renderCards('modesGrid', langData.modes_cards || []);
+  renderTimeline('flowGrid', langData.flow_items || []);
+  renderPricing(langData.pricing_cards || []);
+  renderCards('privacyGrid', langData.privacy_cards || []);
+  renderMatrix(langData.matrix_headers || [], langData.matrix_rows || []);
+  renderCards('rightsGrid', langData.rights_cards || []);
+  renderSources('officialSources', OFFICIAL_SOURCES);
+  renderSources('industrySources', INDUSTRY_SOURCES);
+
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === currentLang);
+  });
+
+  try {
+    localStorage.setItem('vox_ui_lang', currentLang);
+    localStorage.setItem('vox_docs_lang', currentLang);
+  } catch (e) {}
+}
+
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentLang = btn.dataset.lang;
+    applyI18n();
+  });
+});
+
+if (!CONTENT[currentLang]) currentLang = 'uk';
+applyI18n();
 </script>
 </body>
 </html>
