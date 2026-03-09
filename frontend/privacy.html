@@ -94,10 +94,13 @@
     .lang-btn:hover{color:var(--text2)}
     .lang-btn.active{color:#fff;background:var(--accent);box-shadow:0 4px 16px var(--accent-glow)}
     .page{
-      position:relative;z-index:1;
-      max-width:var(--max);margin:0 auto;padding:34px 24px 90px;display:grid;grid-template-columns:260px minmax(0,1fr);gap:28px;
+      position:relative;
+      z-index:1;
+      max-width:860px;
+      margin:0 auto;
+      padding:34px 24px 90px;
+      display:block;
     }
-    .sidebar{position:sticky;top:92px;align-self:start}
     .panel{
       background:rgba(21,18,31,.82);border:1px solid var(--border);border-radius:22px;box-shadow:0 18px 48px rgba(0,0,0,.18);
     }
@@ -212,15 +215,7 @@
   </header>
 
   <div class="page">
-    <aside class="sidebar">
-      <div class="panel">
-        <div class="eyebrow"><span class="lang-text" data-lang="uk">Privacy Policy</span><span class="lang-text" data-lang="en">Privacy Policy</span><span class="lang-text" data-lang="de">Datenschutzhinweise</span></div>
-        <h2><span class="lang-text" data-lang="uk">Повний текст для ЄС / ЄЕЗ</span><span class="lang-text" data-lang="en">Full text for EU / EEA</span><span class="lang-text" data-lang="de">Volltext für EU / EWR</span></h2>
-        <p><span class="lang-text" data-lang="uk">Ця сторінка оформлена як повний довідковий текст: хто контролер, які дані обробляються, з якою метою, які є права користувача та як працюють міжнародні передачі.</span><span class="lang-text" data-lang="en">This page is written as a full reference text: who the controller is, what data is processed, for what purposes, what rights users have, and how international transfers are handled.</span><span class="lang-text" data-lang="de">Diese Seite ist als vollständiger Referenztext aufgebaut: wer Verantwortlicher ist, welche Daten zu welchen Zwecken verarbeitet werden, welche Rechte Nutzer haben und wie internationale Übermittlungen erfolgen.</span></p>
-        <div class="toc" id="sidebarToc"></div>
-        <div class="sidebar-note"><span class="lang-text" data-lang="uk">Це сильна базова структура для публікації, але перед релізом її варто звірити з фактичними retention-настройками, субпроцесорами та моделлю хостингу у вашому продакшні.</span><span class="lang-text" data-lang="en">This is a strong publishing-ready structure, but before release it should still be checked against your actual retention settings, subprocessors, and production hosting model.</span><span class="lang-text" data-lang="de">Dies ist eine starke veröffentlichungsreife Struktur, sollte vor dem Release jedoch noch mit den tatsächlichen Aufbewahrungsfristen, Auftragsverarbeitern und dem Produktions-Hosting abgeglichen werden.</span></div>
-      </div>
-    </aside>
+    
 
     <main class="content">
       
