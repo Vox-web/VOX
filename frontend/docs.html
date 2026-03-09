@@ -452,149 +452,155 @@
   </div>
 
   <script>
-    const TOC = {'uk': [('uk-start', '1. Швидкий старт'), ('uk-solo', '2. Режим Solo'), ('uk-room', '3. Режим Room'), ('uk-billing', '4. Баланс і оплата'), ('uk-privacy', '5. Конфіденційність'), ('uk-contact', '6. Контакти')], 'en': [('en-start', '1. Quick start'), ('en-solo', '2. Solo mode'), ('en-room', '3. Room mode'), ('en-billing', '4. Billing'), ('en-privacy', '5. Privacy'), ('en-contact', '6. Contact')], 'de': [('de-start', '1. Schnellstart'), ('de-solo', '2. Solo-Modus'), ('de-room', '3. Room-Modus'), ('de-billing', '4. Abrechnung'), ('de-privacy', '5. Datenschutz'), ('de-contact', '6. Kontakt')]};
-    const FORM_MESSAGES = {'uk': {'sending': 'Надсилаємо повідомлення…', 'success': 'Дякуємо. Повідомлення успішно надіслано.', 'error': 'Не вдалося надіслати повідомлення. Спробуйте пізніше або напишіть на avotiyaaa@gmail.com'}, 'en': {'sending': 'Sending your message…', 'success': 'Thank you. Your message has been sent successfully.', 'error': 'The message could not be sent. Please try again later or email avotiyaaa@gmail.com'}, 'de': {'sending': 'Nachricht wird gesendet…', 'success': 'Vielen Dank. Ihre Nachricht wurde erfolgreich gesendet.', 'error': 'Die Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es später erneut oder schreiben Sie an avotiyaaa@gmail.com'}};
-    const pages = document.querySelectorAll('.lang-page');
-    const langButtons = document.querySelectorAll('[data-lang-btn]');
-    const langTexts = document.querySelectorAll('.lang-text');
-    const tocContainer = document.getElementById('sidebarToc');
-    let currentLang = localStorage.getItem('vox_docs_lang') || 'uk';
+  const TOC = {
+    uk: [
+      ['uk-start', '1. Швидкий старт'],
+      ['uk-solo', '2. Режим Solo'],
+      ['uk-room', '3. Режим Room'],
+      ['uk-billing', '4. Баланс і оплата'],
+      ['uk-privacy', '5. Конфіденційність'],
+      ['uk-contact', '6. Контакти']
+    ],
+    en: [
+      ['en-start', '1. Quick start'],
+      ['en-solo', '2. Solo mode'],
+      ['en-room', '3. Room mode'],
+      ['en-billing', '4. Billing'],
+      ['en-privacy', '5. Privacy'],
+      ['en-contact', '6. Contact']
+    ],
+    de: [
+      ['de-start', '1. Schnellstart'],
+      ['de-solo', '2. Solo-Modus'],
+      ['de-room', '3. Room-Modus'],
+      ['de-billing', '4. Abrechnung'],
+      ['de-privacy', '5. Datenschutz'],
+      ['de-contact', '6. Kontakt']
+    ]
+  };
 
-    function setLang(lang){
-      currentLang = lang;
-      localStorage.setItem('vox_docs_lang', lang);
-      document.documentElement.lang = lang === 'uk' ? 'uk' : (lang === 'de' ? 'de' : 'en');
-      pages.forEach(page => page.classList.toggle('active', page.dataset.pageLang === lang));
-      langButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.langBtn === lang));
-      langTexts.forEach(el => {
-        el.style.display = el.dataset.lang === lang ? '' : 'none';
-      });
+  const FORM_MESSAGES = {
+    uk: {
+      sending: 'Надсилаємо повідомлення...',
+      success: 'Повідомлення успішно надіслано.',
+      error: 'Не вдалося надіслати повідомлення. Спробуйте пізніше або напишіть на avotiyaaa@gmail.com'
+    },
+    en: {
+      sending: 'Sending message...',
+      success: 'Your message has been sent successfully.',
+      error: 'Failed to send message. Please try again later or email avotiyaaa@gmail.com'
+    },
+    de: {
+      sending: 'Nachricht wird gesendet...',
+      success: 'Ihre Nachricht wurde erfolgreich gesendet.',
+      error: 'Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es später erneut oder schreiben Sie an avotiyaaa@gmail.com'
+    }
+  };
+
+  const pages = document.querySelectorAll('.lang-page');
+  const langButtons = document.querySelectorAll('[data-lang-btn]');
+  const langTexts = document.querySelectorAll('.lang-text');
+  const tocContainer = document.getElementById('sidebarToc');
+  const contactTopLink = document.getElementById('contactTopLink');
+
+  let currentLang = localStorage.getItem('vox_docs_lang') || 'uk';
+
+  function setLang(lang) {
+    currentLang = lang;
+    localStorage.setItem('vox_docs_lang', lang);
+    document.documentElement.lang = lang === 'uk' ? 'uk' : (lang === 'de' ? 'de' : 'en');
+
+    pages.forEach(page => {
+      page.classList.toggle('active', page.dataset.pageLang === lang);
+    });
+
+    langButtons.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.langBtn === lang);
+    });
+
+    langTexts.forEach(el => {
+      el.style.display = el.dataset.lang === lang ? '' : 'none';
+    });
+
+    if (tocContainer) {
       tocContainer.innerHTML = '';
       TOC[lang].forEach(([href, label]) => {
         const a = document.createElement('a');
-        a.href = href;
+        a.href = `#${href}`;
         a.textContent = label;
         tocContainer.appendChild(a);
       });
-      const contactTopLink = document.getElementById('contactTopLink');
-      contactTopLink.href = TOC[lang][TOC[lang].length - 1][0];
     }
 
-    langButtons.forEach(btn => btn.addEventListener('click', () => setLang(btn.dataset.langBtn)));
-    setLang(currentLang);
-
-    document.querySelectorAll('.contact-form').forEach(form => {
-      form.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const lang = form.dataset.formLang;
-        const status = form.querySelector('.form-status');
-        const button = form.querySelector('button[type="submit"]');
-        const hp = form.querySelector('input[name="company"]');
-        if (hp && hp.value.trim()) return;
-        status.className = 'form-status';
-        status.textContent = FORM_MESSAGES[lang].sending;
-        button.disabled = true;
-        const payload = {
-          name: form.name.value.trim(),
-          email: form.email.value.trim(),
-          subject: form.subject.value.trim(),
-          message: form.message.value.trim(),
-          lang,
-          source_page: '/docs'
-        };
-        try {
-          const response = await fetch('/api/contact', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-          });
-          if (!response.ok) throw new Error('Request failed');
-          form.reset();
-          status.className = 'form-status success';
-          status.textContent = FORM_MESSAGES[lang].success;
-        } catch (error) {
-          status.className = 'form-status error';
-          status.textContent = FORM_MESSAGES[lang].error;
-        } finally {
-          button.disabled = false;
-        }
-      });
-    });
-  </script>
-
-  <script>
-document.querySelectorAll('.contact-form').forEach(form => {
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const status = form.querySelector('.form-status');
-    const button = form.querySelector('button[type="submit"]');
-    const lang = form.getAttribute('data-form-lang') || 'uk';
-
-    const t = {
-      uk: {
-        sending: 'Надсилаємо повідомлення...',
-        success: 'Повідомлення успішно надіслано.',
-        error: 'Не вдалося надіслати повідомлення. Спробуйте пізніше або напишіть на avotiyaaa@gmail.com'
-      },
-      en: {
-        sending: 'Sending message...',
-        success: 'Your message has been sent successfully.',
-        error: 'Failed to send message. Please try again later or email avotiyaaa@gmail.com'
-      },
-      de: {
-        sending: 'Nachricht wird gesendet...',
-        success: 'Ihre Nachricht wurde erfolgreich gesendet.',
-        error: 'Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es später erneut oder schreiben Sie an avotiyaaa@gmail.com'
-      }
-    };
-
-    const text = t[lang] || t.uk;
-
-    const payload = {
-      name: form.querySelector('[name="name"]').value.trim(),
-      email: form.querySelector('[name="email"]').value.trim(),
-      subject: form.querySelector('[name="subject"]').value.trim(),
-      message: form.querySelector('[name="message"]').value.trim(),
-      lang: lang
-    };
-
-    const honeypot = form.querySelector('[name="company"]');
-    if (honeypot && honeypot.value.trim()) {
-      return;
+    if (contactTopLink) {
+      const lastAnchor = TOC[lang][TOC[lang].length - 1][0];
+      contactTopLink.href = `#${lastAnchor}`;
     }
+  }
 
-    status.textContent = text.sending;
-    button.disabled = true;
-
-    try {
-      const res = await fetch('/api/contact', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      let data = {};
-      try {
-        data = await res.json();
-      } catch (_) {}
-
-      if (!res.ok) {
-        throw new Error(data.detail || 'Request failed');
-      }
-
-      status.textContent = text.success;
-      form.reset();
-    } catch (err) {
-      console.error('Contact form failed:', err);
-      status.textContent = text.error;
-    } finally {
-      button.disabled = false;
-    }
+  langButtons.forEach(btn => {
+    btn.addEventListener('click', () => setLang(btn.dataset.langBtn));
   });
-});
+
+  setLang(currentLang);
+
+  document.querySelectorAll('.contact-form').forEach(form => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const status = form.querySelector('.form-status');
+      const button = form.querySelector('button[type="submit"]');
+      const lang = form.getAttribute('data-form-lang') || 'uk';
+
+      const honeypot = form.querySelector('[name="company"]');
+      if (honeypot && honeypot.value.trim()) {
+        return;
+      }
+
+      const payload = {
+        name: form.querySelector('[name="name"]').value.trim(),
+        email: form.querySelector('[name="email"]').value.trim(),
+        subject: form.querySelector('[name="subject"]').value.trim(),
+        message: form.querySelector('[name="message"]').value.trim(),
+        lang: lang
+      };
+
+      const text = FORM_MESSAGES[lang] || FORM_MESSAGES.uk;
+
+      status.className = 'form-status';
+      status.textContent = text.sending;
+      button.disabled = true;
+
+      try {
+        const res = await fetch('/api/contact', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        let data = {};
+        try {
+          data = await res.json();
+        } catch (_) {}
+
+        if (!res.ok) {
+          throw new Error(data.detail || 'Request failed');
+        }
+
+        form.reset();
+        status.className = 'form-status success';
+        status.textContent = text.success;
+      } catch (err) {
+        console.error('Contact form failed:', err);
+        status.className = 'form-status error';
+        status.textContent = text.error;
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
 </script>
 </body>
 </html>
