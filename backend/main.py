@@ -31,6 +31,55 @@ from vox_db import (init_db, register_user, login_user,
                     get_user_by_token, add_review, get_reviews,
                     approve_review, delete_review, get_all_users)
 
+from pydantic import BaseModel, EmailStr
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+class ContactBody(BaseModel):
+    name: str
+    email: EmailStr
+    message: str
+    lang: str = "uk"
+
+@app.post("/api/contact")
+async def api_contact(body: ContactBody):
+    owner_email = "avotiyaaa@gmail.com"
+
+    gmail_user = os.getenv("GMAIL_USER")
+    gmail_app_password = os.getenv("GMAIL_APP_PASSWORD")
+
+    if not gmail_user or not gmail_app_password:
+        raise HTTPException(status_code=500, detail="Email server is not configured")
+
+    subject = f"VOX Contact Form [{body.lang.upper()}] from {body.name}"
+
+    text = f"""
+New contact form submission from VOX
+
+Name: {body.name}
+Email: {body.email}
+Language: {body.lang}
+
+Message:
+{body.message}
+"""
+
+    msg = MIMEMultipart()
+    msg["From"] = gmail_user
+    msg["To"] = owner_email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(text, "plain", "utf-8"))
+
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(gmail_user, gmail_app_password)
+            server.sendmail(gmail_user, owner_email, msg.as_string())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
+
+    return {"ok": True, "message": "Message sent"}    
 # ---------------------------------------------------------------------------
 # Загрузка конфигурации
 # ---------------------------------------------------------------------------
@@ -387,6 +436,13 @@ async def serve_docs():
     html_path = FRONTEND_DIR / "docs.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="docs.html not found")
+    return FileResponse(html_path)
+
+@app.get("/privacy")
+async def serve_privacy():
+    html_path = FRONTEND_DIR / "privacy.html"
+    if not html_path.exists():
+        raise HTTPException(status_code=404, detail="privacy.html not found")
     return FileResponse(html_path)
 
 
