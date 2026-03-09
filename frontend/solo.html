@@ -510,7 +510,8 @@
         <div class="history" id="history"></div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js"></script>
     <script>
     // =====================================================================
     // VOX Solo Frontend
@@ -978,43 +979,81 @@
             return;
         }
 
-        const wrap = document.createElement('div');
-        wrap.style.background = '#ffffff';
-        wrap.style.color = '#111111';
-        wrap.style.padding = '24px';
-        wrap.style.fontFamily = 'Arial, sans-serif';
-        wrap.style.width = '800px';
-        wrap.innerHTML = `<h2 style="margin:0 0 18px 0;">${escapeHtml(t('pdfTitle'))}</h2>`;
+        const items = soloFullHistory.slice();
+        const content = [
+            { text: t('pdfTitle'), style: 'title', margin: [0, 0, 0, 14] },
+            ...items.map(item => ({
+                stack: [
+                    {
+                        text: item.time || '',
+                        style: 'meta'
+                    },
+                    {
+                        text: t('pdfOriginalLabel'),
+                        style: 'label',
+                        margin: [0, 6, 0, 2]
+                    },
+                    {
+                        text: item.original || '',
+                        style: 'body'
+                    },
+                    {
+                        text: t('pdfTranslationLabel'),
+                        style: 'labelAccent',
+                        margin: [0, 8, 0, 2]
+                    },
+                    {
+                        text: item.translation || '',
+                        style: 'bodyAccent'
+                    }
+                ],
+                margin: [0, 0, 0, 12],
+                pageBreak: 'avoid'
+            }))
+        ];
 
-        soloFullHistory.slice().reverse().forEach(item => {
-            const block = document.createElement('div');
-            block.style.border = '1px solid #ddd';
-            block.style.borderRadius = '10px';
-            block.style.padding = '12px';
-            block.style.marginBottom = '12px';
-            block.innerHTML = `
-                <div style="font-size:12px;color:#666;margin-bottom:6px;">${escapeHtml(item.time)}</div>
-                <div style="font-size:13px;color:#555;margin-bottom:4px;">${escapeHtml(t('pdfOriginalLabel'))}</div>
-                <div style="font-size:15px;margin-bottom:10px;">${escapeHtml(item.original)}</div>
-                <div style="font-size:13px;color:#6b46c1;margin-bottom:4px;">${escapeHtml(t('pdfTranslationLabel'))}</div>
-                <div style="font-size:15px;color:#2d1b69;">${escapeHtml(item.translation)}</div>
-            `;
-            wrap.appendChild(block);
-        });
+        const docDefinition = {
+            pageSize: 'A4',
+            pageMargins: [28, 36, 28, 36],
+            defaultStyle: {
+                font: 'Roboto',
+                fontSize: 11,
+                lineHeight: 1.25
+            },
+            content,
+            styles: {
+                title: {
+                    fontSize: 16,
+                    bold: true,
+                    color: '#111111'
+                },
+                meta: {
+                    fontSize: 9,
+                    color: '#666666'
+                },
+                label: {
+                    fontSize: 10,
+                    bold: true,
+                    color: '#555555'
+                },
+                body: {
+                    fontSize: 11,
+                    color: '#111111'
+                },
+                labelAccent: {
+                    fontSize: 10,
+                    bold: true,
+                    color: '#6b46c1'
+                },
+                bodyAccent: {
+                    fontSize: 11,
+                    color: '#2d1b69'
+                }
+            }
+        };
 
-        document.body.appendChild(wrap);
-
-        try {
-            await html2pdf().set({
-                margin: 10,
-                filename: `vox-solo-history-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            }).from(wrap).save();
-        } finally {
-            document.body.removeChild(wrap);
-        }
+        const filename = `vox-solo-history-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`;
+        pdfMake.createPdf(docDefinition).download(filename);
     }
 
     function addToHistory(original, translation, langFrom, langTo) {

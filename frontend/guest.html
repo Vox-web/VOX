@@ -413,7 +413,8 @@
     </div>
     
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js"></script>
     <script>
     // =================================================================
     // i18n — Guest UI strings
@@ -1624,50 +1625,89 @@
     }
 
     async function downloadGuestHistoryPdf() {
-        const items = JSON.parse(sessionStorage.getItem(`vox_hist_${roomId}_full`) || '[]');
+        const rawItems = JSON.parse(sessionStorage.getItem(`vox_hist_${roomId}_full`) || '[]');
 
-        if (!items.length) {
+        if (!rawItems.length) {
             alert(t('pdfEmpty'));
             return;
         }
 
-        const wrap = document.createElement('div');
-        wrap.style.background = '#ffffff';
-        wrap.style.color = '#111111';
-        wrap.style.padding = '24px';
-        wrap.style.fontFamily = 'Arial, sans-serif';
-        wrap.style.width = '800px';
-        wrap.innerHTML = `<h2 style="margin:0 0 18px 0;">${escapeHtml(t('pdfTitleRoom'))}</h2>`;
+        const items = rawItems.slice().reverse();
 
-        items.slice().reverse().forEach(h => {
-            const who = h.speaker ? `${escapeHtml(h.speaker)} · ` : '';
-            const row = document.createElement('div');
-            row.style.border = '1px solid #ddd';
-            row.style.borderRadius = '10px';
-            row.style.padding = '12px';
-            row.style.marginBottom = '12px';
-            row.innerHTML = `
-                <div style="font-size:12px;color:#666;margin-bottom:6px;">${who}${escapeHtml(h.tm)}</div>
-                <div style="font-size:13px;color:#555;margin-bottom:4px;">${escapeHtml(t('pdfOriginalLabel'))}</div>
-                <div style="font-size:15px;margin-bottom:10px;">${escapeHtml(h.o)}</div>
-                <div style="font-size:13px;color:#6b46c1;margin-bottom:4px;">${escapeHtml(t('pdfTranslationLabel'))}</div>
-                <div style="font-size:15px;color:#2d1b69;">${escapeHtml(h.tr)}</div>
-            `;
-            wrap.appendChild(row);
-        });
+        const content = [
+            { text: t('pdfTitleRoom'), style: 'title', margin: [0, 0, 0, 14] },
+            ...items.map(h => ({
+                stack: [
+                    {
+                        text: `${h.speaker ? h.speaker + ' · ' : ''}${h.tm || ''}`,
+                        style: 'meta'
+                    },
+                    {
+                        text: t('pdfOriginalLabel'),
+                        style: 'label',
+                        margin: [0, 6, 0, 2]
+                    },
+                    {
+                        text: h.o || '',
+                        style: 'body'
+                    },
+                    {
+                        text: t('pdfTranslationLabel'),
+                        style: 'labelAccent',
+                        margin: [0, 8, 0, 2]
+                    },
+                    {
+                        text: h.tr || '',
+                        style: 'bodyAccent'
+                    }
+                ],
+                margin: [0, 0, 0, 12],
+                pageBreak: 'avoid'
+            }))
+        ];
 
-        document.body.appendChild(wrap);
-        try {
-            await html2pdf().set({
-                margin: 10,
-                filename: `vox-room-history-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            }).from(wrap).save();
-        } finally {
-            document.body.removeChild(wrap);
-        }
+        const docDefinition = {
+            pageSize: 'A4',
+            pageMargins: [28, 36, 28, 36],
+            defaultStyle: {
+                font: 'Roboto',
+                fontSize: 11,
+                lineHeight: 1.25
+            },
+            content,
+            styles: {
+                title: {
+                    fontSize: 16,
+                    bold: true,
+                    color: '#111111'
+                },
+                meta: {
+                    fontSize: 9,
+                    color: '#666666'
+                },
+                label: {
+                    fontSize: 10,
+                    bold: true,
+                    color: '#555555'
+                },
+                body: {
+                    fontSize: 11,
+                    color: '#111111'
+                },
+                labelAccent: {
+                    fontSize: 10,
+                    bold: true,
+                    color: '#6b46c1'
+                },
+                bodyAccent: {
+                    fontSize: 11,
+                    color: '#2d1b69'
+                }
+            }
+        };
+
+        const filename = `vox-room-history-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`;
+        pdfMake.createPdf(docDefinition).download(filename);
     }
 
     function addToHistory(original, translation, from, to, speaker) {
