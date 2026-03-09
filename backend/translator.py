@@ -63,7 +63,7 @@ class Translator:
         "No explanations. "
         "No quotes. "
         "No alternatives. "
-        "If the input is a single word, translate only that word."
+        "If the input is a single word, translate only that word." 
     )
 
     def __init__(self, cache_size: int = 50, context_size: int = 5):
