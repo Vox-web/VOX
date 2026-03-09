@@ -29,3 +29,4 @@ Pillow==10.4.0
 requests
 stripe>=7.0.0
 resend>=0.7.0
+email-validator==2.2.0
