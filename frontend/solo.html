@@ -136,6 +136,81 @@
             border-color: #7c6aff;
         }
 
+
+        .lang-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px;
+        }
+        .lang-pair {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 10px;
+            align-items: end;
+        }
+        .lang-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+        }
+        .lang-field label {
+            font-size: 13px;
+            color: #888;
+            transition: opacity 0.25s;
+        }
+        .lang-field select {
+            width: 100%;
+            background: #1a1a24;
+            color: #e0e0e0;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 15px;
+            outline: none;
+            cursor: pointer;
+        }
+        .lang-field select:focus {
+            border-color: #7c6aff;
+        }
+        .swap-btn {
+            height: 42px;
+            min-width: 42px;
+            border: 1px solid #333;
+            border-radius: 10px;
+            background: #1a1a24;
+            color: #c4b5ff;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .swap-btn:hover {
+            border-color: #7c6aff;
+            color: #fff;
+            background: #2a1a4a;
+        }
+        .history-actions {
+            display: flex;
+            justify-content: flex-end;
+            padding: 0 4px;
+            margin-bottom: 8px;
+        }
+        .history-btn {
+            border: 1px solid #333;
+            border-radius: 10px;
+            background: #1a1a24;
+            color: #e0e0e0;
+            font-size: 13px;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .history-btn:hover {
+            border-color: #7c6aff;
+            color: #fff;
+        }
+
         /* --- Главная кнопка --- */
         .main-btn {
             width: 140px;
@@ -346,26 +421,53 @@
             <span id="statusText" class="i18n-fade">Не підключено</span>
         </div>
 
-        <!-- Выбор языка -->
-        <div class="lang-selector">
-            <label class="i18n-fade" id="langLabel">Мова перекладу:</label>
-            <select id="langSelect">
-                <option value="uk" selected>🇺🇦 Українська</option>
-                <option value="ru">🇷🇺 Русский</option>
-                <option value="en">🇬🇧 English</option>
-                <option value="de">🇩🇪 Deutsch</option>
-                <option value="pl">🇵🇱 Polski</option>
-                <option value="fr">🇫🇷 Français</option>
-                <option value="zh">🇨🇳 中文</option>
-                <option value="es">🇪🇸 Español</option>
-                <option value="it">🇮🇹 Italiano</option>
-                <option value="pt">🇧🇷 Português</option>
-                <option value="ja">🇯🇵 日本語</option>
-                <option value="ko">🇰🇷 한국어</option>
-                <option value="ar">🇸🇦 العربية</option>
-                <option value="tr">🇹🇷 Türkçe</option>
-                <option value="hi">🇮🇳 हिन्दी</option>
-            </select>
+        <!-- Выбор языков -->
+        <div class="lang-controls">
+            <div class="lang-pair">
+                <div class="lang-field">
+                    <label class="i18n-fade" id="sourceLangLabel">Мова оригіналу:</label>
+                    <select id="sourceLangSelect">
+                        <option value="uk">🇺🇦 Українська</option>
+                        <option value="ru" selected>🇷🇺 Русский</option>
+                        <option value="en">🇬🇧 English</option>
+                        <option value="de">🇩🇪 Deutsch</option>
+                        <option value="pl">🇵🇱 Polski</option>
+                        <option value="fr">🇫🇷 Français</option>
+                        <option value="zh">🇨🇳 中文</option>
+                        <option value="es">🇪🇸 Español</option>
+                        <option value="it">🇮🇹 Italiano</option>
+                        <option value="pt">🇧🇷 Português</option>
+                        <option value="ja">🇯🇵 日本語</option>
+                        <option value="ko">🇰🇷 한국어</option>
+                        <option value="ar">🇸🇦 العربية</option>
+                        <option value="tr">🇹🇷 Türkçe</option>
+                        <option value="hi">🇮🇳 हिन्दी</option>
+                    </select>
+                </div>
+
+                <button class="swap-btn i18n-fade" id="swapLangBtn" type="button" onclick="swapLanguages()">⇄</button>
+
+                <div class="lang-field">
+                    <label class="i18n-fade" id="langLabel">Мова перекладу:</label>
+                    <select id="langSelect">
+                        <option value="uk" selected>🇺🇦 Українська</option>
+                        <option value="ru">🇷🇺 Русский</option>
+                        <option value="en">🇬🇧 English</option>
+                        <option value="de">🇩🇪 Deutsch</option>
+                        <option value="pl">🇵🇱 Polski</option>
+                        <option value="fr">🇫🇷 Français</option>
+                        <option value="zh">🇨🇳 中文</option>
+                        <option value="es">🇪🇸 Español</option>
+                        <option value="it">🇮🇹 Italiano</option>
+                        <option value="pt">🇧🇷 Português</option>
+                        <option value="ja">🇯🇵 日本語</option>
+                        <option value="ko">🇰🇷 한국어</option>
+                        <option value="ar">🇸🇦 العربية</option>
+                        <option value="tr">🇹🇷 Türkçe</option>
+                        <option value="hi">🇮🇳 हिन्दी</option>
+                    </select>
+                </div>
+            </div>
         </div>
 
         <!-- VAD индикатор -->
@@ -402,9 +504,13 @@
 
         <!-- История -->
         <div class="card-label i18n-fade" style="padding: 0 4px;" id="labelHistory">Історія</div>
+        <div class="history-actions">
+            <button class="history-btn i18n-fade" id="downloadPdfBtn" type="button" onclick="downloadHistoryPdf()">Завантажити PDF</button>
+        </div>
         <div class="history" id="history"></div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
     // =====================================================================
     // VOX Solo Frontend
@@ -422,7 +528,14 @@
             statusStopped:      'Зупинено',
             statusError:        'Помилка з\'єднання',
             statusMicError:     'Мікрофон недоступний',
+            sourceLangLabel:    'Мова оригіналу:',
             langLabel:          'Мова перекладу:',
+            swapLangs:          'Поміняти мови місцями',
+            downloadPdf:        'Завантажити PDF',
+            pdfTitle:           'Історія перекладу (Solo)',
+            pdfEmpty:           'Історія порожня',
+            pdfOriginalLabel:   'Оригінал',
+            pdfTranslationLabel:'Переклад',
             btnListen:          'СЛУХАТИ',
             btnStop:            'СТОП',
             labelOriginal:      'Оригінал',
@@ -438,7 +551,14 @@
             statusStopped:      'Stopped',
             statusError:        'Connection error',
             statusMicError:     'Microphone unavailable',
+            sourceLangLabel:    'Original language:',
             langLabel:          'Translate to:',
+            swapLangs:          'Swap languages',
+            downloadPdf:        'Download PDF',
+            pdfTitle:           'Translation history (Solo)',
+            pdfEmpty:           'History is empty',
+            pdfOriginalLabel:   'Original',
+            pdfTranslationLabel:'Translation',
             btnListen:          'LISTEN',
             btnStop:            'STOP',
             labelOriginal:      'Original',
@@ -454,7 +574,14 @@
             statusStopped:      'Gestoppt',
             statusError:        'Verbindungsfehler',
             statusMicError:     'Mikrofon nicht verfügbar',
+            sourceLangLabel:    'Originalsprache:',
             langLabel:          'Übersetzen in:',
+            swapLangs:          'Sprachen tauschen',
+            downloadPdf:        'PDF herunterladen',
+            pdfTitle:           'Übersetzungsverlauf (Solo)',
+            pdfEmpty:           'Verlauf ist leer',
+            pdfOriginalLabel:   'Original',
+            pdfTranslationLabel:'Übersetzung',
             btnListen:          'HÖREN',
             btnStop:            'STOPP',
             labelOriginal:      'Original',
@@ -492,10 +619,14 @@
         const fadeEls = document.querySelectorAll('.i18n-fade');
 
         function update() {
-            document.getElementById('langLabel').textContent        = t('langLabel');
-            document.getElementById('labelOriginal').textContent    = t('labelOriginal');
-            document.getElementById('labelTranslation').textContent = t('labelTranslation');
-            document.getElementById('labelHistory').textContent     = t('labelHistory');
+            document.getElementById('sourceLangLabel').textContent   = t('sourceLangLabel');
+            document.getElementById('langLabel').textContent         = t('langLabel');
+            document.getElementById('labelOriginal').textContent     = t('labelOriginal');
+            document.getElementById('labelTranslation').textContent  = t('labelTranslation');
+            document.getElementById('labelHistory').textContent      = t('labelHistory');
+            document.getElementById('downloadPdfBtn').textContent    = t('downloadPdf');
+            document.getElementById('swapLangBtn').title             = t('swapLangs');
+            document.getElementById('swapLangBtn').setAttribute('aria-label', t('swapLangs'));
 
             // Button text depends on current state
             mainBtn.textContent = isListening ? t('btnStop') : t('btnListen');
@@ -518,7 +649,7 @@
     }
 
     // --- UI Language Switcher click handler ---
-    document.querySelectorAll('.ui-lang-btn').forEach(b => b.classList.toggle('active', b.dataset.uilang === uiLang));
+    document.querySelectorAll('.ui-lang-btn').forEach(b => b.classList.toggle('active', b.dataset.uilang === currentUILang));
     document.querySelectorAll('.ui-lang-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const lang = btn.dataset.uilang;
@@ -546,9 +677,12 @@
     const statusText = document.getElementById('statusText');
     const originalText = document.getElementById('originalText');
     const translationText = document.getElementById('translationText');
+    const sourceLangSelect = document.getElementById('sourceLangSelect');
     const langSelect = document.getElementById('langSelect');
     const history = document.getElementById('history');
     const vadBars = document.querySelectorAll('.vad-bar');
+
+    let soloFullHistory = [];
 
     // --- Очередь аудио для воспроизведения ---
     let playbackContext = null;
@@ -566,6 +700,11 @@
         ws.binaryType = 'arraybuffer';
 
         ws.onopen = () => {
+            ws.send(JSON.stringify({
+                type: 'config',
+                source_lang: sourceLangSelect.value,
+                target_lang: langSelect.value,
+            }));
             setStatus('connected', 'connected');
             console.log('WebSocket connected');
         };
@@ -802,9 +941,93 @@
         });
     }
 
+    async function syncSoloConfig() {
+        const payload = {
+            source_lang: sourceLangSelect.value,
+            target_lang: langSelect.value,
+        };
+
+        try {
+            await fetch('/set-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+        } catch (e) {
+            console.error('Failed to sync config:', e);
+        }
+
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'config',
+                ...payload,
+            }));
+        }
+    }
+
+    async function swapLanguages() {
+        const prevSource = sourceLangSelect.value;
+        sourceLangSelect.value = langSelect.value;
+        langSelect.value = prevSource;
+        await syncSoloConfig();
+    }
+
+    async function downloadHistoryPdf() {
+        if (!soloFullHistory.length) {
+            alert(t('pdfEmpty'));
+            return;
+        }
+
+        const wrap = document.createElement('div');
+        wrap.style.background = '#ffffff';
+        wrap.style.color = '#111111';
+        wrap.style.padding = '24px';
+        wrap.style.fontFamily = 'Arial, sans-serif';
+        wrap.style.width = '800px';
+        wrap.innerHTML = `<h2 style="margin:0 0 18px 0;">${escapeHtml(t('pdfTitle'))}</h2>`;
+
+        soloFullHistory.slice().reverse().forEach(item => {
+            const block = document.createElement('div');
+            block.style.border = '1px solid #ddd';
+            block.style.borderRadius = '10px';
+            block.style.padding = '12px';
+            block.style.marginBottom = '12px';
+            block.innerHTML = `
+                <div style="font-size:12px;color:#666;margin-bottom:6px;">${escapeHtml(item.time)}</div>
+                <div style="font-size:13px;color:#555;margin-bottom:4px;">${escapeHtml(t('pdfOriginalLabel'))}</div>
+                <div style="font-size:15px;margin-bottom:10px;">${escapeHtml(item.original)}</div>
+                <div style="font-size:13px;color:#6b46c1;margin-bottom:4px;">${escapeHtml(t('pdfTranslationLabel'))}</div>
+                <div style="font-size:15px;color:#2d1b69;">${escapeHtml(item.translation)}</div>
+            `;
+            wrap.appendChild(block);
+        });
+
+        document.body.appendChild(wrap);
+
+        try {
+            await html2pdf().set({
+                margin: 10,
+                filename: `vox-solo-history-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            }).from(wrap).save();
+        } finally {
+            document.body.removeChild(wrap);
+        }
+    }
+
     function addToHistory(original, translation, langFrom, langTo) {
         const now = new Date();
         const time = now.toLocaleTimeString(currentUILang === 'de' ? 'de-DE' : currentUILang === 'en' ? 'en-GB' : 'uk-UA', { hour: '2-digit', minute: '2-digit' });
+
+        soloFullHistory.push({
+            time,
+            original,
+            translation,
+            langFrom,
+            langTo,
+        });
 
         const item = document.createElement('div');
         item.className = 'history-item';
@@ -827,20 +1050,9 @@
         return div.innerHTML;
     }
 
-    // --- Смена языка перевода ---
-    langSelect.addEventListener('change', async () => {
-        const lang = langSelect.value;
-        try {
-            await fetch('/set-config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ target_lang: lang }),
-            });
-            console.log('Language set to:', lang);
-        } catch (e) {
-            console.error('Failed to set language:', e);
-        }
-    });
+    // --- Смена языков ---
+    langSelect.addEventListener('change', syncSoloConfig);
+    sourceLangSelect.addEventListener('change', syncSoloConfig);
 
     // --- Инициализация ---
     applyUILanguage(false);

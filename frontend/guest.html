@@ -377,6 +377,9 @@
             <div class="divider"></div>
 
             <div class="card-label" style="padding:0 4px;" id="labelHist">History</div>
+            <div style="display:flex;justify-content:flex-end;padding:0 4px 8px;">
+                <button class="btn btn-ghost" id="downloadPdfBtn" type="button" onclick="downloadGuestHistoryPdf()" style="width:auto;">Download PDF</button>
+            </div>
             <div class="history" id="history"></div>
         </div>
     </div>
@@ -410,6 +413,7 @@
     </div>
     
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
     // =================================================================
     // i18n — Guest UI strings
@@ -431,6 +435,8 @@
             recording: 'Recording',
             speaking: 'is speaking...',
             hostSpeaking: 'Host is speaking...',
+            downloadPdf: 'Download PDF', pdfTitleRoom: 'Translation history (Room)',
+            pdfEmpty: 'History is empty', pdfOriginalLabel: 'Original', pdfTranslationLabel: 'Translation',
         },
         uk: {
             joinTitle: 'Приєднатися', langLabel: 'Ваша мова:', btnJoin: 'Увійти',
@@ -448,6 +454,8 @@
             recording: 'Записую',
             speaking: 'говорить...',
             hostSpeaking: 'Ведучий говорить...',
+            downloadPdf: 'Завантажити PDF', pdfTitleRoom: 'Історія перекладу (Room)',
+            pdfEmpty: 'Історія порожня', pdfOriginalLabel: 'Оригінал', pdfTranslationLabel: 'Переклад',
         },
         de: {
             joinTitle: 'Raum beitreten', langLabel: 'Ihre Sprache:', btnJoin: 'Beitreten',
@@ -465,6 +473,8 @@
             recording: 'Aufnahme',
             speaking: 'spricht...',
             hostSpeaking: 'Moderator spricht...',
+            downloadPdf: 'PDF herunterladen', pdfTitleRoom: 'Übersetzungsverlauf (Room)',
+            pdfEmpty: 'Verlauf ist leer', pdfOriginalLabel: 'Original', pdfTranslationLabel: 'Übersetzung',
         },
         ru: {
             joinTitle: 'Присоединиться', langLabel: 'Ваш язык:', btnJoin: 'Войти',
@@ -482,6 +492,8 @@
             recording: 'Записываю',
             speaking: 'говорит...',
             hostSpeaking: 'Ведущий говорит...',
+            downloadPdf: 'Скачать PDF', pdfTitleRoom: 'История перевода (Room)',
+            pdfEmpty: 'История пуста', pdfOriginalLabel: 'Оригинал', pdfTranslationLabel: 'Перевод',
         },
         pl: {
             joinTitle: 'Dołącz do pokoju', langLabel: 'Twój język:', btnJoin: 'Dołącz',
@@ -759,6 +771,8 @@
         document.getElementById('mutedMsg').textContent = t('mutedMsg');
         document.getElementById('kickedMsg').textContent = t('kickedMsg');
         document.getElementById('closedMsg').textContent = t('closedMsg');
+        const downloadPdfBtn = document.getElementById('downloadPdfBtn');
+        if (downloadPdfBtn) downloadPdfBtn.textContent = t('downloadPdf');
         updateHandButton();
         // Render join hint
         const hintEl = document.getElementById('joinHint');
@@ -935,6 +949,7 @@
                 stopGuestMic('kicked');
                 sessionStorage.removeItem(`vox_guest_${roomId}`);
                 sessionStorage.removeItem(`vox_hist_${roomId}`);
+                sessionStorage.removeItem(`vox_hist_${roomId}_full`);
                 break;
 
             case 'room_closed':
@@ -944,6 +959,7 @@
                 stopGuestMic('room_closed');
                 sessionStorage.removeItem(`vox_guest_${roomId}`);
                 sessionStorage.removeItem(`vox_hist_${roomId}`);
+                sessionStorage.removeItem(`vox_hist_${roomId}_full`);
                 break;
 
             case 'speaker_changed':
@@ -1607,6 +1623,53 @@
         vadBars.forEach(b => { b.style.height = '8px'; b.classList.remove('active'); });
     }
 
+    async function downloadGuestHistoryPdf() {
+        const items = JSON.parse(sessionStorage.getItem(`vox_hist_${roomId}_full`) || '[]');
+
+        if (!items.length) {
+            alert(t('pdfEmpty'));
+            return;
+        }
+
+        const wrap = document.createElement('div');
+        wrap.style.background = '#ffffff';
+        wrap.style.color = '#111111';
+        wrap.style.padding = '24px';
+        wrap.style.fontFamily = 'Arial, sans-serif';
+        wrap.style.width = '800px';
+        wrap.innerHTML = `<h2 style="margin:0 0 18px 0;">${escapeHtml(t('pdfTitleRoom'))}</h2>`;
+
+        items.slice().reverse().forEach(h => {
+            const who = h.speaker ? `${escapeHtml(h.speaker)} · ` : '';
+            const row = document.createElement('div');
+            row.style.border = '1px solid #ddd';
+            row.style.borderRadius = '10px';
+            row.style.padding = '12px';
+            row.style.marginBottom = '12px';
+            row.innerHTML = `
+                <div style="font-size:12px;color:#666;margin-bottom:6px;">${who}${escapeHtml(h.tm)}</div>
+                <div style="font-size:13px;color:#555;margin-bottom:4px;">${escapeHtml(t('pdfOriginalLabel'))}</div>
+                <div style="font-size:15px;margin-bottom:10px;">${escapeHtml(h.o)}</div>
+                <div style="font-size:13px;color:#6b46c1;margin-bottom:4px;">${escapeHtml(t('pdfTranslationLabel'))}</div>
+                <div style="font-size:15px;color:#2d1b69;">${escapeHtml(h.tr)}</div>
+            `;
+            wrap.appendChild(row);
+        });
+
+        document.body.appendChild(wrap);
+        try {
+            await html2pdf().set({
+                margin: 10,
+                filename: `vox-room-history-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            }).from(wrap).save();
+        } finally {
+            document.body.removeChild(wrap);
+        }
+    }
+
     function addToHistory(original, translation, from, to, speaker) {
         const time = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
         const item = document.createElement('div');
@@ -1618,10 +1681,13 @@
             <div class="history-translation">${escapeHtml(translation)}</div>`;
         historyDiv.insertBefore(item, historyDiv.firstChild);
         while (historyDiv.children.length > 20) historyDiv.removeChild(historyDiv.lastChild);
-        const arr = JSON.parse(sessionStorage.getItem(`vox_hist_${roomId}`) || '[]');
-        arr.unshift({o: original, tr: translation, speaker, tm: time});
-        if (arr.length > 20) arr.length = 20;
-        sessionStorage.setItem(`vox_hist_${roomId}`, JSON.stringify(arr));
+        const shortArr = JSON.parse(sessionStorage.getItem(`vox_hist_${roomId}`) || '[]');
+        shortArr.unshift({o: original, tr: translation, speaker, tm: time});
+        if (shortArr.length > 20) shortArr.length = 20;
+        sessionStorage.setItem(`vox_hist_${roomId}`, JSON.stringify(shortArr));
+        const fullArr = JSON.parse(sessionStorage.getItem(`vox_hist_${roomId}_full`) || '[]');
+        fullArr.unshift({o: original, tr: translation, speaker, tm: time});
+        sessionStorage.setItem(`vox_hist_${roomId}_full`, JSON.stringify(fullArr));
     }
 
     function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }

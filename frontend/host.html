@@ -575,6 +575,9 @@
                     <option value="hi">🇮🇳 हिन्दी</option>
                 </select>
             </div>
+            <div style="display:flex;justify-content:center;margin-top:-4px;">
+                <button class="room-share-btn i18n" id="soloSwapBtn" type="button" onclick="swapSoloLanguages()">⇄ Поміняти мови</button>
+            </div>
             <div class="vad-indicator" id="soloVad">
                 <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
                 <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
@@ -591,6 +594,9 @@
             </div>
             <div class="divider"></div>
             <div class="card-label i18n" style="padding:0 4px;" id="soloLabelHist">Історія</div>
+            <div style="display:flex;justify-content:flex-end;padding:0 4px 8px;">
+                <button class="room-share-btn i18n" id="soloDownloadPdfBtn" type="button" onclick="downloadHistoryPdf('solo')">⬇ PDF</button>
+            </div>
             <div class="history" id="soloHistory"></div>
         </div>
 
@@ -675,12 +681,16 @@
             </div>
             <div class="divider"></div>
             <div class="card-label i18n" style="padding:0 4px;" id="roomLabelHist">Історія</div>
+            <div style="display:flex;justify-content:flex-end;padding:0 4px 8px;">
+                <button class="room-share-btn i18n" id="roomDownloadPdfBtn" type="button" onclick="downloadHistoryPdf('room')">⬇ PDF</button>
+            </div>
             <div class="history" id="roomHistory"></div>
             <button class="btn btn-danger i18n" id="btnCloseRoom" onclick="closeRoom()" style="margin-top:6px;">Закрити кімнату</button>
         </div>
     </div>
     
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
     // =====================================================================
     // i18n
@@ -722,6 +732,9 @@
             btnCopy: 'Копіювати', btnCopied: 'Скопійовано!', btnShare: 'Поділитися',
             pwaInstallLabel: 'Додати на головний екран',
             topupTitle: 'Поповнити баланс', topupBalLabel: 'Поточний баланс', topupMinLabel: 'хв Solo', topupClose: 'Закрити',
+            soloSwapBtn: '⇄ Поміняти мови', downloadPdf: '⬇ PDF',
+            pdfTitleSolo: 'Історія перекладу (Solo)', pdfTitleRoom: 'Історія перекладу (Room)',
+            pdfEmpty: 'Історія порожня', pdfOriginalLabel: 'Оригінал', pdfTranslationLabel: 'Переклад',
         },
         en: {
             subtitle: 'Real-time AI Translation',
@@ -759,6 +772,9 @@
             btnCopy: 'Copy link', btnCopied: 'Copied!', btnShare: 'Share',
             pwaInstallLabel: 'Add to Home Screen',
             topupTitle: 'Top Up Balance', topupBalLabel: 'Current balance', topupMinLabel: 'min Solo', topupClose: 'Close',
+            soloSwapBtn: '⇄ Swap languages', downloadPdf: '⬇ PDF',
+            pdfTitleSolo: 'Translation history (Solo)', pdfTitleRoom: 'Translation history (Room)',
+            pdfEmpty: 'History is empty', pdfOriginalLabel: 'Original', pdfTranslationLabel: 'Translation',
         },
         de: {
             subtitle: 'KI-Übersetzung in Echtzeit',
@@ -796,6 +812,9 @@
             btnCopy: 'Link kopieren', btnCopied: 'Kopiert!', btnShare: 'Teilen',
             pwaInstallLabel: 'Zum Startbildschirm hinzufügen',
             topupTitle: 'Guthaben aufladen', topupBalLabel: 'Aktuelles Guthaben', topupMinLabel: 'Min Solo', topupClose: 'Schließen',
+            soloSwapBtn: '⇄ Sprachen tauschen', downloadPdf: '⬇ PDF',
+            pdfTitleSolo: 'Übersetzungsverlauf (Solo)', pdfTitleRoom: 'Übersetzungsverlauf (Room)',
+            pdfEmpty: 'Verlauf ist leer', pdfOriginalLabel: 'Original', pdfTranslationLabel: 'Übersetzung',
         },
     };
 
@@ -828,6 +847,12 @@
             document.querySelectorAll('.topup-min-label').forEach(el => el.textContent = t('topupMinLabel'));
             const st = document.getElementById('roomStatusText');
             if(st) st.textContent = t(_curRoomStatusKey);
+            const soloSwapBtn = document.getElementById('soloSwapBtn');
+            const soloDownloadPdfBtn = document.getElementById('soloDownloadPdfBtn');
+            const roomDownloadPdfBtn = document.getElementById('roomDownloadPdfBtn');
+            if (soloSwapBtn) soloSwapBtn.textContent = t('soloSwapBtn');
+            if (soloDownloadPdfBtn) soloDownloadPdfBtn.textContent = t('downloadPdf');
+            if (roomDownloadPdfBtn) roomDownloadPdfBtn.textContent = t('downloadPdf');
         }
         if (animate) {
             els.forEach(el => el.classList.add('fading'));
@@ -897,12 +922,15 @@
         it.innerHTML = `<div class="history-time">${who}${tm}</div><div class="history-original">${_esc(o)}</div><div class="history-translation">${_esc(tr)}</div>`;
         el.insertBefore(it, el.firstChild);
         while (el.children.length > 20) el.removeChild(el.lastChild);
-        // Сохраняем историю
         const key = el.id === 'roomHistory' ? 'vox_hist_room' : 'vox_hist_solo';
-        const arr = JSON.parse(sessionStorage.getItem(key) || '[]');
-        arr.unshift({o, tr, speaker, tm});
-        if (arr.length > 20) arr.length = 20;
-        sessionStorage.setItem(key, JSON.stringify(arr));
+        const shortArr = JSON.parse(sessionStorage.getItem(key) || '[]');
+        shortArr.unshift({o, tr, speaker, tm});
+        if (shortArr.length > 20) shortArr.length = 20;
+        sessionStorage.setItem(key, JSON.stringify(shortArr));
+        const fullKey = `${key}_full`;
+        const fullArr = JSON.parse(sessionStorage.getItem(fullKey) || '[]');
+        fullArr.unshift({o, tr, speaker, tm});
+        sessionStorage.setItem(fullKey, JSON.stringify(fullArr));
     }
 
     let pbCtx=null, aQ=[], aPlaying=false;
@@ -966,7 +994,7 @@
     // =====================================================================
     // SOLO
     // =====================================================================
-    let soloListening=false, soloWs=null, soloMic=null, curSoloKey='soloStatusDisconnected';
+    let soloListening=false, soloWs=null, soloMic=null, curSoloKey='soloStatusDisconnected', soloDetectedSourceLang=null;
     let _wsRetries=0, _fallbackActive=false, _fallbackRecognition=null;
 
     // Карта мов для Web Speech API
@@ -1139,6 +1167,7 @@
                 const m = JSON.parse(e.data);
                 _handleBillingWsMsg(m);
                 if (m.type === 'transcript') {
+                    if (m.language) soloDetectedSourceLang = m.language;
                     if (!m.is_final) {
                         soloOrigEl.textContent = '🎤 ' + m.text;
                         soloOrigEl.style.opacity = '0.7';
@@ -1195,20 +1224,92 @@
         }
     }
 
-    document.getElementById('soloLangSelect').addEventListener('change', async e => {
-        try { await fetch('/set-config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({target_lang:e.target.value})}); } catch(err) {}
+    async function syncSoloConfig() {
+        const srcSel = document.getElementById('soloSrcLangSelect');
+        const tgtSel = document.getElementById('soloLangSelect');
+        const payload = {
+            source_lang: srcSel.value === 'auto' ? null : srcSel.value,
+            target_lang: tgtSel.value,
+        };
+        try {
+            await fetch('/set-config', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body: JSON.stringify(payload)
+            });
+        } catch(err) {}
         if (soloWs?.readyState === WebSocket.OPEN) {
-            soloWs.send(JSON.stringify({type:'config', target_lang: e.target.value}));
+            soloWs.send(JSON.stringify({type:'config', ...payload}));
         }
-    });
+    }
 
-    document.getElementById('soloSrcLangSelect').addEventListener('change', async e => {
-        const v = e.target.value;
-        try { await fetch('/set-config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({source_lang: v === 'auto' ? null : v})}); } catch(err) {}
-        if (soloWs?.readyState === WebSocket.OPEN) {
-            soloWs.send(JSON.stringify({type:'config', source_lang: v === 'auto' ? null : v}));
+    async function swapSoloLanguages() {
+        const srcSel = document.getElementById('soloSrcLangSelect');
+        const tgtSel = document.getElementById('soloLangSelect');
+
+        let sourceValue = srcSel.value;
+        if (sourceValue === 'auto') {
+            const canUseDetected = soloDetectedSourceLang && [...srcSel.options].some(o => o.value === soloDetectedSourceLang);
+            if (!canUseDetected) return;
+            sourceValue = soloDetectedSourceLang;
         }
-    });
+
+        const previousTarget = tgtSel.value;
+        srcSel.value = previousTarget;
+        tgtSel.value = sourceValue;
+        await syncSoloConfig();
+    }
+
+    async function downloadHistoryPdf(mode) {
+        const key = mode === 'room' ? 'vox_hist_room_full' : 'vox_hist_solo_full';
+        const items = JSON.parse(sessionStorage.getItem(key) || '[]');
+
+        if (!items.length) {
+            alert(t('pdfEmpty'));
+            return;
+        }
+
+        const wrap = document.createElement('div');
+        wrap.style.background = '#ffffff';
+        wrap.style.color = '#111111';
+        wrap.style.padding = '24px';
+        wrap.style.fontFamily = 'Arial, sans-serif';
+        wrap.style.width = '800px';
+        wrap.innerHTML = `<h2 style="margin:0 0 18px 0;">${_esc(mode === 'room' ? t('pdfTitleRoom') : t('pdfTitleSolo'))}</h2>`;
+
+        items.slice().reverse().forEach(h => {
+            const who = h.speaker ? `${_esc(h.speaker)} · ` : '';
+            const row = document.createElement('div');
+            row.style.border = '1px solid #ddd';
+            row.style.borderRadius = '10px';
+            row.style.padding = '12px';
+            row.style.marginBottom = '12px';
+            row.innerHTML = `
+                <div style="font-size:12px;color:#666;margin-bottom:6px;">${who}${_esc(h.tm)}</div>
+                <div style="font-size:13px;color:#555;margin-bottom:4px;">${_esc(t('pdfOriginalLabel'))}</div>
+                <div style="font-size:15px;margin-bottom:10px;">${_esc(h.o)}</div>
+                <div style="font-size:13px;color:#6b46c1;margin-bottom:4px;">${_esc(t('pdfTranslationLabel'))}</div>
+                <div style="font-size:15px;color:#2d1b69;">${_esc(h.tr)}</div>
+            `;
+            wrap.appendChild(row);
+        });
+
+        document.body.appendChild(wrap);
+        try {
+            await html2pdf().set({
+                margin: 10,
+                filename: `vox-${mode}-history-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            }).from(wrap).save();
+        } finally {
+            document.body.removeChild(wrap);
+        }
+    }
+
+    document.getElementById('soloLangSelect').addEventListener('change', syncSoloConfig);
+    document.getElementById('soloSrcLangSelect').addEventListener('change', syncSoloConfig);
 
     // =====================================================================
     // ROOM
@@ -1386,6 +1487,7 @@
         roomWs?.close(); roomWs=null; roomId=null; participants={};
         sessionStorage.removeItem('vox_host_room');
         sessionStorage.removeItem('vox_hist_room');
+        sessionStorage.removeItem('vox_hist_room_full');
         document.getElementById(curScreen).classList.remove('active');
         navStack.length=0; curScreen='screenMenu';
         document.getElementById('screenMenu').classList.add('active');
