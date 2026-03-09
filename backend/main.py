@@ -117,6 +117,7 @@ app.add_middleware(
 class ContactBody(BaseModel):
     name: str
     email: EmailStr
+    subject: str = ""
     message: str
     lang: str = "uk"
 

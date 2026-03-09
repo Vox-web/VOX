@@ -521,5 +521,80 @@
       });
     });
   </script>
+
+  <script>
+document.querySelectorAll('.contact-form').forEach(form => {
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const status = form.querySelector('.form-status');
+    const button = form.querySelector('button[type="submit"]');
+    const lang = form.getAttribute('data-form-lang') || 'uk';
+
+    const t = {
+      uk: {
+        sending: 'Надсилаємо повідомлення...',
+        success: 'Повідомлення успішно надіслано.',
+        error: 'Не вдалося надіслати повідомлення. Спробуйте пізніше або напишіть на avotiyaaa@gmail.com'
+      },
+      en: {
+        sending: 'Sending message...',
+        success: 'Your message has been sent successfully.',
+        error: 'Failed to send message. Please try again later or email avotiyaaa@gmail.com'
+      },
+      de: {
+        sending: 'Nachricht wird gesendet...',
+        success: 'Ihre Nachricht wurde erfolgreich gesendet.',
+        error: 'Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es später erneut oder schreiben Sie an avotiyaaa@gmail.com'
+      }
+    };
+
+    const text = t[lang] || t.uk;
+
+    const payload = {
+      name: form.querySelector('[name="name"]').value.trim(),
+      email: form.querySelector('[name="email"]').value.trim(),
+      subject: form.querySelector('[name="subject"]').value.trim(),
+      message: form.querySelector('[name="message"]').value.trim(),
+      lang: lang
+    };
+
+    const honeypot = form.querySelector('[name="company"]');
+    if (honeypot && honeypot.value.trim()) {
+      return;
+    }
+
+    status.textContent = text.sending;
+    button.disabled = true;
+
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (_) {}
+
+      if (!res.ok) {
+        throw new Error(data.detail || 'Request failed');
+      }
+
+      status.textContent = text.success;
+      form.reset();
+    } catch (err) {
+      console.error('Contact form failed:', err);
+      status.textContent = text.error;
+    } finally {
+      button.disabled = false;
+    }
+  });
+});
+</script>
 </body>
 </html>
