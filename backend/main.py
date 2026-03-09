@@ -91,7 +91,13 @@ async def lifespan(app: FastAPI):
 # ---------------------------------------------------------------------------
 # FastAPI приложение
 # ---------------------------------------------------------------------------
-app = FastAPI(title="VOX", version="0.3.0", lifespan=lifespan)
+app = FastAPI(
+    title="VOX",
+    version="0.3.0",
+    lifespan=lifespan,
+    docs_url="/api/docs",
+    redoc_url=None,
+)
 init_db()
 
 # ── Billing ──
