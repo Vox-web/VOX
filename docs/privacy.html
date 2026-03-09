@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VOX — Privacy Policy</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙</text></svg>"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;
+      font-family:'DM Sans',system-ui,sans-serif;
+      background:#09080f;
+      color:#f0eeff;
+      line-height:1.75;
+      min-height:100vh;
+      overflow-x:hidden;
+    }
+    :root{
+      --bg:#09080f;
+      --bg2:#110e1c;
+      --surface:#15121f;
+      --surface2:#1e1930;
+      --surface3:#241f36;
+      --border:#2a2340;
+      --border2:#3d3560;
+      --text:#f0eeff;
+      --text2:#b6afd8;
+      --text3:#7f77a8;
+      --accent:#7c6aff;
+      --accent2:#a594ff;
+      --accent-dim:rgba(124,106,255,.10);
+      --accent-glow:rgba(124,106,255,.28);
+      --green:#2dd4a0;
+      --yellow:#f0c050;
+      --red:#ff5f7e;
+      --radius:18px;
+      --radius-sm:12px;
+      --max:1180px;
+      --article:760px;
+    }
+    body::before, body::after{
+      content:"";
+      position:fixed;
+      inset:auto;
+      pointer-events:none;
+      z-index:0;
+      border-radius:50%;
+      filter:blur(6px);
+    }
+    body::before{
+      width:780px;height:780px;top:-280px;left:-200px;
+      background:radial-gradient(circle,rgba(124,106,255,.16),transparent 65%);
+    }
+    body::after{
+      width:620px;height:620px;bottom:-180px;right:-140px;
+      background:radial-gradient(circle,rgba(160,100,255,.10),transparent 68%);
+    }
+    .topbar{
+      position:sticky;top:0;z-index:50;
+      border-bottom:1px solid var(--border);
+      background:rgba(9,8,15,.74);
+      backdrop-filter:blur(20px);
+    }
+    .topbar-inner{
+      max-width:var(--max);
+      margin:0 auto;
+      padding:0 24px;
+      min-height:68px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:18px;
+    }
+    .brand{display:flex;align-items:center;gap:18px;min-width:0}
+    .logo{
+      font-family:'Syne',sans-serif;
+      font-size:24px;font-weight:800;letter-spacing:5px;color:var(--accent);text-decoration:none;white-space:nowrap;
+    }
+    .top-links{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .top-link{
+      color:var(--text3);text-decoration:none;font-size:14px;padding:8px 12px;border-radius:10px;border:1px solid transparent;transition:.2s ease;white-space:nowrap;
+    }
+    .top-link:hover{color:var(--text);border-color:var(--border2);background:rgba(255,255,255,.02)}
+    .lang-switch{
+      display:flex;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px;gap:2px;flex-shrink:0;
+    }
+    .lang-btn{
+      border:none;background:transparent;color:var(--text3);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;letter-spacing:.5px;padding:7px 12px;border-radius:9px;cursor:pointer;transition:.2s ease;
+    }
+    .lang-btn:hover{color:var(--text2)}
+    .lang-btn.active{color:#fff;background:var(--accent);box-shadow:0 4px 16px var(--accent-glow)}
+    .page{
+      position:relative;z-index:1;
+      max-width:var(--max);margin:0 auto;padding:34px 24px 90px;display:grid;grid-template-columns:260px minmax(0,1fr);gap:28px;
+    }
+    .sidebar{position:sticky;top:92px;align-self:start}
+    .panel{
+      background:rgba(21,18,31,.82);border:1px solid var(--border);border-radius:22px;box-shadow:0 18px 48px rgba(0,0,0,.18);
+    }
+    .sidebar .panel{padding:22px}
+    .sidebar .eyebrow{
+      color:var(--accent2);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;
+    }
+    .sidebar h2{margin:0 0 10px;font-family:'Syne',sans-serif;font-size:22px;line-height:1.2}
+    .sidebar p{margin:0 0 16px;color:var(--text3);font-size:14px;line-height:1.55}
+    .toc{display:flex;flex-direction:column;gap:8px;margin:18px 0 0}
+    .toc a{
+      color:var(--text2);text-decoration:none;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.02);border:1px solid transparent;font-size:14px;transition:.2s ease;
+    }
+    .toc a:hover{color:#fff;border-color:var(--border2);transform:translateX(2px)}
+    .sidebar-note{
+      margin-top:18px;padding:14px 15px;background:var(--accent-dim);border:1px solid rgba(124,106,255,.18);border-radius:14px;color:var(--text2);font-size:13px;line-height:1.55;
+    }
+    .content{min-width:0}
+    .lang-page{display:none}
+    .lang-page.active{display:block}
+    .article{max-width:var(--article);margin:0 auto}
+    .hero{padding:28px 28px 24px;margin-bottom:22px}
+    .hero-badge{
+      display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--accent2);padding:7px 14px;border-radius:999px;background:var(--accent-dim);border:1px solid rgba(124,106,255,.22);margin-bottom:18px;
+    }
+    .hero h1{margin:0 0 14px;font-family:'Syne',sans-serif;font-size:clamp(34px,5vw,48px);line-height:1.1;letter-spacing:-.03em}
+    .hero p{margin:0;color:var(--text2);font-size:18px;max-width:58ch}
+    .meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+    .meta-chip{color:var(--text2);font-size:13px;padding:8px 12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:999px}
+    .article-nav{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 22px;padding:18px 20px}
+    .article-nav a{
+      text-decoration:none;color:var(--text2);font-size:14px;font-weight:600;padding:9px 14px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.02);transition:.2s ease;
+    }
+    .article-nav a:hover{color:#fff;border-color:var(--accent);background:var(--accent-dim)}
+    .section{padding:28px;margin-bottom:18px}
+    .section h2{margin:0 0 14px;font-family:'Syne',sans-serif;font-size:30px;line-height:1.2;letter-spacing:-.02em}
+    .section p{margin:0 0 14px;color:var(--text2);font-size:17px}
+    .section ol,.section ul{margin:0;padding-left:22px;color:var(--text2);font-size:17px}
+    .section li{margin:0 0 12px}
+    .callout{
+      margin:18px 0;padding:16px 18px;border-radius:16px;background:rgba(255,255,255,.025);border:1px solid var(--border);color:var(--text2);font-size:15px;
+    }
+    .callout-accent{background:var(--accent-dim);border-color:rgba(124,106,255,.22)}
+    .callout-warn{background:rgba(240,192,80,.08);border-color:rgba(240,192,80,.18)}
+    .steps{display:grid;gap:14px;margin-top:18px}
+    .step{padding:16px 18px;border-radius:16px;background:rgba(255,255,255,.025);border:1px solid var(--border)}
+    .step-num{
+      display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;font-size:14px;font-weight:700;margin-bottom:10px;box-shadow:0 6px 18px var(--accent-glow);
+    }
+    .step h3{margin:0 0 6px;font-size:18px;font-family:'Syne',sans-serif}
+    .step p{margin:0;font-size:15px}
+    .mini-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:16px}
+    .mini-card{padding:16px 18px;border-radius:16px;background:rgba(255,255,255,.025);border:1px solid var(--border)}
+    .mini-card h3{margin:0 0 8px;font-size:17px;font-family:'Syne',sans-serif}
+    .mini-card p{margin:0;font-size:15px}
+    .faq{display:grid;gap:12px;margin-top:18px}
+    .faq-item{padding:16px 18px;border:1px solid var(--border);border-radius:16px;background:rgba(255,255,255,.02)}
+    .faq-item h3{margin:0 0 8px;font-size:17px;font-family:'Syne',sans-serif}
+    .faq-item p{margin:0;font-size:15px}
+    .contact-card{padding:22px;border-radius:18px;border:1px solid var(--border);background:rgba(255,255,255,.02);margin-top:18px}
+    .contact-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+    .contact-field{display:flex;flex-direction:column;gap:8px}
+    .contact-field label{font-size:14px;color:var(--text2);font-weight:600}
+    .contact-field input,.contact-field textarea{
+      width:100%;background:#110f19;color:var(--text);border:1px solid var(--border);border-radius:14px;padding:14px 15px;font:inherit;outline:none;transition:border-color .2s, box-shadow .2s;
+    }
+    .contact-field input:focus,.contact-field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(124,106,255,.13)}
+    .contact-field textarea{min-height:150px;resize:vertical}
+    .contact-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:18px}
+    .contact-note{color:var(--text3);font-size:13px;line-height:1.5;max-width:46ch}
+    .btn{
+      border:none;cursor:pointer;background:var(--accent);color:#fff;font:inherit;font-weight:700;padding:13px 22px;border-radius:14px;box-shadow:0 8px 24px var(--accent-glow);transition:transform .2s ease, background .2s ease;
+    }
+    .btn:hover{transform:translateY(-1px);background:var(--accent2)}
+    .btn[disabled]{opacity:.75;cursor:wait;transform:none}
+    .form-status{margin-top:12px;font-size:14px;color:var(--text2)}
+    .form-status.error{color:#ff9db1}
+    .form-status.success{color:#91f0cd}
+    .hidden-hp{position:absolute;left:-9999px;opacity:0;pointer-events:none}
+    footer{max-width:var(--article);margin:14px auto 0;padding:22px 6px 0;color:var(--text3);font-size:14px;text-align:center}
+    footer a{color:var(--accent2);text-decoration:none}
+    footer a:hover{text-decoration:underline}
+    @media (max-width:980px){.page{grid-template-columns:1fr}.sidebar{position:static}.sidebar .panel{max-width:var(--article);margin:0 auto}}
+    @media (max-width:720px){
+      .topbar-inner{padding:12px 16px}
+      .brand{gap:10px;align-items:flex-start;flex-direction:column}
+      .page{padding:24px 16px 72px}
+      .hero,.article-nav,.section{padding:22px}
+      .hero p,.section p,.section li,.section ol,.section ul{font-size:16px}
+      .section h2{font-size:26px}
+      .mini-grid,.contact-row{grid-template-columns:1fr}
+    }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <a class="logo" href="/">VOX</a>
+        <nav class="top-links">
+          <a class="top-link" href="/"><span class="lang-text" data-lang="uk">Головна</span><span class="lang-text" data-lang="en">Home</span><span class="lang-text" data-lang="de">Startseite</span></a>
+          <a class="top-link" href="/docs"><span class="lang-text" data-lang="uk">Керівництво</span><span class="lang-text" data-lang="en">Guide</span><span class="lang-text" data-lang="de">Leitfaden</span></a>
+          <a class="top-link" href="mailto:avotiyaaa@gmail.com"><span class="lang-text" data-lang="uk">Email</span><span class="lang-text" data-lang="en">Email</span><span class="lang-text" data-lang="de">E-Mail</span></a>
+        </nav>
+      </div>
+      <div class="lang-switch">
+        <button class="lang-btn active" data-lang-btn="uk" type="button">UA</button>
+        <button class="lang-btn" data-lang-btn="en" type="button">EN</button>
+        <button class="lang-btn" data-lang-btn="de" type="button">DE</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="page">
+    <aside class="sidebar">
+      <div class="panel">
+        <div class="eyebrow"><span class="lang-text" data-lang="uk">Privacy Policy</span><span class="lang-text" data-lang="en">Privacy Policy</span><span class="lang-text" data-lang="de">Datenschutzhinweise</span></div>
+        <h2><span class="lang-text" data-lang="uk">Повний текст для ЄС / ЄЕЗ</span><span class="lang-text" data-lang="en">Full text for EU / EEA</span><span class="lang-text" data-lang="de">Volltext für EU / EWR</span></h2>
+        <p><span class="lang-text" data-lang="uk">Ця сторінка оформлена як повний довідковий текст: хто контролер, які дані обробляються, з якою метою, які є права користувача та як працюють міжнародні передачі.</span><span class="lang-text" data-lang="en">This page is written as a full reference text: who the controller is, what data is processed, for what purposes, what rights users have, and how international transfers are handled.</span><span class="lang-text" data-lang="de">Diese Seite ist als vollständiger Referenztext aufgebaut: wer Verantwortlicher ist, welche Daten zu welchen Zwecken verarbeitet werden, welche Rechte Nutzer haben und wie internationale Übermittlungen erfolgen.</span></p>
+        <div class="toc" id="sidebarToc"></div>
+        <div class="sidebar-note"><span class="lang-text" data-lang="uk">Це сильна базова структура для публікації, але перед релізом її варто звірити з фактичними retention-настройками, субпроцесорами та моделлю хостингу у вашому продакшні.</span><span class="lang-text" data-lang="en">This is a strong publishing-ready structure, but before release it should still be checked against your actual retention settings, subprocessors, and production hosting model.</span><span class="lang-text" data-lang="de">Dies ist eine starke veröffentlichungsreife Struktur, sollte vor dem Release jedoch noch mit den tatsächlichen Aufbewahrungsfristen, Auftragsverarbeitern und dem Produktions-Hosting abgeglichen werden.</span></div>
+      </div>
+    </aside>
+
+    <main class="content">
+      
+<section class="lang-page active" data-page-lang="uk">
+  <article class="article">
+    <section class="hero panel">
+      <div class="hero-badge">🔐 Privacy Policy</div>
+      <h1>Політика конфіденційності VOX</h1>
+      <p>Цей документ пояснює, як у сервісі VOX обробляються персональні дані користувачів у межах ЄС/ЄЕЗ, для яких цілей це робиться, кому дані можуть передаватися та які права має користувач.</p>
+      <div class="meta"><span class="meta-chip">Оновлено: 09.03.2026</span><span class="meta-chip">Контакт: avotiyaaa@gmail.com</span><span class="meta-chip">Мова: UA / EN / DE</span></div>
+    </section>
+    <nav class="article-nav panel"><a href="#p-uk-scope">Сфера дії</a><a href="#p-uk-data">Які дані</a><a href="#p-uk-purpose">Мета і підстави</a><a href="#p-uk-transfers">Передачі</a><a href="#p-uk-rights">Права</a><a href="#p-uk-contact">Контакт</a></nav>
+    <section class="section panel" id="p-uk-scope"><h2>1. Сфера дії та роль контролера</h2>
+<p>VOX є вебсервісом перекладу мовлення в реальному часі. Ця політика застосовується до обробки персональних даних користувачів під час доступу до сайту, створення акаунта, верифікації email, використання режимів Solo і Room, поповнення балансу, звернення в підтримку та взаємодії з пов’язаними сторінками документації.</p>
+<p>Для цілей цього документа оператор сервісу VOX виступає <strong>контролером персональних даних</strong> у тій мірі, у якій визначає цілі та засоби обробки даних кінцевих користувачів. Контактна адреса з питань конфіденційності: <strong>avotiyaaa@gmail.com</strong>.</p>
+<div class="callout"><strong>Примітка:</strong> якщо VOX надається клієнтам B2B у white-label або керованому середовищі, окремі організації-замовники можуть виступати самостійними контролерами щодо даних своїх користувачів або учасників подій.</div>
+</section><section class="section panel" id="p-uk-data"><h2>2. Які категорії даних можуть оброблятися</h2>
+<ul>
+  <li><strong>Дані акаунта:</strong> ім’я, email, статус верифікації, технічні ідентифікатори акаунта, журнал входів, налаштування мови та інші параметри профілю.</li>
+  <li><strong>Дані використання сервісу:</strong> IP-адреса, тип пристрою, браузер, часові мітки, журнали помилок, події запуску або завершення сесій, технічні логи безпеки та доступу.</li>
+  <li><strong>Дані сесії перекладу:</strong> аудіо, транскрипція, перекладений текст, синтезоване мовлення, службові метадані сесії, а також службові ідентифікатори кімнат або учасників, якщо використовується режим Room.</li>
+  <li><strong>Платіжні та білінгові дані:</strong> інформація про транзакції, суми поповнення, статуси платежів, ідентифікатори платіжного провайдера, квитанції та службові бухгалтерські записи.</li>
+  <li><strong>Звернення в підтримку:</strong> ім’я, email, тема, зміст повідомлення, історія листування, вкладені технічні описи або скриншоти, якщо користувач надсилає їх добровільно.</li>
+</ul>
+</section><section class="section panel" id="p-uk-purpose"><h2>3. Мета обробки та правові підстави</h2>
+<p>VOX обробляє персональні дані тільки для визначених, явних і легітимних цілей. Залежно від сценарію правовими підставами можуть бути виконання договору з користувачем, законний інтерес, дотримання юридичного обов’язку або згода, якщо вона дійсно потрібна в конкретному випадку.</p>
+<ul>
+  <li><strong>Надання сервісу перекладу:</strong> обробка аудіо, транскрипції та перекладеного тексту необхідна для надання основної функції сервісу в режимі реального часу.</li>
+  <li><strong>Створення та адміністрування акаунта:</strong> email і пов’язані дані потрібні для входу, підтвердження акаунта, відновлення доступу та сервісних повідомлень.</li>
+  <li><strong>Білінг та фінансова звітність:</strong> платіжні події обробляються для прийняття платежів, запобігання шахрайству, ведення обліку та виконання вимог фінансового законодавства.</li>
+  <li><strong>Підтримка користувачів:</strong> контактні дані та зміст звернення використовуються, щоб відповісти на питання, виправити помилку або вирішити спір щодо сервісу.</li>
+  <li><strong>Безпека та захист сервісу:</strong> технічні логи й журнали безпеки можуть аналізуватися для виявлення зловживань, бот-активності, атак або несанкціонованого доступу.</li>
+</ul>
+</section><section class="section panel" id="p-uk-transfers"><h2>4. Одержувачі даних, субпроцесори та міжнародні передачі</h2>
+<p>Для роботи VOX можуть залучатися постачальники хостингу, платіжної інфраструктури, email-інфраструктури, засобів безпеки, а також постачальники мовних або голосових технологій, якщо вони технічно потрібні для транскрипції, перекладу чи синтезу мовлення. Такі постачальники повинні отримувати доступ лише в тій мірі, у якій це потрібно для надання відповідної частини сервісу.</p>
+<p>Якщо персональні дані передаються за межі ЄС/ЄЕЗ, VOX має використовувати належний механізм передачі, наприклад рішення про адекватність або стандартні договірні положення (SCC), а за потреби — додаткові технічні та організаційні заходи.</p>
+<div class="callout"><strong>Що варто перевірити перед релізом:</strong> фактичний список субпроцесорів, локації дата-центрів, політику логування, retention для транскриптів та те, чи використовуються будь-які зовнішні LLM або speech-провайдери у продуктивному середовищі.</div>
+</section><section class="section panel" id="p-uk-rights"><h2>5. Права користувача</h2>
+<p>Користувач має право запитати доступ до своїх даних, вимагати їх виправлення, видалення, обмеження обробки, висловити заперечення та, де застосовно, отримати свої дані в переносному форматі. Також користувач може відкликати згоду, якщо певна обробка ґрунтувалася саме на згоді.</p>
+<p>VOX повинен відповідати на належним чином подані запити без невиправданої затримки, а в загальному правилі — протягом одного місяця. Якщо запит складний або об’ємний, цей строк може бути продовжений у межах, дозволених законом, але користувача потрібно належно поінформувати.</p>
+</section><section class="section panel" id="p-uk-contact"><h2>6. Як звернутися з privacy-запитом або скаргою</h2>
+<p>З усіх питань щодо обробки персональних даних, реалізації прав користувача або видалення акаунта можна звертатися за адресою <strong><a href="mailto:avotiyaaa@gmail.com">avotiyaaa@gmail.com</a></strong>.</p>
+<p>Якщо користувач вважає, що його права були порушені, він також має право звернутися до компетентного органу захисту даних у своїй державі-члені ЄС/ЄЕЗ.</p>
+</section>
+  </article>
+</section>
+
+<section class="lang-page" data-page-lang="en">
+  <article class="article">
+    <section class="hero panel">
+      <div class="hero-badge">🔐 Privacy Policy</div>
+      <h1>VOX Privacy Policy</h1>
+      <p>This document explains how VOX processes personal data for users in the EU/EEA, for which purposes the data is used, with whom it may be shared, and what rights users have under applicable data-protection law.</p>
+      <div class="meta"><span class="meta-chip">Updated: 09 Mar 2026</span><span class="meta-chip">Contact: avotiyaaa@gmail.com</span><span class="meta-chip">Language: UA / EN / DE</span></div>
+    </section>
+    <nav class="article-nav panel"><a href="#p-en-scope">Scope</a><a href="#p-en-data">Data categories</a><a href="#p-en-purpose">Purposes & legal bases</a><a href="#p-en-transfers">Transfers</a><a href="#p-en-rights">Rights</a><a href="#p-en-contact">Contact</a></nav>
+    <section class="section panel" id="p-en-scope"><h2>1. Scope and controller role</h2>
+<p>VOX is a web-based real-time speech translation service. This policy applies to the processing of personal data when users access the website, create an account, verify an email address, use Solo and Room modes, top up a balance, contact support, or interact with related documentation pages.</p>
+<p>For the purposes described in this document, the operator of VOX acts as the <strong>controller of personal data</strong> to the extent it determines the purposes and means of processing for end users. Privacy requests can be sent to <strong>avotiyaaa@gmail.com</strong>.</p>
+<div class="callout"><strong>Note:</strong> if VOX is provided to B2B customers in a managed or white-label environment, those customers may act as separate controllers for the data of their own users or event participants.</div>
+</section><section class="section panel" id="p-en-data"><h2>2. Categories of data that may be processed</h2>
+<ul>
+  <li><strong>Account data:</strong> name, email address, verification status, technical account identifiers, login history, language settings, and related profile preferences.</li>
+  <li><strong>Service usage data:</strong> IP address, device type, browser, timestamps, error logs, session start/stop events, and security/access logs.</li>
+  <li><strong>Translation session data:</strong> audio, transcription, translated text, synthesized speech, session metadata, and service-side identifiers for rooms or participants where Room mode is used.</li>
+  <li><strong>Payment and billing data:</strong> transaction records, top-up amounts, payment status, payment-provider identifiers, receipts, and accounting records.</li>
+  <li><strong>Support requests:</strong> name, email, subject line, message content, support history, and any technical descriptions or screenshots voluntarily provided by the user.</li>
+</ul>
+</section><section class="section panel" id="p-en-purpose"><h2>3. Purposes of processing and legal bases</h2>
+<p>VOX processes personal data only for specified, explicit, and legitimate purposes. Depending on the scenario, the legal basis may be performance of a contract, legitimate interests, compliance with a legal obligation, or consent where consent is genuinely required.</p>
+<ul>
+  <li><strong>Providing the translation service:</strong> processing of audio, transcription, and translated text is necessary to deliver the core real-time service.</li>
+  <li><strong>Creating and administering accounts:</strong> email and related account data are required for sign-in, verification, recovery, and service communications.</li>
+  <li><strong>Billing and financial compliance:</strong> payment events are processed to accept payments, prevent fraud, maintain accounting records, and comply with legal obligations.</li>
+  <li><strong>User support:</strong> contact data and message content are used to answer questions, investigate issues, and resolve disputes.</li>
+  <li><strong>Security and service protection:</strong> technical and security logs may be processed to detect abuse, bot activity, attacks, or unauthorized access.</li>
+</ul>
+</section><section class="section panel" id="p-en-transfers"><h2>4. Recipients, subprocessors, and international transfers</h2>
+<p>VOX may rely on providers for hosting, payments, email delivery, security tooling, and language or voice technologies where these are technically required to provide transcription, translation, or speech synthesis. Such providers should only receive access to the extent necessary to perform their part of the service.</p>
+<p>If personal data is transferred outside the EU/EEA, VOX should rely on an appropriate transfer mechanism, such as an adequacy decision or the Standard Contractual Clauses (SCCs), together with supplementary safeguards where required.</p>
+<div class="callout"><strong>Recommended production check:</strong> verify the exact list of subprocessors, data-center locations, logging rules, transcript-retention settings, and whether any external LLM or speech providers are enabled in production.</div>
+</section><section class="section panel" id="p-en-rights"><h2>5. User rights</h2>
+<p>Users may request access to their personal data, request correction or deletion, restrict processing, object to processing, and receive their data in a portable format where applicable. They may also withdraw consent where processing relies on consent.</p>
+<p>VOX should respond to properly submitted requests without undue delay and, as a general rule, within one month. If a request is complex or numerous, the period may be extended as permitted by law, but the user should be informed accordingly.</p>
+</section><section class="section panel" id="p-en-contact"><h2>6. Privacy contact and complaints</h2>
+<p>All questions about the processing of personal data, the exercise of user rights, or account deletion can be sent to <strong><a href="mailto:avotiyaaa@gmail.com">avotiyaaa@gmail.com</a></strong>.</p>
+<p>If a user believes their rights have been violated, they may also lodge a complaint with the competent data-protection authority in their EU/EEA country.</p>
+</section>
+  </article>
+</section>
+
+<section class="lang-page" data-page-lang="de">
+  <article class="article">
+    <section class="hero panel">
+      <div class="hero-badge">🔐 Datenschutzhinweise</div>
+      <h1>VOX Datenschutzhinweise</h1>
+      <p>Dieses Dokument erläutert, wie VOX personenbezogene Daten von Nutzern im EU-/EWR-Raum verarbeitet, zu welchen Zwecken dies geschieht, an wen Daten weitergegeben werden können und welche Rechte Nutzern nach dem Datenschutzrecht zustehen.</p>
+      <div class="meta"><span class="meta-chip">Aktualisiert: 09.03.2026</span><span class="meta-chip">Kontakt: avotiyaaa@gmail.com</span><span class="meta-chip">Sprache: UA / EN / DE</span></div>
+    </section>
+    <nav class="article-nav panel"><a href="#p-de-scope">Geltungsbereich</a><a href="#p-de-data">Datenarten</a><a href="#p-de-purpose">Zwecke & Rechtsgrundlagen</a><a href="#p-de-transfers">Übermittlungen</a><a href="#p-de-rights">Rechte</a><a href="#p-de-contact">Kontakt</a></nav>
+    <section class="section panel" id="p-de-scope"><h2>1. Geltungsbereich und Rolle des Verantwortlichen</h2>
+<p>VOX ist ein webbasiertes System für Echtzeit-Sprachübersetzung. Diese Datenschutzhinweise gelten für die Verarbeitung personenbezogener Daten beim Besuch der Website, der Erstellung eines Kontos, der Bestätigung einer E-Mail-Adresse, der Nutzung der Modi Solo und Room, dem Aufladen von Guthaben, der Kontaktaufnahme mit dem Support und der Nutzung zugehöriger Dokumentationsseiten.</p>
+<p>Für die in diesem Dokument beschriebenen Zwecke handelt der Betreiber von VOX als <strong>Verantwortlicher für personenbezogene Daten</strong>, soweit er Zwecke und Mittel der Verarbeitung für Endnutzer festlegt. Datenschutzanfragen können an <strong>avotiyaaa@gmail.com</strong> gerichtet werden.</p>
+<div class="callout"><strong>Hinweis:</strong> Wird VOX B2B-Kunden in einer verwalteten oder White-Label-Umgebung bereitgestellt, können diese Kunden hinsichtlich der Daten ihrer eigenen Nutzer oder Veranstaltungsteilnehmer eigenständige Verantwortliche sein.</div>
+</section><section class="section panel" id="p-de-data"><h2>2. Kategorien personenbezogener Daten</h2>
+<ul>
+  <li><strong>Kontodaten:</strong> Name, E-Mail-Adresse, Verifizierungsstatus, technische Konto-IDs, Login-Historie, Spracheinstellungen und zugehörige Profilpräferenzen.</li>
+  <li><strong>Nutzungsdaten des Dienstes:</strong> IP-Adresse, Gerätetyp, Browser, Zeitstempel, Fehlerprotokolle, Start-/Stop-Ereignisse von Sitzungen sowie Sicherheits- und Zugriffsprotokolle.</li>
+  <li><strong>Daten aus Übersetzungssitzungen:</strong> Audio, Transkription, übersetzter Text, synthetisierte Sprache, Sitzungsmetadaten sowie Dienst-IDs für Räume oder Teilnehmer, wenn der Room-Modus verwendet wird.</li>
+  <li><strong>Zahlungs- und Abrechnungsdaten:</strong> Transaktionsdaten, Aufladebeträge, Zahlungsstatus, Kennungen des Zahlungsanbieters, Belege und Buchhaltungsunterlagen.</li>
+  <li><strong>Support-Anfragen:</strong> Name, E-Mail, Betreff, Nachrichteninhalt, Support-Verlauf sowie technische Beschreibungen oder Screenshots, die Nutzer freiwillig bereitstellen.</li>
+</ul>
+</section><section class="section panel" id="p-de-purpose"><h2>3. Verarbeitungszwecke und Rechtsgrundlagen</h2>
+<p>VOX verarbeitet personenbezogene Daten nur für festgelegte, eindeutige und legitime Zwecke. Je nach Szenario kann die Rechtsgrundlage die Vertragserfüllung, berechtigte Interessen, eine rechtliche Verpflichtung oder — soweit tatsächlich erforderlich — eine Einwilligung sein.</p>
+<ul>
+  <li><strong>Bereitstellung des Übersetzungsdienstes:</strong> Die Verarbeitung von Audio, Transkription und übersetztem Text ist notwendig, um den Kerndienst in Echtzeit bereitzustellen.</li>
+  <li><strong>Erstellung und Verwaltung von Konten:</strong> E-Mail und zugehörige Kontodaten sind für Anmeldung, Verifizierung, Wiederherstellung und Servicemitteilungen erforderlich.</li>
+  <li><strong>Abrechnung und rechtliche Pflichten:</strong> Zahlungsereignisse werden verarbeitet, um Zahlungen anzunehmen, Betrug zu verhindern, Buchhaltungsunterlagen zu führen und rechtliche Pflichten einzuhalten.</li>
+  <li><strong>Nutzersupport:</strong> Kontaktdaten und Nachrichteninhalt werden verwendet, um Fragen zu beantworten, Probleme zu prüfen und Streitfälle zu klären.</li>
+  <li><strong>Sicherheit und Schutz des Dienstes:</strong> Technische und sicherheitsrelevante Protokolle können verarbeitet werden, um Missbrauch, Bot-Aktivität, Angriffe oder unbefugten Zugriff zu erkennen.</li>
+</ul>
+</section><section class="section panel" id="p-de-transfers"><h2>4. Empfänger, Auftragsverarbeiter und internationale Übermittlungen</h2>
+<p>VOX kann auf Anbieter für Hosting, Zahlungen, E-Mail-Zustellung, Sicherheitstools sowie Sprach- oder Stimmtechnologien zurückgreifen, soweit diese technisch für Transkription, Übersetzung oder Sprachsynthese erforderlich sind. Solche Anbieter sollten nur in dem Umfang Zugriff erhalten, der für ihren jeweiligen Teil der Dienstleistung nötig ist.</p>
+<p>Werden personenbezogene Daten außerhalb der EU/des EWR übermittelt, sollte VOX auf einen geeigneten Übermittlungsmechanismus zurückgreifen, etwa einen Angemessenheitsbeschluss oder die Standardvertragsklauseln (SCC), gegebenenfalls ergänzt durch zusätzliche Schutzmaßnahmen.</p>
+<div class="callout"><strong>Empfohlene Produktionsprüfung:</strong> Prüfen Sie die genaue Liste der Auftragsverarbeiter, die Standorte der Rechenzentren, Logging-Regeln, Aufbewahrungsfristen für Transkripte und ob externe LLM- oder Speech-Anbieter in Produktion aktiviert sind.</div>
+</section><section class="section panel" id="p-de-rights"><h2>5. Rechte der Nutzer</h2>
+<p>Nutzer können Auskunft über ihre personenbezogenen Daten verlangen, Berichtigung oder Löschung beantragen, die Verarbeitung einschränken, der Verarbeitung widersprechen und — soweit anwendbar — ihre Daten in einem übertragbaren Format erhalten. Eine erteilte Einwilligung kann widerrufen werden, soweit eine Verarbeitung auf Einwilligung beruht.</p>
+<p>VOX sollte auf ordnungsgemäß eingereichte Anfragen unverzüglich und grundsätzlich innerhalb eines Monats antworten. Ist eine Anfrage komplex oder umfangreich, kann die Frist im gesetzlich zulässigen Rahmen verlängert werden; der Nutzer ist darüber entsprechend zu informieren.</p>
+</section><section class="section panel" id="p-de-contact"><h2>6. Datenschutzkontakt und Beschwerden</h2>
+<p>Alle Fragen zur Verarbeitung personenbezogener Daten, zur Ausübung von Nutzerrechten oder zur Löschung eines Kontos können an <strong><a href="mailto:avotiyaaa@gmail.com">avotiyaaa@gmail.com</a></strong> gesendet werden.</p>
+<p>Wenn ein Nutzer der Ansicht ist, dass seine Rechte verletzt wurden, kann er sich außerdem an die zuständige Datenschutzaufsichtsbehörde in seinem EU-/EWR-Staat wenden.</p>
+</section>
+  </article>
+</section>
+
+      <footer><span class="lang-text" data-lang="uk">Практичне керівництво користувача доступне на сторінці <a href="/docs">/docs</a>.</span><span class="lang-text" data-lang="en">The practical user guide is available at <a href="/docs">/docs</a>.</span><span class="lang-text" data-lang="de">Der praktische Benutzerleitfaden ist unter <a href="/docs">/docs</a> verfügbar.</span></footer>
+    </main>
+  </div>
+
+  <script>
+    const TOC = {'uk': [('p-uk-scope', 'Сфера дії'), ('p-uk-data', 'Які дані'), ('p-uk-purpose', 'Мета і підстави'), ('p-uk-transfers', 'Передачі'), ('p-uk-rights', 'Права'), ('p-uk-contact', 'Контакт')], 'en': [('p-en-scope', 'Scope'), ('p-en-data', 'Data categories'), ('p-en-purpose', 'Purposes & legal bases'), ('p-en-transfers', 'Transfers'), ('p-en-rights', 'Rights'), ('p-en-contact', 'Contact')], 'de': [('p-de-scope', 'Geltungsbereich'), ('p-de-data', 'Datenarten'), ('p-de-purpose', 'Zwecke & Rechtsgrundlagen'), ('p-de-transfers', 'Übermittlungen'), ('p-de-rights', 'Rechte'), ('p-de-contact', 'Kontakt')]};
+    const pages = document.querySelectorAll('.lang-page');
+    const langButtons = document.querySelectorAll('[data-lang-btn]');
+    const langTexts = document.querySelectorAll('.lang-text');
+    const tocContainer = document.getElementById('sidebarToc');
+    let currentLang = localStorage.getItem('vox_docs_lang') || 'uk';
+
+    function setLang(lang){
+      currentLang = lang;
+      localStorage.setItem('vox_docs_lang', lang);
+      document.documentElement.lang = lang === 'uk' ? 'uk' : (lang === 'de' ? 'de' : 'en');
+      pages.forEach(page => page.classList.toggle('active', page.dataset.pageLang === lang));
+      langButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.langBtn === lang));
+      langTexts.forEach(el => el.style.display = el.dataset.lang === lang ? '' : 'none');
+      tocContainer.innerHTML = '';
+      TOC[lang].forEach(([href, label]) => {
+        const a = document.createElement('a');
+        a.href = href;
+        a.textContent = label;
+        tocContainer.appendChild(a);
+      });
+    }
+    langButtons.forEach(btn => btn.addEventListener('click', () => setLang(btn.dataset.langBtn)));
+    setLang(currentLang);
+  </script>
+</body>
+</html>
