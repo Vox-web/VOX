@@ -856,7 +856,10 @@
             if (soloDownloadPdfBtn) soloDownloadPdfBtn.textContent = t('downloadPdf');
             if (roomDownloadPdfBtn) roomDownloadPdfBtn.textContent = t('downloadPdf');
             const noteEl = document.getElementById('roomCostNote');
-            if(noteEl) noteEl.textContent = noteEl.textContent.replace('{PPM}', '$'+_userPpm.toFixed(3));
+            if(noteEl){
+                const tpl = (I18N[uiLang]||I18N.uk).roomCostNote;
+                noteEl.textContent = tpl.replace('{PPM}', '$'+_userPpm.toFixed(3));
+            }
         }
         if (animate) {
             els.forEach(el => el.classList.add('fading'));

@@ -249,3 +249,10 @@ web: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
 **VOX** — часть экосистемы AI-продуктов: AURA (healthcare voice assistant), ATHENA (smart companion), VOX (real-time translation).
 
 *Версия 3.1 — Март 2026*
+
+
+Карта: 4242 4242 4242 4242
+MM/ГГ: любая будущая дата, например 12/26
+CVV: любые 3 цифры, например 123
+Имя: любое
+Адрес: любой
