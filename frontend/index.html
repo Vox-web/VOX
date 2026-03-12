@@ -718,7 +718,7 @@ footer{
             <div style="font-size:11px;color:var(--text3);margin-top:2px" data-i18n="dash_min_label">хв перекладу</div>
           </div>
           <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center">
-            <div style="font-size:18px;font-weight:700;color:var(--yellow)" id="dashRate">$0.05</div>
+            <div style="font-size:18px;font-weight:700;color:var(--yellow)" id="dashRate">$0.050</div>
             <div style="font-size:11px;color:var(--text3);margin-top:2px" data-i18n="dash_rate_label">за хвилину</div>
           </div>
         </div>
@@ -1224,7 +1224,8 @@ async function loadProfileBalance(){
     if(!r.ok) return;
     const d = await r.json();
     const bal = parseFloat(d.balance||0);
-    const mins = d.est_minutes != null ? Math.floor(d.est_minutes) : Math.floor(bal/0.05);
+    const ppm = d.price_per_min || 0.05;
+    const mins = d.est_minutes != null ? Math.floor(d.est_minutes) : Math.floor(bal/ppm);
     const balStr = '$'+bal.toFixed(2);
     const minWord = {'uk':'хв','en':'min','de':'Min'};
     const minsStr = (mins > 0 ? mins : 0)+' '+(minWord[currentLang]||'хв');
@@ -1239,6 +1240,8 @@ async function loadProfileBalance(){
     const dMin = document.getElementById('dashMinutes');
     if(dBal) dBal.textContent = balStr;
     if(dMin) dMin.textContent = minsStr;
+    const dRate = document.getElementById('dashRate');
+    if(dRate) dRate.textContent = '$'+ppm.toFixed(3);
   }catch(e){}
 }
 
