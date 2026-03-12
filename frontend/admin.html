@@ -379,6 +379,9 @@ tr:hover td{background:rgba(124,106,255,.03)}
       <button class="nav-item" onclick="showPage('payments')" id="nav-payments">
         <span class="nav-icon">💳</span> Платежі
       </button>
+      <button class="nav-item" onclick="showPage('finance')" id="nav-finance">
+        <span class="nav-icon">📊</span> Фінанси
+      </button>
     </nav>
 
     <div class="content">
@@ -451,9 +454,152 @@ tr:hover td{background:rgba(124,106,255,.03)}
         </div>
       </div>
 
+      <!-- ── FINANCE PAGE ── -->
+      <div id="pageFinance" style="display:none">
+
+        <!-- Period selector -->
+        <div class="fin-period-bar">
+          <button class="fin-period-btn active" onclick="setFinPeriod('month',this)">📅 Місяць</button>
+          <button class="fin-period-btn" onclick="setFinPeriod('quarter',this)">📆 Квартал</button>
+          <button class="fin-period-btn" onclick="setFinPeriod('year',this)">🗓 Рік</button>
+          <button class="fin-period-btn" onclick="setFinPeriod('all',this)">∞ Весь час</button>
+          <button class="refresh-btn" style="margin-left:auto" onclick="loadFinance()">↻ Оновити</button>
+        </div>
+
+        <!-- KPI cards -->
+        <div class="fin-kpi-grid" id="finKpi">
+          <div class="fin-kpi"><div class="fin-kpi-val" id="fkRevenue">–</div><div class="fin-kpi-label">Оплати клієнтів</div><div class="fin-kpi-sub" id="fkRevSub">за обраний період</div></div>
+          <div class="fin-kpi"><div class="fin-kpi-val green" id="fkProfit">–</div><div class="fin-kpi-label">Чистий прибуток</div><div class="fin-kpi-sub" id="fkProfitSub">після витрат API</div></div>
+          <div class="fin-kpi"><div class="fin-kpi-val yellow" id="fkMargin">–</div><div class="fin-kpi-label">Сер. рентабельність</div><div class="fin-kpi-sub">по всіх клієнтах</div></div>
+          <div class="fin-kpi"><div class="fin-kpi-val red" id="fkCost">–</div><div class="fin-kpi-label">Мої витрати (API)</div><div class="fin-kpi-sub">Deepgram + OpenAI</div></div>
+          <div class="fin-kpi"><div class="fin-kpi-val" id="fkMinutes">–</div><div class="fin-kpi-label">Хвилин продано</div><div class="fin-kpi-sub">загалом</div></div>
+          <div class="fin-kpi"><div class="fin-kpi-val" id="fkBalance">–</div><div class="fin-kpi-label">На балансах клієнтів</div><div class="fin-kpi-sub" id="fkBalSub">невикористані кошти</div></div>
+          <div class="fin-kpi"><div class="fin-kpi-val green" id="fkActive">–</div><div class="fin-kpi-label">Активних / Всього</div><div class="fin-kpi-sub">є витрати хоча б раз</div></div>
+          <div class="fin-kpi"><div class="fin-kpi-val red" id="fkRisk">–</div><div class="fin-kpi-label">Ризик відтоку</div><div class="fin-kpi-sub">баланс &lt; $1</div></div>
+        </div>
+
+        <!-- Table -->
+        <div class="fin-table-wrap">
+          <div class="fin-table-head">
+            <span class="table-title">📊 Детальна аналітика по клієнтах</span>
+            <span id="finPeriodLabel" style="color:var(--text3);font-size:12px"></span>
+          </div>
+          <div class="fin-scroll">
+            <div id="financeTable">
+              <div class="empty-state"><div class="empty-icon">⏳</div><div>Завантаження...</div></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
     </div><!-- /content -->
   </div><!-- /layout -->
 </div><!-- /appWrap -->
+
+<!-- ═══ FINANCE PAGE ═══ (inserted before modals) -->
+<style>
+/* ─── Finance page ─── */
+#pageFinance { display:none }
+.fin-period-bar{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap}
+.fin-period-btn{
+  border:1px solid var(--border2);background:transparent;
+  color:var(--text2);font-family:'DM Sans',sans-serif;
+  font-size:13px;padding:7px 16px;border-radius:10px;cursor:pointer;transition:all .2s;
+}
+.fin-period-btn:hover,.fin-period-btn.active{
+  border-color:var(--accent);color:var(--accent2);
+  background:var(--accent-dim);
+}
+.fin-kpi-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:12px;margin-bottom:24px;
+}
+.fin-kpi{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px 18px;
+}
+.fin-kpi-val{
+  font-family:'Syne',sans-serif;font-size:24px;font-weight:800;
+  background:linear-gradient(135deg,var(--accent),#c084fc);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.fin-kpi-val.green{background:linear-gradient(135deg,var(--green),#4ade80);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.fin-kpi-val.yellow{background:linear-gradient(135deg,var(--yellow),#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.fin-kpi-val.red{background:linear-gradient(135deg,var(--red),#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.fin-kpi-label{color:var(--text2);font-size:12px;margin-top:4px}
+.fin-kpi-sub{color:var(--text3);font-size:11px;margin-top:2px}
+
+.fin-table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.fin-table-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap;
+}
+.fin-scroll{overflow-x:auto}
+.fin-tbl{width:100%;border-collapse:collapse;min-width:1100px}
+.fin-tbl th{
+  text-align:left;padding:10px 12px;
+  font-size:10px;font-weight:700;letter-spacing:.6px;
+  color:var(--text3);text-transform:uppercase;
+  border-bottom:1px solid var(--border);background:var(--bg2);white-space:nowrap;
+}
+.fin-tbl th.r{text-align:right}
+.fin-tbl td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:13px}
+.fin-tbl tr:last-child td{border-bottom:none}
+.fin-tbl tr:hover td{background:rgba(124,106,255,.03)}
+.fin-tbl td.r{text-align:right}
+
+/* Total row */
+.fin-tbl tr.fin-totals td{
+  background:var(--bg2);font-weight:700;
+  border-top:2px solid var(--border2);
+  font-size:13px;color:var(--text);
+}
+
+/* Risk badge */
+.risk-badge{
+  display:inline-block;background:rgba(255,95,126,.1);color:var(--red);
+  font-size:10px;font-weight:600;padding:2px 7px;border-radius:99px;
+  border:1px solid rgba(255,95,126,.25);margin-left:4px;vertical-align:middle;
+}
+/* Verified */
+.verified-dot{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--green);margin-right:5px;
+}
+.unverified-dot{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--text3);margin-right:5px;
+}
+/* Profit colors */
+.profit-pos{color:var(--green);font-weight:600}
+.profit-neg{color:var(--red);font-weight:600}
+/* Margin editor */
+.margin-cell{display:flex;align-items:center;gap:5px;justify-content:flex-end}
+.margin-input{
+  width:58px;background:var(--bg2);border:1px solid var(--border2);
+  color:var(--text);padding:4px 7px;border-radius:6px;font-size:12px;
+  font-family:'DM Sans',sans-serif;text-align:center;
+}
+.margin-input:focus{outline:none;border-color:var(--accent)}
+.margin-save{
+  background:var(--accent);color:#fff;border:none;
+  padding:4px 9px;border-radius:6px;font-size:11px;cursor:pointer;
+  transition:background .2s;
+}
+.margin-save:hover{background:var(--accent2)}
+.price-edit{width:52px}
+
+/* Progress bar for minutes */
+.min-bar-wrap{display:flex;align-items:center;gap:7px}
+.min-bar-bg{flex:1;height:5px;background:var(--border);border-radius:99px;min-width:40px}
+.min-bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent),#c084fc)}
+
+@media(max-width:900px){
+  .fin-kpi-grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
 
 <!-- ═══ EDIT USER MODAL ═══ -->
 <div class="modal-overlay" id="editUserModal" onclick="closeEditModal(event)">
@@ -555,13 +701,14 @@ function closeSidebar(){
 
 // ═══════════ NAV ═══════════
 function showPage(page){
-  ['reviews','users','payments'].forEach(p=>{
+  ['reviews','users','payments','finance'].forEach(p=>{
     document.getElementById('page'+capitalize(p)).style.display = p===page?'block':'none';
     document.getElementById('nav-'+p).classList.toggle('active', p===page);
   });
   closeSidebar();
-  if(page==='users') loadUsers();
+  if(page==='users')    loadUsers();
   if(page==='payments') loadPayments();
+  if(page==='finance')  loadFinance();
 }
 function capitalize(s){return s.charAt(0).toUpperCase()+s.slice(1)}
 
@@ -985,6 +1132,182 @@ if(adminAuthed){
   document.getElementById('appWrap').style.display='flex';
   loadReviews();
 }
+// ═══════════ FINANCE ═══════════
+let finPeriod = 'month';
+let finData   = null;
+
+function setFinPeriod(p, btn){
+  finPeriod = p;
+  document.querySelectorAll('.fin-period-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  loadFinance();
+}
+
+async function loadFinance(){
+  document.getElementById('financeTable').innerHTML =
+    '<div class="empty-state"><div class="empty-icon">⏳</div><div>Завантаження...</div></div>';
+
+  try{
+    const r = await fetch(`/api/admin/finance?period=${finPeriod}`, {headers:getAdminHeaders()});
+    if(!r.ok){ if(r.status===401||r.status===403) adminLogout(); return; }
+    finData = await r.json();
+    renderFinKpi(finData.totals);
+    renderFinTable(finData.users, finData.totals);
+  } catch(e){
+    document.getElementById('financeTable').innerHTML =
+      '<div class="empty-state"><div class="empty-icon">⚠️</div><div>Помилка завантаження</div></div>';
+    showToast('❌ Помилка завантаження фінансів','err');
+  }
+}
+
+function renderFinKpi(t){
+  const labels = {month:'місяць',quarter:'квартал',year:'рік',all:'весь час'};
+  const lbl    = labels[finPeriod] || finPeriod;
+  document.getElementById('fkRevenue').textContent  = '$'+t.total_paid_period.toFixed(2);
+  document.getElementById('fkRevSub').textContent   = 'за '+(finPeriod==='all'?'весь час':lbl);
+  document.getElementById('fkProfit').textContent   = '$'+t.total_profit.toFixed(2);
+  document.getElementById('fkProfitSub').textContent= 'дохід $'+t.total_revenue.toFixed(2)+' – витрати $'+t.total_cost.toFixed(2);
+  document.getElementById('fkMargin').textContent   = t.avg_margin.toFixed(1)+'%';
+  document.getElementById('fkCost').textContent     = '$'+t.total_cost.toFixed(2);
+  document.getElementById('fkMinutes').textContent  = fmtNum(t.total_minutes_used)+' хв';
+  document.getElementById('fkBalance').textContent  = '$'+t.total_balance.toFixed(2);
+  document.getElementById('fkBalSub').textContent   = 'потенційний дохід ще $'+
+    (t.total_balance*(t.avg_margin/100)).toFixed(2);
+  document.getElementById('fkActive').textContent   = t.users_active+' / '+t.users_total;
+  document.getElementById('fkRisk').textContent     = t.users_at_risk;
+  document.getElementById('finPeriodLabel').textContent =
+    finPeriod==='all' ? 'Весь час' : 'За останній '+lbl;
+}
+
+function renderFinTable(users, totals){
+  if(!users || !users.length){
+    document.getElementById('financeTable').innerHTML =
+      '<div class="empty-state"><div class="empty-icon">👤</div><div>Немає користувачів</div></div>';
+    return;
+  }
+
+  const rows = users.map(u=>{
+    const pct     = u.total_paid > 0 ? Math.min(100, u.minutes_remaining / (u.minutes_used + u.minutes_remaining) * 100) : 0;
+    const bar     = `<div class="min-bar-wrap">
+      <span style="min-width:36px;text-align:right">${fmtNum(u.minutes_remaining)}</span>
+      <div class="min-bar-bg"><div class="min-bar-fill" style="width:${pct.toFixed(0)}%"></div></div>
+    </div>`;
+
+    const profCls  = u.profit >= 0 ? 'profit-pos' : 'profit-neg';
+    const riskBadge= u.at_risk ? '<span class="risk-badge">⚠ ризик</span>' : '';
+    const verDot   = u.is_email_verified
+      ? '<span class="verified-dot" title="Email підтверджено"></span>'
+      : '<span class="unverified-dot" title="Email не підтверджено"></span>';
+
+    return `<tr>
+      <td>
+        ${verDot}<strong>${esc(u.name)}</strong>${riskBadge}
+        <div class="user-email">${esc(u.email)}</div>
+        <div style="color:var(--text3);font-size:11px;margin-top:2px">${fmtDate(u.registered)}</div>
+      </td>
+      <td class="r">$${u.total_paid.toFixed(2)}<div style="color:var(--text3);font-size:11px">${u.topup_count}×  ø$${u.avg_topup}</div></td>
+      <td class="r">$${u.total_paid_period.toFixed(2)}</td>
+      <td class="r"><span style="color:var(--text2)">$${u.balance.toFixed(2)}</span></td>
+      <td class="r">${fmtNum(u.minutes_used)}</td>
+      <td>${bar}</td>
+      <td class="r">$${u.price_per_min.toFixed(3)}</td>
+      <td class="r" style="color:var(--text3)">$${u.input_cost_ppm.toFixed(4)}</td>
+      <td>
+        <div class="margin-cell">
+          <input class="margin-input" id="mg-${u.user_id}" type="number" min="0" max="100" step="0.1"
+            value="${u.margin_percent.toFixed(1)}" title="Рентабельність %"/>
+          <span style="color:var(--text3);font-size:11px">%</span>
+          <input class="margin-input price-edit" id="ppm-${u.user_id}" type="number" min="0" step="0.001"
+            value="${u.price_per_min.toFixed(3)}" title="Ціна клієнта $/хв"/>
+          <button class="margin-save" onclick="saveMargin(${u.user_id})">✓</button>
+        </div>
+      </td>
+      <td class="r">$${u.revenue.toFixed(2)}</td>
+      <td class="r" style="color:var(--red)">$${u.my_cost.toFixed(2)}</td>
+      <td class="r ${profCls}">$${u.profit.toFixed(2)}</td>
+      <td class="r" style="color:var(--yellow)">${u.roi.toFixed(0)}%</td>
+      <td class="r" style="color:var(--text3);font-size:12px">$${u.ltv_30.toFixed(1)} / $${u.ltv_365.toFixed(0)}</td>
+    </tr>`;
+  }).join('');
+
+  const totRow = `<tr class="fin-totals">
+    <td>РАЗОМ (${users.length} клієнтів)</td>
+    <td class="r">$${totals.total_paid.toFixed(2)}</td>
+    <td class="r">$${totals.total_paid_period.toFixed(2)}</td>
+    <td class="r">$${totals.total_balance.toFixed(2)}</td>
+    <td class="r">${fmtNum(totals.total_minutes_used)}</td>
+    <td></td><td></td><td></td>
+    <td class="r" style="color:var(--yellow)">${totals.avg_margin.toFixed(1)}%</td>
+    <td class="r">$${totals.total_revenue.toFixed(2)}</td>
+    <td class="r" style="color:var(--red)">$${totals.total_cost.toFixed(2)}</td>
+    <td class="r profit-pos">$${totals.total_profit.toFixed(2)}</td>
+    <td></td><td></td>
+  </tr>`;
+
+  document.getElementById('financeTable').innerHTML = `
+    <table class="fin-tbl">
+      <thead>
+        <tr>
+          <th>Користувач</th>
+          <th class="r">Поповнено ∑</th>
+          <th class="r">За період</th>
+          <th class="r">Баланс</th>
+          <th class="r">Хв. витрачено</th>
+          <th>Хв. залишок</th>
+          <th class="r">Ціна/хв</th>
+          <th class="r">Вх. ціна/хв</th>
+          <th class="r">Рент.% / Ціна</th>
+          <th class="r">Дохід</th>
+          <th class="r">Мої витрати</th>
+          <th class="r">Прибуток</th>
+          <th class="r">ROI</th>
+          <th class="r">LTV 30д/1р</th>
+        </tr>
+      </thead>
+      <tbody>${rows}${totRow}</tbody>
+    </table>`;
+}
+
+async function saveMargin(userId){
+  const marginEl = document.getElementById('mg-'+userId);
+  const priceEl  = document.getElementById('ppm-'+userId);
+  if(!marginEl) return;
+
+  const margin = parseFloat(marginEl.value);
+  const price  = priceEl ? parseFloat(priceEl.value) : null;
+
+  if(isNaN(margin) || margin < 0 || margin > 100){
+    showToast('⚠️ Рентабельність: 0–100%','err'); return;
+  }
+  if(price !== null && (isNaN(price) || price <= 0)){
+    showToast('⚠️ Ціна повинна бути > 0','err'); return;
+  }
+
+  try{
+    const body = {user_id: userId, margin_percent: margin};
+    if(price !== null) body.price_per_min = price;
+
+    const r = await fetch('/api/admin/finance/margin',{
+      method:'POST',
+      headers:getAdminHeaders(),
+      body: JSON.stringify(body)
+    });
+    if(!r.ok) throw new Error(r.status);
+    showToast('✅ Рентабельність збережено');
+    await loadFinance();
+  } catch(e){
+    showToast('❌ Помилка збереження','err');
+  }
+}
+
+function fmtNum(n){ return n>=1000 ? (n/1000).toFixed(1)+'k' : String(Math.round(n||0)) }
+function fmtDate(s){
+  if(!s) return '–';
+  try{ return new Date(s).toLocaleDateString('uk-UA',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+  catch{ return s.slice(0,10); }
+}
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+
 </script>
 </body>
 </html>

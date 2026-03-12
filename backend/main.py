@@ -29,7 +29,8 @@ from tts_engine import TTSEngine
 from room_manager import RoomManager, ParticipantState
 from vox_db import (init_db, register_user, login_user,
                     get_user_by_token, add_review, get_reviews,
-                    approve_review, delete_review, get_all_users)
+                    approve_review, delete_review, get_all_users,
+                    get_finance_settings, set_user_margin)
 
 from pydantic import BaseModel, EmailStr
 import resend
@@ -1249,6 +1250,197 @@ async def admin_get_users(authorization: Optional[str] = Header(None)):
         for u in users:
             u.setdefault("balance", 0.0)
     return users
+
+
+# ── Finance admin ──────────────────────────────────────────────────────────────
+
+class SetMarginBody(BaseModel):
+    user_id: int
+    margin_percent: float
+    price_per_min: Optional[float] = None
+    notes: Optional[str] = None
+
+
+@app.get("/api/admin/finance")
+async def admin_get_finance(
+    period: str = "all",
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Финансовая сводка по пользователям.
+    period: all | month | quarter | year
+    """
+    _check_admin(authorization)
+
+    from datetime import datetime, timedelta, timezone
+
+    users = get_all_users(limit=1000)
+    margins = get_finance_settings()
+
+    DEFAULT_PRICE_PER_MIN = 0.05   # $0.05/мин — текущий тариф
+    DEFAULT_MARGIN        = 60.0   # 60% рентабельность по умолчанию
+
+    # --- Период фильтрации ---
+    now = datetime.now(timezone.utc)
+    if period == "month":
+        since = now - timedelta(days=30)
+    elif period == "quarter":
+        since = now - timedelta(days=90)
+    elif period == "year":
+        since = now - timedelta(days=365)
+    else:
+        since = None
+
+    # --- Загружаем данные из billing_db ---
+    try:
+        from billing_db import _conn as _billing_conn, get_all_payments
+        bcon = _billing_conn()
+        bcur = bcon.cursor()
+
+        # Балансы
+        bcur.execute("SELECT id, balance, is_email_verified FROM users")
+        billing_users = {row["id"]: row for row in bcur.fetchall()}
+
+        # Все платежи
+        all_payments = get_all_payments(limit=50000)
+        bcon.close()
+    except Exception as _e:
+        logger.warning(f"admin_finance billing_db: {_e}")
+        billing_users = {}
+        all_payments = []
+
+    # Платежи по user_id
+    from collections import defaultdict
+    payments_by_user: dict = defaultdict(list)
+    for p in all_payments:
+        if p.get("status") == "completed":
+            payments_by_user[p["user_id"]].append(p)
+
+    result = []
+    for user in users:
+        uid = user["id"]
+        bu  = billing_users.get(uid, {})
+
+        balance          = float(bu.get("balance") or 0)
+        is_verified      = bool(bu.get("is_email_verified", False))
+
+        u_payments       = payments_by_user.get(uid, [])
+        total_paid_all   = sum(float(p["amount"]) for p in u_payments)
+        topup_count      = len(u_payments)
+
+        # Платежи за период
+        if since:
+            def _dt(s):
+                try:
+                    dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+                    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+                except Exception:
+                    return datetime.min.replace(tzinfo=timezone.utc)
+            period_payments    = [p for p in u_payments if _dt(p.get("created_at","")) >= since]
+        else:
+            period_payments    = u_payments
+
+        total_paid_period  = sum(float(p["amount"]) for p in period_payments)
+        last_topup         = max((str(p["created_at"]) for p in u_payments), default=None)
+        avg_topup          = round(total_paid_all / topup_count, 2) if topup_count else 0
+
+        # Настройки рентабельности
+        cfg              = margins.get(uid, {})
+        price_per_min    = float(cfg.get("price_per_min",  DEFAULT_PRICE_PER_MIN))
+        margin_pct       = float(cfg.get("margin_percent", DEFAULT_MARGIN))
+        input_cost_ppm   = round(price_per_min * (1 - margin_pct / 100), 5)
+
+        # Потраченные деньги = всего оплачено минус текущий баланс
+        spent_usd        = max(0.0, total_paid_all - balance)
+        minutes_used     = round(spent_usd / price_per_min, 1)  if price_per_min else 0
+        minutes_remaining= round(balance   / price_per_min, 1)  if price_per_min else 0
+
+        revenue          = round(spent_usd, 2)
+        my_cost          = round(minutes_used * input_cost_ppm, 2)
+        profit           = round(revenue - my_cost, 2)
+        roi              = round(profit / my_cost * 100, 1) if my_cost > 0 else 0
+
+        # Прогноз LTV: средний доход в день × дней жизни
+        try:
+            reg_dt   = datetime.fromisoformat(str(user["created_at"]).replace("Z", "+00:00"))
+            if not reg_dt.tzinfo:
+                reg_dt = reg_dt.replace(tzinfo=timezone.utc)
+            days_old = max(1, (now - reg_dt).days)
+        except Exception:
+            days_old = 1
+        daily_revenue    = revenue / days_old
+        ltv_30           = round(daily_revenue * 30,  2)
+        ltv_365          = round(daily_revenue * 365, 2)
+
+        at_risk          = balance < 1.0 and topup_count > 0   # баланс < $1 — риск оттока
+
+        result.append({
+            "user_id"          : uid,
+            "name"             : user["name"],
+            "email"            : user["email"],
+            "registered"       : user["created_at"],
+            "is_email_verified": is_verified,
+            "days_old"         : days_old,
+            "at_risk"          : at_risk,
+            # Billing
+            "balance"          : round(balance, 2),
+            "total_paid"       : round(total_paid_all, 2),
+            "total_paid_period": round(total_paid_period, 2),
+            "topup_count"      : topup_count,
+            "avg_topup"        : avg_topup,
+            "last_topup"       : last_topup,
+            # Тарификация
+            "price_per_min"    : price_per_min,
+            "input_cost_ppm"   : input_cost_ppm,
+            "margin_percent"   : margin_pct,
+            # Минуты
+            "minutes_used"     : minutes_used,
+            "minutes_remaining": minutes_remaining,
+            # Финансы
+            "revenue"          : revenue,
+            "my_cost"          : my_cost,
+            "profit"           : profit,
+            "roi"              : roi,
+            # LTV прогноз
+            "ltv_30"           : ltv_30,
+            "ltv_365"          : ltv_365,
+        })
+
+    # --- Итоги ---
+    active = [r for r in result if r["minutes_used"] > 0]
+    totals = {
+        "total_paid"        : round(sum(r["total_paid"] for r in result), 2),
+        "total_paid_period" : round(sum(r["total_paid_period"] for r in result), 2),
+        "total_balance"     : round(sum(r["balance"] for r in result), 2),
+        "total_revenue"     : round(sum(r["revenue"] for r in result), 2),
+        "total_cost"        : round(sum(r["my_cost"] for r in result), 2),
+        "total_profit"      : round(sum(r["profit"] for r in result), 2),
+        "avg_margin"        : round(sum(r["margin_percent"] for r in result) / len(result), 1) if result else 0,
+        "total_minutes_used": round(sum(r["minutes_used"] for r in result), 0),
+        "users_total"       : len(result),
+        "users_active"      : len(active),
+        "users_at_risk"     : sum(1 for r in result if r["at_risk"]),
+    }
+
+    return JSONResponse({"users": result, "totals": totals, "period": period})
+
+
+@app.post("/api/admin/finance/margin")
+async def admin_set_margin(
+    body: SetMarginBody,
+    authorization: Optional[str] = Header(None),
+):
+    """Установить рентабельность (и опционально тариф) для пользователя."""
+    _check_admin(authorization)
+    ok = set_user_margin(
+        body.user_id,
+        body.margin_percent,
+        body.price_per_min,
+        body.notes,
+    )
+    if not ok:
+        raise HTTPException(400, "Невірні параметри або користувача не знайдено")
+    return JSONResponse({"ok": True})
 
 
 # ===========================================================================

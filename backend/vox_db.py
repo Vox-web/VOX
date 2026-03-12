@@ -200,3 +200,70 @@ def get_all_users(limit: int = 500) -> list:
             (limit,)
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ─── Finance settings ─────────────────────────────────────────────────────────
+
+def _init_finance_table():
+    """Create user_finance_settings table if not exists."""
+    with get_db() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_finance_settings (
+                user_id         INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                margin_percent  REAL    DEFAULT 60.0,
+                price_per_min   REAL    DEFAULT 0.05,
+                notes           TEXT    DEFAULT '',
+                updated_at      TEXT    DEFAULT (datetime('now'))
+            )
+        """)
+
+
+def get_finance_settings() -> dict:
+    """Return dict of user_id -> {margin_percent, price_per_min, notes}."""
+    _init_finance_table()
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT user_id, margin_percent, price_per_min, notes FROM user_finance_settings"
+        ).fetchall()
+    return {row["user_id"]: dict(row) for row in rows}
+
+
+def set_user_margin(
+    user_id: int,
+    margin_percent: float,
+    price_per_min: Optional[float] = None,
+    notes: Optional[str] = None,
+) -> bool:
+    """Create or update finance settings for a user. Returns True on success."""
+    _init_finance_table()
+    if not (0 <= margin_percent <= 100):
+        return False
+    try:
+        with get_db() as conn:
+            exists = conn.execute(
+                "SELECT 1 FROM user_finance_settings WHERE user_id=?", (user_id,)
+            ).fetchone()
+            if exists:
+                parts = ["margin_percent=?", "updated_at=datetime('now')"]
+                vals: list = [margin_percent]
+                if price_per_min is not None:
+                    parts.insert(1, "price_per_min=?")
+                    vals.insert(1, price_per_min)
+                if notes is not None:
+                    parts.append("notes=?")
+                    vals.append(notes)
+                vals.append(user_id)
+                conn.execute(
+                    f"UPDATE user_finance_settings SET {', '.join(parts)} WHERE user_id=?",
+                    vals,
+                )
+            else:
+                ppm = price_per_min if price_per_min is not None else 0.05
+                conn.execute(
+                    "INSERT INTO user_finance_settings (user_id, margin_percent, price_per_min, notes) VALUES (?,?,?,?)",
+                    (user_id, margin_percent, ppm, notes or ""),
+                )
+        return True
+    except Exception as e:
+        logger.error(f"set_user_margin: {e}")
+        return False
