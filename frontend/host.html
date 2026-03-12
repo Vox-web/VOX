@@ -820,6 +820,7 @@
     };
 
     let uiLang = localStorage.getItem('vox_ui_lang') || 'uk';
+    let _userPpm = 0.05;
     function t(k) { return (I18N[uiLang]||I18N.en)[k] || I18N.en[k] || k; }
 
     function applyI18n(animate) {
@@ -854,6 +855,8 @@
             if (soloSwapBtn) soloSwapBtn.textContent = t('soloSwapBtn');
             if (soloDownloadPdfBtn) soloDownloadPdfBtn.textContent = t('downloadPdf');
             if (roomDownloadPdfBtn) roomDownloadPdfBtn.textContent = t('downloadPdf');
+            const noteEl = document.getElementById('roomCostNote');
+            if(noteEl) noteEl.textContent = noteEl.textContent.replace('{PPM}', '$'+_userPpm.toFixed(3));
         }
         if (animate) {
             els.forEach(el => el.classList.add('fading'));
@@ -1620,15 +1623,11 @@
             amtEl.textContent = '$' + d.balance.toFixed(2);
             minEl.textContent = '· ~' + d.est_minutes + ' хв';
             if(d.price_per_min){
-                const p = d.price_per_min;
-                const pStr = '$'+p.toFixed(3);
+                _userPpm = d.price_per_min;
                 ['5','10','20','50'].forEach(a=>{
                     const el = document.getElementById('min'+a);
-                    if(el) el.textContent = Math.floor(parseInt(a)/p);
+                    if(el) el.textContent = Math.floor(parseInt(a)/_userPpm);
                 });
-                // Обновляем roomCostNote с реальной ценой
-                const noteEl = document.getElementById('roomCostNote');
-                if(noteEl) noteEl.textContent = noteEl.textContent.replace('{PPM}', pStr);
             }
             if (curEl) curEl.textContent = '$' + d.balance.toFixed(2);
             // Стилизация по уровню
