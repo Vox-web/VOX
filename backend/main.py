@@ -1299,7 +1299,7 @@ async def admin_get_finance(
 
         # Балансы
         bcur.execute("SELECT id, balance, is_email_verified FROM users")
-        billing_users = {row["id"]: row for row in bcur.fetchall()}
+        billing_users = {row["id"]: dict(row) for row in bcur.fetchall()}
 
         # Все платежи
         all_payments = get_all_payments(limit=50000)
