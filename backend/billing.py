@@ -177,8 +177,17 @@ async def api_get_balance(authorization: Optional[str] = Header(None)):
     user = _get_current_user(authorization)
     balance = get_user_balance(user["id"])
     # Рассчитать ориентировочное количество минут (Solo: $0.05/мин)
-    est_minutes = int(balance / 0.05) if balance > 0 else 0
-    return JSONResponse({"ok": True, "balance": round(balance, 4), "est_minutes": est_minutes})
+    from billing_db import _conn as _bconn
+    try:
+        bc = _bconn(); cur = bc.cursor()
+        cur.execute("SELECT price_per_min FROM user_finance_settings WHERE user_id=?", (user["id"],))
+        row = cur.fetchone()
+        ppm = float(row["price_per_min"]) if row and row["price_per_min"] else 0.05
+        bc.close()
+    except Exception:
+        ppm = 0.05
+    est_minutes = int(balance / ppm) if balance > 0 else 0
+    return JSONResponse({"ok": True, "balance": round(balance, 4), "est_minutes": est_minutes, "price_per_min": ppm})
 
 
 @billing_router.post("/create-checkout")
@@ -333,7 +342,16 @@ async def billing_tick(user_id: int, mode: str, guests: int, ws: WebSocket):
     - При нулевом балансе — завершает сессию
     """
     new_balance = deduct_session_cost(user_id, mode, guests)
-    cost_per_min = 0.05 * max(1, guests)
+    from billing_db import _conn as _bconn
+    try:
+        bc = _bconn(); cur = bc.cursor()
+        cur.execute("SELECT price_per_min FROM user_finance_settings WHERE user_id=?", (user_id,))
+        row = cur.fetchone()
+        _ppm = float(row["price_per_min"]) if row and row["price_per_min"] else 0.05
+        bc.close()
+    except Exception:
+        _ppm = 0.05
+    cost_per_min = _ppm * max(1, guests)
 
     if new_balance <= 0:
         # Баланс исчерпан — завершаем сессию
