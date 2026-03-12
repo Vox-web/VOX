@@ -481,10 +481,10 @@
             <h3>💳 <span id="topupTitle">Поповнити баланс</span></h3>
             <div class="bal-current"><span id="topupBalLabel">Поточний баланс</span>: <strong id="topupCurrentBal">$0.00</strong></div>
             <div class="topup-grid">
-                <button class="topup-btn" onclick="doTopup(5)">$5<small>~100 <span class="topup-min-label">хв Solo</span></small></button>
-                <button class="topup-btn" onclick="doTopup(10)">$10<small>~200 <span class="topup-min-label">хв Solo</span></small></button>
-                <button class="topup-btn" onclick="doTopup(20)">$20<small>~400 <span class="topup-min-label">хв Solo</span></small></button>
-                <button class="topup-btn" onclick="doTopup(50)">$50<small>~1000 <span class="topup-min-label">хв Solo</span></small></button>
+                <button class="topup-btn" onclick="doTopup(5)">$5<small>~<span id="min5">100</span> <span class="topup-min-label">хв Solo</span></small></button>
+                <button class="topup-btn" onclick="doTopup(10)">$10<small>~<span id="min10">200</span> <span class="topup-min-label">хв Solo</span></small></button>
+                <button class="topup-btn" onclick="doTopup(20)">$20<small>~<span id="min20">400</span> <span class="topup-min-label">хв Solo</span></small></button>
+                <button class="topup-btn" onclick="doTopup(50)">$50<small>~<span id="min50">1000</span> <span class="topup-min-label">хв Solo</span></small></button>
             </div>
             <button class="modal-close" onclick="closeTopupModal(null)"><span id="topupClose">Закрити</span></button>
         </div>
@@ -716,7 +716,7 @@
             soloNoSpeech: '⚠️ Мова не розпізнається. Перевірте мову джерела або гучність.',
             roomSetupTitle: 'Налаштування кімнати', roomHostLangLabel: 'Ваша мова:',
             btnCreateRoom: 'Створити кімнату', roomQrLabel: 'Скануйте для входу',
-            roomCostNote: 'Вартість: $0.05/хв × кількість гостей. При 3 гостях — ~$0.15/хв',
+            roomCostNote: 'Вартість: {PPM}/хв × кількість гостей',
             roomParticipantsLabel: 'Учасники', roomEmpty: 'Очікуємо учасників...',
             roomMicLabel: 'Ваш мікрофон', roomActiveSpeaker: 'Ви (Хост)',
             roomLabelOrig: 'Оригінал', roomLabelTrans: 'Переклад', roomLabelHist: 'Історія',
@@ -756,7 +756,7 @@
             soloNoSpeech: '⚠️ Speech not recognized. Check source language or volume.',
             roomSetupTitle: 'Room Settings', roomHostLangLabel: 'Your language:',
             btnCreateRoom: 'Create Room', roomQrLabel: 'Scan to join',
-            roomCostNote: 'Cost: $0.05/min × number of guests. With 3 guests — ~$0.15/min',
+            roomCostNote: 'Cost: {PPM}/min × number of guests',
             roomParticipantsLabel: 'Participants', roomEmpty: 'Waiting for participants...',
             roomMicLabel: 'Your microphone', roomActiveSpeaker: 'You (Host)',
             roomLabelOrig: 'Original', roomLabelTrans: 'Translation', roomLabelHist: 'History',
@@ -796,7 +796,7 @@
             soloNoSpeech: '⚠️ Sprache nicht erkannt. Quellsprache oder Lautstärke prüfen.',
             roomSetupTitle: 'Raumeinstellungen', roomHostLangLabel: 'Ihre Sprache:',
             btnCreateRoom: 'Raum erstellen', roomQrLabel: 'Scannen zum Beitreten',
-            roomCostNote: 'Kosten: $0.05/Min × Anzahl der Gäste. Bei 3 Gästen — ~$0.15/Min',
+            roomCostNote: 'Kosten: {PPM}/Min × Anzahl der Gäste',
             roomParticipantsLabel: 'Teilnehmer', roomEmpty: 'Warte auf Teilnehmer...',
             roomMicLabel: 'Ihr Mikrofon', roomActiveSpeaker: 'Sie (Host)',
             roomLabelOrig: 'Original', roomLabelTrans: 'Übersetzung', roomLabelHist: 'Verlauf',
@@ -1619,6 +1619,17 @@
             widget.style.display = 'flex';
             amtEl.textContent = '$' + d.balance.toFixed(2);
             minEl.textContent = '· ~' + d.est_minutes + ' хв';
+            if(d.price_per_min){
+                const p = d.price_per_min;
+                const pStr = '$'+p.toFixed(3);
+                ['5','10','20','50'].forEach(a=>{
+                    const el = document.getElementById('min'+a);
+                    if(el) el.textContent = Math.floor(parseInt(a)/p);
+                });
+                // Обновляем roomCostNote с реальной ценой
+                const noteEl = document.getElementById('roomCostNote');
+                if(noteEl) noteEl.textContent = noteEl.textContent.replace('{PPM}', pStr);
+            }
             if (curEl) curEl.textContent = '$' + d.balance.toFixed(2);
             // Стилизация по уровню
             widget.classList.toggle('balance-low',   d.balance > 0 && d.balance < 1.0);

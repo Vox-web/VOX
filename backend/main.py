@@ -499,7 +499,9 @@ async def websocket_solo(ws: WebSocket):
                     await ws.close()
                     return
                 elif new_balance <= 0.10:
-                    minutes_left = max(1, round(new_balance / 0.05))
+                    from vox_db import get_finance_settings as _gfs
+                    _ppm = (_gfs().get(user_id) or {}).get("price_per_min", 0.05)
+                    minutes_left = max(1, round(new_balance / _ppm))
                     await ws.send_json({"type": "balance_warning", "minutes_left": minutes_left})
             except asyncio.CancelledError:
                 return
@@ -653,7 +655,9 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                     await ws.close()
                     return
                 elif new_balance <= 0.10:
-                    minutes_left = max(1, round(new_balance / (0.05 * max(1, guest_count))))
+                    from vox_db import get_finance_settings as _gfs
+                    _ppm = (_gfs().get(user_id) or {}).get("price_per_min", 0.05)
+                    minutes_left = max(1, round(new_balance / (_ppm * max(1, guest_count))))
                     await ws.send_json({"type": "balance_warning", "minutes_left": minutes_left})
             except asyncio.CancelledError:
                 return
