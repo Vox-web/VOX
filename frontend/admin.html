@@ -1210,25 +1210,28 @@ function renderFinTable(users, totals){
       <td class="r"><span style="color:var(--text2)">$${u.balance.toFixed(2)}</span></td>
       <td class="r">${fmtNum(u.minutes_used)}</td>
       <td>${bar}</td>
-      <td class="r">$${u.price_per_min.toFixed(3)}</td>
-      <td class="r" style="color:var(--text3)" id="icost-${u.user_id}">$${u.input_cost_ppm.toFixed(4)}</td>
+      <td class="r" id="cell-ppm-${u.user_id}">$${u.price_per_min.toFixed(3)}</td>
+      <td class="r" style="color:var(--text3)" id="cell-icost-${u.user_id}">$${u.input_cost_ppm.toFixed(4)}</td>
       <td>
         <div class="margin-cell">
           <input class="margin-input" id="mg-${u.user_id}" type="number" min="0" max="100" step="0.1"
             value="${u.margin_percent.toFixed(1)}" title="Рентабельність %"
-            oninput="recalcInputCost(${u.user_id})"/>
+            data-uid="${u.user_id}" data-mode="margin"
+            oninput="recalc(${u.user_id},'margin')"/>
           <span style="color:var(--text3);font-size:11px">%</span>
           <input class="margin-input price-edit" id="ppm-${u.user_id}" type="number" min="0" step="0.001"
             value="${u.price_per_min.toFixed(3)}" title="Ціна клієнта $/хв"
-            oninput="recalcInputCost(${u.user_id})"/>
+            data-uid="${u.user_id}" data-icost="${u.input_cost_ppm.toFixed(5)}"
+            data-minutes="${u.minutes_used}" data-balance="${u.balance}" data-days="${u.days_old}"
+            oninput="recalc(${u.user_id},'price')"/>
           <button class="margin-save" onclick="saveMargin(${u.user_id})">✓</button>
         </div>
       </td>
-      <td class="r">$${u.revenue.toFixed(2)}</td>
-      <td class="r" style="color:var(--red)">$${u.my_cost.toFixed(2)}</td>
-      <td class="r ${profCls}">$${u.profit.toFixed(2)}</td>
-      <td class="r" style="color:var(--yellow)">${u.roi.toFixed(0)}%</td>
-      <td class="r" style="color:var(--text3);font-size:12px">$${u.ltv_30.toFixed(1)} / $${u.ltv_365.toFixed(0)}</td>
+      <td class="r" id="cell-rev-${u.user_id}">$${u.revenue.toFixed(2)}</td>
+      <td class="r" style="color:var(--red)" id="cell-cost-${u.user_id}">$${u.my_cost.toFixed(2)}</td>
+      <td class="r ${profCls}" id="cell-profit-${u.user_id}">$${u.profit.toFixed(2)}</td>
+      <td class="r" style="color:var(--yellow)" id="cell-roi-${u.user_id}">${u.roi.toFixed(0)}%</td>
+      <td class="r" style="color:var(--text3);font-size:12px" id="cell-ltv-${u.user_id}">$${u.ltv_30.toFixed(1)} / $${u.ltv_365.toFixed(0)}</td>
     </tr>`;
   }).join('');
 
@@ -1270,13 +1273,74 @@ function renderFinTable(users, totals){
     </table>`;
 }
 
-function recalcInputCost(userId){
-  const mg  = parseFloat(document.getElementById('mg-'+userId)?.value);
-  const ppm = parseFloat(document.getElementById('ppm-'+userId)?.value);
-  const cell = document.getElementById('icost-'+userId);
-  if(!cell || isNaN(mg) || isNaN(ppm)) return;
-  const inputCost = ppm * (1 - mg / 100);
-  cell.textContent = '$' + inputCost.toFixed(4);
+function recalc(uid, changedField){
+  const mgEl  = document.getElementById('mg-'+uid);
+  const ppmEl = document.getElementById('ppm-'+uid);
+  if(!mgEl || !ppmEl) return;
+
+  const icost    = parseFloat(ppmEl.dataset.icost);   // вх. ціна — фіксована
+  const minUsed  = parseFloat(ppmEl.dataset.minutes); // хвилини витрачено — фіксовано
+  const balance  = parseFloat(ppmEl.dataset.balance); // поточний баланс
+  const daysOld  = parseFloat(ppmEl.dataset.days) || 1;
+
+  let margin = parseFloat(mgEl.value);
+  let price  = parseFloat(ppmEl.value);
+
+  if(changedField === 'margin'){
+    // Маржа змінилась → перераховуємо ціну клієнта
+    if(isNaN(margin) || margin < 0 || margin > 100) return;
+    price = icost / (1 - margin / 100);
+    ppmEl.value = price.toFixed(3);
+  } else {
+    // Ціна змінилась → перераховуємо маржу
+    if(isNaN(price) || price <= 0) return;
+    margin = (1 - icost / price) * 100;
+    mgEl.value = margin.toFixed(1);
+  }
+
+  // Хв. залишок
+  const minRem   = price > 0 ? balance / price : 0;
+  const barCell  = document.querySelector(`#cell-ppm-${uid}`)?.closest('tr')?.querySelector('.min-bar-wrap');
+  if(barCell){
+    const total = minUsed + minRem;
+    const pct   = total > 0 ? Math.min(100, minRem / total * 100) : 0;
+    barCell.querySelector('span').textContent = fmtNum(minRem);
+    barCell.querySelector('.min-bar-fill').style.width = pct.toFixed(0)+'%';
+  }
+
+  // Ціна/хв (відображення)
+  const ppmDisp = document.getElementById('cell-ppm-'+uid);
+  if(ppmDisp) ppmDisp.textContent = '$'+price.toFixed(3);
+
+  // Вх. ціна/хв (незмінна, але оновлюємо відображення)
+  const icostDisp = document.getElementById('cell-icost-'+uid);
+  if(icostDisp) icostDisp.textContent = '$'+icost.toFixed(4);
+
+  // Дохід, витрати, прибуток, ROI
+  const revenue = minUsed * price;
+  const cost    = minUsed * icost;
+  const profit  = revenue - cost;
+  const roi     = cost > 0 ? profit / cost * 100 : 0;
+
+  const revEl    = document.getElementById('cell-rev-'+uid);
+  const costEl   = document.getElementById('cell-cost-'+uid);
+  const profEl   = document.getElementById('cell-profit-'+uid);
+  const roiEl    = document.getElementById('cell-roi-'+uid);
+  const ltvEl    = document.getElementById('cell-ltv-'+uid);
+
+  if(revEl)  revEl.textContent  = '$'+revenue.toFixed(2);
+  if(costEl) costEl.textContent = '$'+cost.toFixed(2);
+  if(profEl){
+    profEl.textContent = '$'+profit.toFixed(2);
+    profEl.className   = 'r '+(profit >= 0 ? 'profit-pos' : 'profit-neg');
+  }
+  if(roiEl)  roiEl.textContent  = roi.toFixed(0)+'%';
+
+  // LTV прогноз
+  if(ltvEl){
+    const dailyRev = revenue / daysOld;
+    ltvEl.textContent = '$'+(dailyRev*30).toFixed(1)+' / $'+(dailyRev*365).toFixed(0);
+  }
 }
 
 async function saveMargin(userId){
