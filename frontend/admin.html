@@ -1211,14 +1211,16 @@ function renderFinTable(users, totals){
       <td class="r">${fmtNum(u.minutes_used)}</td>
       <td>${bar}</td>
       <td class="r">$${u.price_per_min.toFixed(3)}</td>
-      <td class="r" style="color:var(--text3)">$${u.input_cost_ppm.toFixed(4)}</td>
+      <td class="r" style="color:var(--text3)" id="icost-${u.user_id}">$${u.input_cost_ppm.toFixed(4)}</td>
       <td>
         <div class="margin-cell">
           <input class="margin-input" id="mg-${u.user_id}" type="number" min="0" max="100" step="0.1"
-            value="${u.margin_percent.toFixed(1)}" title="Рентабельність %"/>
+            value="${u.margin_percent.toFixed(1)}" title="Рентабельність %"
+            oninput="recalcInputCost(${u.user_id})"/>
           <span style="color:var(--text3);font-size:11px">%</span>
           <input class="margin-input price-edit" id="ppm-${u.user_id}" type="number" min="0" step="0.001"
-            value="${u.price_per_min.toFixed(3)}" title="Ціна клієнта $/хв"/>
+            value="${u.price_per_min.toFixed(3)}" title="Ціна клієнта $/хв"
+            oninput="recalcInputCost(${u.user_id})"/>
           <button class="margin-save" onclick="saveMargin(${u.user_id})">✓</button>
         </div>
       </td>
@@ -1266,6 +1268,15 @@ function renderFinTable(users, totals){
       </thead>
       <tbody>${rows}${totRow}</tbody>
     </table>`;
+}
+
+function recalcInputCost(userId){
+  const mg  = parseFloat(document.getElementById('mg-'+userId)?.value);
+  const ppm = parseFloat(document.getElementById('ppm-'+userId)?.value);
+  const cell = document.getElementById('icost-'+userId);
+  if(!cell || isNaN(mg) || isNaN(ppm)) return;
+  const inputCost = ppm * (1 - mg / 100);
+  cell.textContent = '$' + inputCost.toFixed(4);
 }
 
 async function saveMargin(userId){
