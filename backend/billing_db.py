@@ -105,12 +105,26 @@ def update_balance(user_id: int, delta: float) -> float:
 def deduct_session_cost(user_id: int, mode: str, guests: int) -> float:
     """
     Списать стоимость одной минуты сессии.
-    Цена: $0.05 × max(1, guests)
+    Цена берётся из user_finance_settings.price_per_min (если задана),
+    иначе дефолт $0.05. Умножается на max(1, guests).
     Возвращает остаток баланса.
     """
-    cost = 0.05 * max(1, guests)
+    try:
+        con = _conn()
+        cur = con.cursor()
+        cur.execute(
+            "SELECT price_per_min FROM user_finance_settings WHERE user_id=?",
+            (user_id,)
+        )
+        row = cur.fetchone()
+        price_per_min = float(row["price_per_min"]) if row and row["price_per_min"] else 0.05
+        con.close()
+    except Exception:
+        price_per_min = 0.05
+
+    cost = price_per_min * max(1, guests)
     new_balance = update_balance(user_id, -cost)
-    logger.info(f"💸 deduct: user={user_id} mode={mode} guests={guests} cost={cost:.4f} left={new_balance:.4f}")
+    logger.info(f"💸 deduct: user={user_id} mode={mode} guests={guests} price={price_per_min:.4f} cost={cost:.4f} left={new_balance:.4f}")
     return new_balance
 
 
