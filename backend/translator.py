@@ -48,10 +48,9 @@ class Translator:
         "Translate from {source} to {target} for immediate TTS playback. "
         "The input comes from automatic speech recognition (ASR) and may contain errors, "
         "mishearings, broken phrases, filler words, or incomplete sentences. "
-        "Translate as faithfully as possible to the speaker's intended meaning. "
-        "Correct only obvious ASR mistakes when the intended meaning is highly clear from context. "
-        "If the source is unclear, fragmented, noisy, or ambiguous, stay close to the original rather than guessing. "
-        "If a phrase is incomplete, keep it incomplete in translation instead of inventing a polished meaning. "
+        "IMPORTANT: Use the recent conversation context aggressively to reconstruct the speaker's "
+        "true intent when the ASR output is garbled, phonetically corrupted, or partially missing. "
+        "If a phrase is phonetically close to a real word/sentence given the context, correct it confidently. "
         "Preserve the speaker's tone, intent, emotional color, and sentence type. "
         "Do not make the translation more literary, formal, or verbose than the original. "
         "Prefer short, natural, speakable phrasing that sounds good in TTS. "
@@ -63,7 +62,24 @@ class Translator:
         "No explanations. "
         "No quotes. "
         "No alternatives. "
-        "If the input is a single word, translate only that word." 
+        "If the input is a single word, translate only that word."
+    )
+
+    # Промпт для коррекции ASR без перевода (source == target)
+    ASR_CORRECTION_PROMPT = (
+        "You are an ASR (automatic speech recognition) post-processor for live speech. "
+        "Your task: reconstruct the speaker's actual words from potentially garbled ASR output. "
+        "Language: {lang}. "
+        "The input may have: missing letters/syllables, wrong word boundaries, phonetic substitutions, "
+        "mixed-up prepositions, or partial words — typical ASR recognition errors at speed. "
+        "Use the recent conversation context to understand the topic and confidently restore the intended phrase. "
+        "Rules: "
+        "- If ASR output makes no sense but is phonetically close to a real phrase, output the real phrase. "
+        "- If the meaning is already clear despite minor errors, fix the errors and output clean text. "
+        "- Preserve the speaker's natural register, tone, and sentence structure. "
+        "- Do NOT invent information not hinted at by the ASR output or context. "
+        "- Do NOT add explanations, commentary, or alternatives. "
+        "- Output ONLY the corrected phrase, nothing else."
     )
 
     def __init__(self, cache_size: int = 50, context_size: int = 5):
@@ -91,6 +107,74 @@ class Translator:
     def _cache_key(self, text: str, source: str, target: str) -> str:
         return f"{source}:{target}:{text.lower().strip()}"
 
+    def correct_asr(self, text: str, lang: str) -> str:
+        """
+        Корректировать ASR-ошибки без перевода (source == target).
+
+        Использует контекст разговора чтобы восстановить искажённые фразы.
+        Например: "Ка сегодня сходили у врачу?" → "Как сегодня сходили к врачу?"
+
+        Args:
+            text: Сырой ASR текст
+            lang: Код языка ("ru", "uk", "en", ...)
+
+        Returns:
+            Исправленный текст. При ошибке — оригинальный текст.
+        """
+        if self.client is None:
+            return text
+
+        # Если текст выглядит нормально (длиннее 3 слов) — всё равно
+        # прогоняем через коррекцию с контекстом
+        lang_name = self.SUPPORTED_LANGUAGES.get(lang, lang)
+
+        try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": self.ASR_CORRECTION_PROMPT.format(lang=lang_name),
+                }
+            ]
+
+            # Контекст последних фраз — ключевой сигнал для восстановления
+            if self._context:
+                context_lines = [
+                    item["source"]
+                    for item in self._context[-self._context_size:]
+                ]
+                messages.append({
+                    "role": "system",
+                    "content": (
+                        "Recent conversation (same speaker, same topic):\n"
+                        + "\n".join(f"- {line}" for line in context_lines)
+                    ),
+                })
+
+            messages.append({"role": "user", "content": text})
+
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+                temperature=0.1,   # Низкая температура — нужна точность, не креатив
+                max_tokens=200,
+            )
+
+            corrected = response.choices[0].message.content.strip()
+
+            # Сохраняем оригинальный ASR в контекст (не исправленный),
+            # чтобы модель видела паттерн ошибок
+            self._context.append({"source": text, "translation": corrected})
+            if len(self._context) > self._context_size * 2:
+                self._context = self._context[-self._context_size:]
+
+            if corrected != text:
+                logger.info(f"🔧 ASR fix [{lang}]: «{text}» → «{corrected}»")
+            return corrected
+
+        except Exception as e:
+            logger.error(f"❌ ASR correction error: {e}")
+            return text
+
     def translate(self, text: str, source_lang: str, target_lang: str) -> str:
         """
         Перевести текст.
@@ -103,9 +187,9 @@ class Translator:
         Returns:
             Переведённый текст. При ошибке — оригинальный текст.
         """
-        # Один и тот же язык — возвращаем как есть
+        # Один и тот же язык — корректируем ASR вместо перевода
         if source_lang == target_lang:
-            return text
+            return self.correct_asr(text, source_lang)
 
         # Проверяем кеш
         key = self._cache_key(text, source_lang, target_lang)
