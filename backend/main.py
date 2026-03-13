@@ -547,13 +547,24 @@ async def websocket_solo(ws: WebSocket):
                         if audio_bytes:
                             await ws.send_bytes(b"AUDIO:" + audio_bytes)
                     else:
+                        # Язык источника == язык вывода:
+                        # корректируем ASR-ошибки через GPT (без перевода)
+                        corrected = await asyncio.to_thread(
+                            translator.correct_asr, result.text, source_lang,
+                        )
                         await ws.send_json({
                             "type": "translation",
-                            "text": result.text,
+                            "text": corrected,
                             "lang_from": source_lang,
                             "lang_to": target_lang,
-                            "note": "same_language",
+                            "note": "asr_corrected",
                         })
+                        # TTS озвучивает исправленный текст на том же языке
+                        audio_bytes = await asyncio.to_thread(
+                            tts_engine.synthesize, corrected, target_lang,
+                        )
+                        if audio_bytes:
+                            await ws.send_bytes(b"AUDIO:" + audio_bytes)
                     logger.info(f"📝 [{source_lang}→{target_lang}] {result.text[:60]}")
             except Exception as e:
                 if "disconnect" in str(e).lower():
