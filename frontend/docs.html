@@ -258,7 +258,7 @@
   <li><strong>Якщо гість хоче говорити, він подає запит.</strong> Хост бачить це та вирішує, кому надати мікрофон.</li>
   <li><strong>Після завершення події хост зупиняє кімнату.</strong> Саме це коректно завершує активну сесію.</li>
 </ol>
-<div class="callout callout-warn"><strong>Важливо:</strong> для стабільної роботи в Room краще, щоб активний спікер говорив з одного основного мікрофона, а слухачі користувалися навушниками. Це зменшує шум і відлуння.</div>
+<div class="callout callout-warn"><strong>Важливо:</strong> для стабільної роботи в Room краще, щоб активний спікер говорив з одного основного мікрофона, а слухачі користувалися навушниками. Це зменшує шум і відлуння. Якщо використовуєте навушники з мікрофоном — заздалегідь вимкніть їхній мікрофон і переключіться на вбудований мікрофон смартфона: у дешевих навушниках мікрофон часто дає низьку якість або погану обробку звуку, що погіршує точність розпізнавання.</div>
 </section><section class="section panel" id="uk-billing"><h2>4. Баланс, тарифікація та email-верифікація</h2>
 <p>VOX у вашій поточній логіці працює за моделлю <strong>pay-as-you-go</strong>: ви не платите за підписку, а поповнюєте баланс і витрачаєте кошти лише під час фактичного використання сервісу. Для Solo в документації вже закладено орієнтир <strong>$0.05 за хвилину</strong>. Якщо у вас є окремі тарифи для Room, їх варто показувати в кабінеті хоста або в майбутньому білінг-блоці.</p>
 <p>Після реєстрації й підтвердження email користувач отримує <strong>$3 бонусу</strong>. Цього достатньо, щоб протестувати якість перекладу, перевірити затримку та зрозуміти, як поводиться сервіс у реальній розмові.</p>
@@ -273,24 +273,18 @@
 <p>Для роботи VOX можуть оброблятися такі категорії даних: дані акаунта та верифікації email, технічні журнали доступу, платіжні події, звернення у підтримку, а також аудіо й текст, які потрібні для транскрипції, перекладу та озвучення відповіді. Обробляти слід лише ті дані, які справді потрібні для надання послуги, і не зберігати їх довше, ніж це обґрунтовано метою сервісу.</p>
 <p>Користувачам не слід без потреби озвучувати або вводити <strong>чутливі дані</strong> — наприклад медичну інформацію, політичні погляди, релігійні переконання, біометричні дані або дані про дітей. Якщо такі дані неминучі, організація, що використовує VOX, повинна мати окрему законну підставу та чітко визначені правила доступу.</p>
 <p>Права користувача включають доступ до власних даних, виправлення, видалення, обмеження, заперечення та перенесення там, де це застосовно. Для повної інформації перейдіть на сторінку <a href="/privacy">Privacy Policy</a>.</p>
-<div class="callout callout-accent"><strong>Контакт з питань приватності:</strong> <a href="mailto:avotiyaaa@gmail.com">avotiyaaa@gmail.com</a></div>
-</section><section class="section panel" id="uk-contact"><h2>6. Контакти та форма звернення</h2>
-<p>Якщо у користувача виникла проблема з доступом, білінгом, мікрофоном, якістю перекладу або конфіденційністю, звернення можна надіслати прямо з цієї сторінки. Після натискання кнопки <strong>«Відправити»</strong> форма надсилає запит на бекенд-ендпоінт <code>/api/contact</code>, а вже він відправляє лист на адресу <strong>avotiyaaa@gmail.com</strong>.</p>
-<div class="contact-card">
-  <form class="contact-form" data-form-lang="uk">
-    <div class="contact-row">
-      <div class="contact-field"><label for="uk-name">Ваше ім’я</label><input id="uk-name" name="name" type="text" placeholder="Наприклад: Олена" required /></div>
-      <div class="contact-field"><label for="uk-email">Ваш email</label><input id="uk-email" name="email" type="email" placeholder="name@example.com" required /></div>
-    </div>
-    <div class="contact-field"><label for="uk-subject">Тема звернення</label><input id="uk-subject" name="subject" type="text" placeholder="Наприклад: Проблема з Room" required /></div>
-    <div class="contact-field" style="margin-top:14px"><label for="uk-message">Повідомлення</label><textarea id="uk-message" name="message" placeholder="Опишіть проблему або запит якомога конкретніше." required></textarea></div>
-    <input class="hidden-hp" type="text" name="company" tabindex="-1" autocomplete="off" />
-    <div class="contact-actions">
-      <div class="contact-note">Повідомлення буде надіслано на адресу <strong>avotiyaaa@gmail.com</strong>. Не вставляйте платіжні картки, паролі або інші зайві конфіденційні дані.</div>
-      <button class="btn" type="submit">Відправити</button>
-    </div>
-    <div class="form-status" aria-live="polite"></div>
-  </form>
+<div class="callout callout-accent"><strong>Контакт з питань приватності:</strong> <a href="/cdn-cgi/l/email-protection#4223342d362b3b23232302252f232b2e6c212d2f"><span class="__cf_email__" data-cfemail="4c2d3a233825352d2d2d0c2b212d2520622f2321">[email&#160;protected]</span></a></div>
+</section><section class="section panel" id="uk-contact"><h2>6. Контакти</h2>
+<p>Якщо у вас виникла проблема — напишіть нам напряму на електронну пошту.</p>
+<div class="contact-card" style="text-align:center;padding:32px 24px">
+  <div style="font-size:36px;margin-bottom:16px">🚧</div>
+  <p style="color:var(--text2);font-size:15px;line-height:1.7;margin-bottom:20px">
+    Форма зворотного зв'язку тимчасово недоступна.<br/>
+    Будь ласка, надсилайте звернення безпосередньо на:
+  </p>
+  <a href="/cdn-cgi/l/email-protection#47263128332e3e26262607202a262e2b6924282a" style="display:inline-block;background:var(--accent);color:#fff;font-weight:700;font-size:16px;padding:13px 28px;border-radius:12px;text-decoration:none;box-shadow:0 6px 20px var(--accent-glow)">
+    ✉️ <span class="__cf_email__" data-cfemail="5031263f24392931313110373d31393c7e333f3d">[email&#160;protected]</span>
+  </a>
 </div>
 </section>
   </article>
@@ -334,7 +328,7 @@
   <li><strong>Speaking can be moderated.</strong> If a guest wants to speak, they request access and the host decides whether to allow it.</li>
   <li><strong>The host closes the room after the session.</strong> This is the proper end of the active translation session.</li>
 </ol>
-<div class="callout callout-warn"><strong>Important:</strong> Room is most stable when the active speaker uses one primary microphone and listeners use headphones. This reduces noise and echo.</div>
+<div class="callout callout-warn"><strong>Important:</strong> Room is most stable when the active speaker uses one primary microphone and listeners use headphones. This reduces noise and echo. If you are using headphones with a built-in microphone, disable the headphone mic beforehand and switch to the phone's built-in microphone instead — cheap headphones often have poor-quality mics or substandard audio processing, which can significantly reduce transcription accuracy.</div>
 </section><section class="section panel" id="en-billing"><h2>4. Balance, billing, and email verification</h2>
 <p>In your current logic, VOX follows a <strong>pay-as-you-go</strong> model: users do not need a subscription and only pay for actual usage. The existing documentation already indicates <strong>$0.05 per minute</strong> for Solo. If Room is billed differently, the Room pricing should be shown clearly in the host area or billing settings.</p>
 <p>After registration and email verification, the user receives a <strong>$3 bonus</strong>. That gives enough credit to test the service, compare quality, and understand the delay before adding funds.</p>
@@ -349,24 +343,18 @@
 <p>To provide the service, VOX may process account and email-verification data, technical access logs, payment events, support messages, and the live audio/text necessary for transcription, translation, and speech output. Only the data needed to deliver the service should be processed, and it should not be kept longer than justified by the service purpose.</p>
 <p>Users should avoid entering or speaking <strong>sensitive data</strong> unless there is a real operational need and a valid legal basis. This includes health data, political opinions, religious beliefs, biometric information, or children’s data. If such data is involved, the organisation using VOX must apply stricter access controls and a clear compliance framework.</p>
 <p>Users may request access, correction, deletion, restriction, objection, and portability where applicable. The full details are available on the separate <a href="/privacy">Privacy Policy</a> page.</p>
-<div class="callout callout-accent"><strong>Privacy contact:</strong> <a href="mailto:avotiyaaa@gmail.com">avotiyaaa@gmail.com</a></div>
-</section><section class="section panel" id="en-contact"><h2>6. Contact and support form</h2>
-<p>If a user has a problem with access, billing, microphone permissions, translation quality, or privacy, they can send a message directly from this page. After clicking <strong>“Send”</strong>, the form posts to the backend endpoint <code>/api/contact</code>, and the backend sends the email to <strong>avotiyaaa@gmail.com</strong>.</p>
-<div class="contact-card">
-  <form class="contact-form" data-form-lang="en">
-    <div class="contact-row">
-      <div class="contact-field"><label for="en-name">Your name</label><input id="en-name" name="name" type="text" placeholder="For example: Anna" required /></div>
-      <div class="contact-field"><label for="en-email">Your email</label><input id="en-email" name="email" type="email" placeholder="name@example.com" required /></div>
-    </div>
-    <div class="contact-field"><label for="en-subject">Subject</label><input id="en-subject" name="subject" type="text" placeholder="For example: Room issue" required /></div>
-    <div class="contact-field" style="margin-top:14px"><label for="en-message">Message</label><textarea id="en-message" name="message" placeholder="Describe the issue or request as clearly as possible." required></textarea></div>
-    <input class="hidden-hp" type="text" name="company" tabindex="-1" autocomplete="off" />
-    <div class="contact-actions">
-      <div class="contact-note">The message will be delivered to <strong>avotiyaaa@gmail.com</strong>. Please do not include card data, passwords, or any unnecessary confidential information.</div>
-      <button class="btn" type="submit">Send</button>
-    </div>
-    <div class="form-status" aria-live="polite"></div>
-  </form>
+<div class="callout callout-accent"><strong>Privacy contact:</strong> <a href="/cdn-cgi/l/email-protection#ea8b9c859e83938b8b8baa8d878b8386c4898587"><span class="__cf_email__" data-cfemail="4021362f34293921212100272d21292c6e232f2d">[email&#160;protected]</span></a></div>
+</section><section class="section panel" id="en-contact"><h2>6. Contact</h2>
+<p>If you have a problem with access, billing, microphone, translation quality, or privacy — reach out to us directly.</p>
+<div class="contact-card" style="text-align:center;padding:32px 24px">
+  <div style="font-size:36px;margin-bottom:16px">🚧</div>
+  <p style="color:var(--text2);font-size:15px;line-height:1.7;margin-bottom:20px">
+    The contact form is temporarily unavailable.<br/>
+    Please send your message directly to:
+  </p>
+  <a href="/cdn-cgi/l/email-protection#f6978099829f8f979797b6919b979f9ad895999b" style="display:inline-block;background:var(--accent);color:#fff;font-weight:700;font-size:16px;padding:13px 28px;border-radius:12px;text-decoration:none;box-shadow:0 6px 20px var(--accent-glow)">
+    ✉️ <span class="__cf_email__" data-cfemail="ee8f98819a87978f8f8fae89838f8782c08d8183">[email&#160;protected]</span>
+  </a>
 </div>
 </section>
   </article>
@@ -410,7 +398,7 @@
   <li><strong>Sprechen kann moderiert werden.</strong> Wenn ein Gast sprechen möchte, sendet er eine Anfrage und der Host entscheidet über die Freigabe.</li>
   <li><strong>Der Host schließt den Raum nach der Sitzung.</strong> So endet die aktive Übersetzungssitzung korrekt.</li>
 </ol>
-<div class="callout callout-warn"><strong>Wichtig:</strong> Room ist am stabilsten, wenn der aktive Sprecher ein Hauptmikrofon nutzt und die Zuhörer Kopfhörer tragen. Das reduziert Lärm und Echo.</div>
+<div class="callout callout-warn"><strong>Wichtig:</strong> Room ist am stabilsten, wenn der aktive Sprecher ein Hauptmikrofon nutzt und die Zuhörer Kopfhörer tragen. Das reduziert Lärm und Echo. Wenn Sie Kopfhörer mit eingebautem Mikrofon verwenden, deaktivieren Sie das Kopfhörermikrofon vorab und wechseln Sie zum eingebauten Mikrofon des Smartphones — günstige Kopfhörer haben häufig minderwertige Mikrofone oder schlechte Audioverarbeitung, was die Erkennungsgenauigkeit erheblich verschlechtern kann.</div>
 </section><section class="section panel" id="de-billing"><h2>4. Guthaben, Abrechnung und E-Mail-Bestätigung</h2>
 <p>In Ihrer aktuellen Logik nutzt VOX ein <strong>Pay-as-you-go</strong>-Modell: Nutzer brauchen kein Abo und zahlen nur für die tatsächliche Nutzung. In der bestehenden Dokumentation ist bereits <strong>0,05 $ pro Minute</strong> für Solo hinterlegt. Falls Room anders abgerechnet wird, sollte der Preis klar im Host-Bereich oder in den Abrechnungseinstellungen angezeigt werden.</p>
 <p>Nach Registrierung und E-Mail-Bestätigung erhält der Nutzer einen <strong>Bonus von 3 $</strong>. Das reicht aus, um Qualität, Verzögerung und Bedienung des Dienstes zu testen, bevor weiteres Guthaben hinzugefügt wird.</p>
@@ -425,24 +413,18 @@
 <p>Für die Bereitstellung des Dienstes kann VOX Konto- und E-Mail-Bestätigungsdaten, technische Zugriffsprotokolle, Zahlungsereignisse, Support-Nachrichten sowie die Live-Audio- und Textdaten verarbeiten, die für Transkription, Übersetzung und Sprachausgabe erforderlich sind. Es sollten nur die Daten verarbeitet werden, die für die Leistung wirklich notwendig sind, und sie sollten nicht länger gespeichert werden als sachlich erforderlich.</p>
 <p>Nutzer sollten <strong>sensible Daten</strong> nicht ohne echten Bedarf eingeben oder aussprechen. Dazu gehören Gesundheitsdaten, politische Meinungen, religiöse Überzeugungen, biometrische Informationen oder Daten von Kindern. Wenn solche Daten betroffen sind, muss die Organisation, die VOX einsetzt, strengere Zugriffskontrollen und eine klare Rechtsgrundlage sicherstellen.</p>
 <p>Nutzer können, soweit anwendbar, Auskunft, Berichtigung, Löschung, Einschränkung, Widerspruch und Datenübertragbarkeit verlangen. Die vollständigen Informationen finden sich auf der separaten <a href="/privacy">Privacy Policy</a>-Seite.</p>
-<div class="callout callout-accent"><strong>Datenschutzkontakt:</strong> <a href="mailto:avotiyaaa@gmail.com">avotiyaaa@gmail.com</a></div>
-</section><section class="section panel" id="de-contact"><h2>6. Kontakt und Support-Formular</h2>
-<p>Wenn ein Nutzer Probleme mit Zugang, Abrechnung, Mikrofonrechten, Übersetzungsqualität oder Datenschutz hat, kann direkt von dieser Seite eine Nachricht gesendet werden. Nach dem Klick auf <strong>„Senden“</strong> wird das Formular an den Backend-Endpunkt <code>/api/contact</code> geschickt; das Backend versendet anschließend die E-Mail an <strong>avotiyaaa@gmail.com</strong>.</p>
-<div class="contact-card">
-  <form class="contact-form" data-form-lang="de">
-    <div class="contact-row">
-      <div class="contact-field"><label for="de-name">Ihr Name</label><input id="de-name" name="name" type="text" placeholder="Zum Beispiel: Anna" required /></div>
-      <div class="contact-field"><label for="de-email">Ihre E-Mail</label><input id="de-email" name="email" type="email" placeholder="name@example.com" required /></div>
-    </div>
-    <div class="contact-field"><label for="de-subject">Betreff</label><input id="de-subject" name="subject" type="text" placeholder="Zum Beispiel: Problem mit Room" required /></div>
-    <div class="contact-field" style="margin-top:14px"><label for="de-message">Nachricht</label><textarea id="de-message" name="message" placeholder="Beschreiben Sie das Problem oder Anliegen möglichst konkret." required></textarea></div>
-    <input class="hidden-hp" type="text" name="company" tabindex="-1" autocomplete="off" />
-    <div class="contact-actions">
-      <div class="contact-note">Die Nachricht wird an <strong>avotiyaaa@gmail.com</strong> gesendet. Bitte keine Kartendaten, Passwörter oder unnötigen vertraulichen Informationen einfügen.</div>
-      <button class="btn" type="submit">Senden</button>
-    </div>
-    <div class="form-status" aria-live="polite"></div>
-  </form>
+<div class="callout callout-accent"><strong>Datenschutzkontakt:</strong> <a href="/cdn-cgi/l/email-protection#48293e273c2131292929082f25292124662b2725"><span class="__cf_email__" data-cfemail="48293e273c2131292929082f25292124662b2725">[email&#160;protected]</span></a></div>
+</section><section class="section panel" id="de-contact"><h2>6. Kontakt</h2>
+<p>Wenn Sie ein Problem mit Zugang, Abrechnung, Mikrofon, Übersetzungsqualität oder Datenschutz haben — schreiben Sie uns direkt.</p>
+<div class="contact-card" style="text-align:center;padding:32px 24px">
+  <div style="font-size:36px;margin-bottom:16px">🚧</div>
+  <p style="color:var(--text2);font-size:15px;line-height:1.7;margin-bottom:20px">
+    Das Kontaktformular ist vorübergehend nicht verfügbar.<br/>
+    Bitte senden Sie Ihre Nachricht direkt an:
+  </p>
+  <a href="/cdn-cgi/l/email-protection#98f9eef7ecf1e1f9f9f9d8fff5f9f1f4b6fbf7f5" style="display:inline-block;background:var(--accent);color:#fff;font-weight:700;font-size:16px;padding:13px 28px;border-radius:12px;text-decoration:none;box-shadow:0 6px 20px var(--accent-glow)">
+    ✉️ <span class="__cf_email__" data-cfemail="39584f564d5040585858795e54585055175a5654">[email&#160;protected]</span>
+  </a>
 </div>
 </section>
   </article>
@@ -451,7 +433,7 @@
     </main>
   </div>
 
-  <script>
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
   const TOC = {
     uk: [
       ['uk-start', '1. Швидкий старт'],
