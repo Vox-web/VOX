@@ -1,15 +1,17 @@
 """
 VOX — Биллинг: FastAPI Router
-Stripe Checkout, Webhooks, Email верификация через Resend, баланс.
+Stripe Checkout, Webhooks, Email верификация через Gmail SMTP, баланс.
 """
 
 import os
 import json
 import logging
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import Optional
 
 import stripe
-import resend
 from fastapi import APIRouter, Header, HTTPException, Request, WebSocket
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
@@ -29,7 +31,6 @@ logger = logging.getLogger("vox.billing")
 # ---------------------------------------------------------------------------
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 BASE_URL = os.getenv("BASE_URL", "").rstrip("/")
 
 # Допустимые суммы пополнения (USD)
@@ -83,22 +84,24 @@ def _check_admin(authorization: Optional[str]):
 
 
 # ---------------------------------------------------------------------------
-# EMAIL верификация
+# EMAIL верификация (Gmail SMTP)
 # ---------------------------------------------------------------------------
 
 def send_verification_email(user_id: int, email: str, name: str):
     """
-    Генерировать токен и отправить HTML-письмо верификации через Resend.
+    Генерировать токен и отправить HTML-письмо верификации через Gmail SMTP.
     Вызывается после регистрации пользователя.
+    Переменные среды: GMAIL_USER, GMAIL_APP_PASSWORD
     """
-    if not RESEND_API_KEY:
-        logger.warning("⚠️ RESEND_API_KEY не задан — email не отправлен")
+    gmail_user = os.getenv("GMAIL_USER", "")
+    gmail_pass = os.getenv("GMAIL_APP_PASSWORD", "")
+
+    if not gmail_user or not gmail_pass:
+        logger.warning("⚠️ GMAIL_USER або GMAIL_APP_PASSWORD не задано — email не відправлено")
         return
 
     token = generate_verify_token(user_id)
     verify_url = f"{BASE_URL}/api/verify-email?token={token}"
-
-    resend.api_key = RESEND_API_KEY
 
     html_body = f"""<!DOCTYPE html>
 <html lang="uk">
@@ -107,14 +110,14 @@ def send_verification_email(user_id: int, email: str, name: str):
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>VOX — Підтвердіть email</title>
 </head>
-<body style="margin:0;padding:0;background:#09080f;font-family:'DM Sans',Arial,sans-serif">
+<body style="margin:0;padding:0;background:#09080f;font-family:Arial,sans-serif">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#09080f;padding:40px 20px">
     <tr><td align="center">
       <table width="100%" style="max-width:480px;background:#15121f;border:1px solid #2a2340;border-radius:20px;overflow:hidden">
         <!-- Шапка -->
         <tr>
           <td style="background:linear-gradient(135deg,#1a1530,#0f0d1a);padding:36px 40px;text-align:center;border-bottom:1px solid #2a2340">
-            <div style="font-family:Syne,Arial,sans-serif;font-size:30px;font-weight:800;color:#7c6aff;letter-spacing:6px">VOX</div>
+            <div style="font-size:30px;font-weight:800;color:#7c6aff;letter-spacing:6px">VOX</div>
             <div style="color:#5e5880;font-size:13px;margin-top:6px">Real-Time AI Translation</div>
           </td>
         </tr>
@@ -155,16 +158,19 @@ def send_verification_email(user_id: int, email: str, name: str):
 </body>
 </html>"""
 
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "🎙 VOX — Підтвердіть email та отримайте $3"
+    msg["From"]    = f"VOX <{gmail_user}>"
+    msg["To"]      = email
+    msg.attach(MIMEText(html_body, "html", "utf-8"))
+
     try:
-        resend.Emails.send({
-            "from": "VOX <noreply@vox.ai>",
-            "to": email,
-            "subject": "🎙 VOX — Підтвердіть email та отримайте $3",
-            "html": html_body,
-        })
-        logger.info(f"📧 verification email відправлено: {email}")
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(gmail_user, gmail_pass)
+            server.sendmail(gmail_user, email, msg.as_string())
+        logger.info(f"📧 email відправлено через Gmail: {email}")
     except Exception as e:
-        logger.error(f"❌ Resend error: {e}")
+        logger.error(f"❌ Gmail SMTP error: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +182,6 @@ async def api_get_balance(authorization: Optional[str] = Header(None)):
     """Вернуть текущий баланс авторизованного пользователя."""
     user = _get_current_user(authorization)
     balance = get_user_balance(user["id"])
-    # Рассчитать ориентировочное количество минут (Solo: $0.05/мин)
     from billing_db import _conn as _bconn
     try:
         bc = _bconn(); cur = bc.cursor()
@@ -214,7 +219,7 @@ async def api_create_checkout(
                         "name": f"VOX Balance — ${body.amount}",
                         "description": f"Поповнення балансу VOX на ${body.amount}.00",
                     },
-                    "unit_amount": body.amount * 100,  # в центах
+                    "unit_amount": body.amount * 100,
                 },
                 "quantity": 1,
             }],
@@ -228,7 +233,6 @@ async def api_create_checkout(
             customer_email=user.get("email"),
         )
 
-        # Сохраняем запись о платеже
         create_payment_record(user["id"], session.id, float(body.amount))
         logger.info(f"💳 checkout created: user={user['id']} amount=${body.amount} session={session.id}")
 
@@ -250,7 +254,6 @@ async def api_stripe_webhook(request: Request):
 
     if not STRIPE_WEBHOOK_SECRET:
         logger.warning("⚠️ STRIPE_WEBHOOK_SECRET не задан — webhook не верифицируется")
-        # В dev-режиме парсим без верификации
         event = json.loads(payload)
     else:
         try:
@@ -354,7 +357,6 @@ async def billing_tick(user_id: int, mode: str, guests: int, ws: WebSocket):
     cost_per_min = _ppm * max(1, guests)
 
     if new_balance <= 0:
-        # Баланс исчерпан — завершаем сессию
         try:
             await ws.send_json({
                 "type": "session_ended",
@@ -366,7 +368,6 @@ async def billing_tick(user_id: int, mode: str, guests: int, ws: WebSocket):
         logger.info(f"🔴 billing_tick: user={user_id} баланс исчерпан, сессия завершена")
         return False
 
-    # За ~2 минуты до обнуления — предупреждение
     minutes_left = int(new_balance / cost_per_min)
     if minutes_left <= 2:
         try:

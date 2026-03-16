@@ -27,6 +27,6 @@ qrcode[pil]==7.4.2
 Pillow==10.4.0
 
 requests
+httpx>=0.27.0
 stripe>=7.0.0
-resend>=0.7.0
 email-validator==2.2.0

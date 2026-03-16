@@ -33,7 +33,9 @@ from vox_db import (init_db, register_user, login_user,
                     get_finance_settings, set_user_margin)
 
 from pydantic import BaseModel, EmailStr
-import resend
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
  
 # ---------------------------------------------------------------------------
@@ -123,12 +125,11 @@ class ContactBody(BaseModel):
 @app.post("/api/contact")
 async def api_contact(body: ContactBody):
     owner_email = "avotiyaaa@gmail.com"
-    resend_api_key = os.getenv("RESEND_API_KEY")
+    gmail_user = os.getenv("GMAIL_USER", "")
+    gmail_pass = os.getenv("GMAIL_APP_PASSWORD", "")
 
-    if not resend_api_key:
-        raise HTTPException(status_code=500, detail="RESEND_API_KEY is not configured")
-
-    resend.api_key = resend_api_key
+    if not gmail_user or not gmail_pass:
+        raise HTTPException(status_code=500, detail="GMAIL_USER або GMAIL_APP_PASSWORD не задано")
 
     subject_line = body.subject.strip() if body.subject.strip() else "No subject"
     safe_message = body.message.replace("\n", "<br>")
@@ -146,20 +147,23 @@ async def api_contact(body: ContactBody):
     </div>
     """
 
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"VOX Contact Form [{body.lang.upper()}] from {body.name}: {subject_line}"
+    msg["From"]    = f"VOX <{gmail_user}>"
+    msg["To"]      = owner_email
+    msg["Reply-To"] = body.email
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
     try:
-        resend.Emails.send({
-            "from": "VOX <noreply@vox.ai>",
-            "to": owner_email,
-            "reply_to": body.email,
-            "subject": f"VOX Contact Form [{body.lang.upper()}] from {body.name}: {subject_line}",
-            "html": html,
-        })
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(gmail_user, gmail_pass)
+            server.sendmail(gmail_user, owner_email, msg.as_string())
         logger.info("📩 Contact form sent: %s <%s>", body.name, body.email)
     except Exception as e:
         logger.exception("❌ Contact form send failed")
         raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
 
-    return {"ok": True, "message": "Message sent"}    
+    return {"ok": True, "message": "Message sent"}
 
 # Используем .resolve() чтобы получить абсолютный путь без ошибок симлинков
 BASE_DIR = Path(__file__).resolve().parent.parent
