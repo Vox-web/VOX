@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="uk">
+<html lang="uk" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -11,10 +11,64 @@
             box-sizing: border-box;
         }
 
+        :root {
+            --bg: #f4f2f7;
+            --text: #2d2640;
+            --text2: #7a7189;
+            --text-soft: #8c829c;
+            --text-soft2: #6f6680;
+            --muted: #6e667d;
+            --surface: #ffffff;
+            --surface2: #edeaf3;
+            --surface3: #f7f5fb;
+            --border: #ddd6e8;
+            --border-strong: #cdbfe0;
+            --accent: #7c6aff;
+            --accent-soft: #7c6aff;
+            --accent-soft2: #6f58ff;
+            --accent-bg: #efeaff;
+            --accent-dim: rgba(124, 106, 255, 0.10);
+            --accent-glow-soft: rgba(124, 106, 255, 0.15);
+            --accent-glow: rgba(124, 106, 255, 0.30);
+            --success: #2ecc71;
+            --warning: #f0a500;
+            --danger: #e74c3c;
+            --danger-soft: #ff6b6b;
+            --white: #ffffff;
+            --nav-bg: rgba(255,255,255,0.88);
+        }
+
+        :root[data-theme="dark"] {
+            --bg: #0a0a0f;
+            --text: #e0e0e0;
+            --text2: #9a95a7;
+            --text-soft: #888888;
+            --text-soft2: #777777;
+            --muted: #666666;
+            --surface: #111118;
+            --surface2: #1a1a24;
+            --surface3: #0d0d14;
+            --border: #1e1e2a;
+            --border-strong: #333333;
+            --accent: #7c6aff;
+            --accent-soft: #c4b5ff;
+            --accent-soft2: #b0a0ff;
+            --accent-bg: #2a1a4a;
+            --accent-dim: rgba(124, 106, 255, 0.12);
+            --accent-glow-soft: rgba(124, 106, 255, 0.15);
+            --accent-glow: rgba(124, 106, 255, 0.30);
+            --success: #44ff44;
+            --warning: #ffa500;
+            --danger: #ff4444;
+            --danger-soft: #ff6666;
+            --white: #ffffff;
+            --nav-bg: rgba(20,20,29,0.86);
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0a0a0f;
-            color: #e0e0e0;
+            background: var(--bg);
+            color: var(--text);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
@@ -39,12 +93,12 @@
         .header h1 {
             font-size: 28px;
             font-weight: 700;
-            color: #7c6aff;
+            color: var(--accent);
             letter-spacing: 4px;
         }
         .header .subtitle {
             font-size: 12px;
-            color: #666;
+            color: var(--muted);
             margin-top: 4px;
         }
 
@@ -54,16 +108,16 @@
             top: 14px;
             right: 0;
             display: flex;
-            background: #111118;
+            background: var(--surface);
             border-radius: 10px;
             padding: 3px;
             gap: 2px;
-            border: 1px solid #1e1e2a;
+            border: 1px solid var(--border);
         }
         .ui-lang-btn {
             border: none;
             background: transparent;
-            color: #555;
+            color: var(--text2);
             font-size: 12px;
             font-weight: 600;
             padding: 5px 10px;
@@ -75,12 +129,33 @@
             z-index: 1;
         }
         .ui-lang-btn:hover {
-            color: #999;
+            color: var(--text);
         }
         .ui-lang-btn.active {
-            color: #e0e0e0;
-            background: #7c6aff22;
-            box-shadow: 0 0 8px rgba(124, 106, 255, 0.15);
+            color: var(--text);
+            background: var(--accent-dim);
+            box-shadow: 0 0 8px var(--accent-glow-soft);
+        }
+
+        .theme-toggle-btn {
+            width: 34px;
+            height: 34px;
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            background: var(--surface);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+        .theme-toggle-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
         }
 
         /* --- Статус --- */
@@ -91,18 +166,18 @@
             gap: 8px;
             padding: 8px 16px;
             border-radius: 20px;
-            background: #111118;
+            background: var(--surface);
             font-size: 13px;
         }
         .status-dot {
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: #ff4444;
+            background: var(--danger);
             transition: background 0.3s;
         }
-        .status-dot.connected { background: #ffa500; }
-        .status-dot.listening { background: #44ff44; animation: pulse 1.5s infinite; }
+        .status-dot.connected { background: var(--warning); }
+        .status-dot.listening { background: var(--success); animation: pulse 1.5s infinite; }
 
         @keyframes pulse {
             0%, 100% { opacity: 1; }
@@ -119,13 +194,13 @@
         }
         .lang-selector label {
             font-size: 13px;
-            color: #888;
+            color: var(--text-soft);
             transition: opacity 0.25s;
         }
         .lang-selector select {
-            background: #1a1a24;
-            color: #e0e0e0;
-            border: 1px solid #333;
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border-strong);
             border-radius: 8px;
             padding: 8px 16px;
             font-size: 15px;
@@ -133,7 +208,7 @@
             cursor: pointer;
         }
         .lang-selector select:focus {
-            border-color: #7c6aff;
+            border-color: var(--accent);
         }
 
 
@@ -157,14 +232,14 @@
         }
         .lang-field label {
             font-size: 13px;
-            color: #888;
+            color: var(--text-soft);
             transition: opacity 0.25s;
         }
         .lang-field select {
             width: 100%;
-            background: #1a1a24;
-            color: #e0e0e0;
-            border: 1px solid #333;
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border-strong);
             border-radius: 8px;
             padding: 8px 12px;
             font-size: 15px;
@@ -172,23 +247,23 @@
             cursor: pointer;
         }
         .lang-field select:focus {
-            border-color: #7c6aff;
+            border-color: var(--accent);
         }
         .swap-btn {
             height: 42px;
             min-width: 42px;
-            border: 1px solid #333;
+            border: 1px solid var(--border-strong);
             border-radius: 10px;
-            background: #1a1a24;
-            color: #c4b5ff;
+            background: var(--surface2);
+            color: var(--accent-soft);
             font-size: 20px;
             cursor: pointer;
             transition: all 0.2s;
         }
         .swap-btn:hover {
-            border-color: #7c6aff;
-            color: #fff;
-            background: #2a1a4a;
+            border-color: var(--accent);
+            color: var(--white);
+            background: var(--accent-bg);
         }
         .history-actions {
             display: flex;
@@ -197,19 +272,56 @@
             margin-bottom: 8px;
         }
         .history-btn {
-            border: 1px solid #333;
+            border: 1px solid var(--border-strong);
             border-radius: 10px;
-            background: #1a1a24;
-            color: #e0e0e0;
+            background: var(--surface2);
+            color: var(--text);
             font-size: 13px;
             padding: 8px 12px;
             cursor: pointer;
             transition: all 0.2s;
         }
         .history-btn:hover {
-            border-color: #7c6aff;
-            color: #fff;
+            border-color: var(--accent);
+            color: var(--white);
         }
+
+        /* --- Mic selector --- */
+        .mic-selector {
+            display: flex; align-items: center; gap: 8px;
+            padding: 0 12px;
+        }
+        .mic-selector label {
+            font-size: 13px; color: var(--text2); white-space: nowrap; flex-shrink: 0;
+        }
+        .mic-selector select {
+            flex: 1; min-width: 0;
+            background: var(--surface2); color: var(--text);
+            border: 1px solid var(--border); border-radius: 8px;
+            padding: 7px 10px; font-size: 13px; outline: none; cursor: pointer;
+        }
+        .mic-selector select:focus { border-color: var(--accent); }
+        .mic-selector .mic-refresh-btn {
+            background: none; border: 1px solid var(--border);
+            border-radius: 8px; color: var(--text2);
+            font-size: 15px; padding: 6px 8px; cursor: pointer;
+            transition: all 0.2s; flex-shrink: 0;
+        }
+        .mic-selector .mic-refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+        /* Mic hint */
+        .mic-hint-btn {
+            background: none; border: none; cursor: pointer;
+            font-size: 14px; color: var(--text2); padding: 0 2px;
+            flex-shrink: 0; line-height: 1; transition: color 0.2s;
+        }
+        .mic-hint-btn:hover { color: var(--accent); }
+        .mic-hint-box {
+            display: none; margin: 4px 12px 0;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 10px; padding: 10px 13px;
+            font-size: 12px; color: var(--text2); line-height: 1.6;
+        }
+        .mic-hint-box.open { display: block; }
 
         /* --- Главная кнопка --- */
         .main-btn {
@@ -217,8 +329,8 @@
             height: 140px;
             border-radius: 50%;
             border: 3px solid #333;
-            background: #1a1a24;
-            color: #e0e0e0;
+            background: var(--surface2);
+            color: var(--text);
             font-size: 15px;
             font-weight: 600;
             cursor: pointer;
@@ -230,25 +342,25 @@
             user-select: none;
         }
         .main-btn:hover {
-            border-color: #7c6aff;
-            background: #1e1e2e;
+            border-color: var(--accent);
+            background: var(--surface2);
         }
         .main-btn.active {
-            border-color: #7c6aff;
-            background: #2a1a4a;
-            color: #7c6aff;
-            box-shadow: 0 0 30px rgba(124, 106, 255, 0.3);
+            border-color: var(--accent);
+            background: var(--accent-bg);
+            color: var(--accent);
+            box-shadow: 0 0 30px var(--accent-glow);
         }
         .main-btn.active:hover {
-            background: #1a1a24;
+            background: var(--surface2);
             border-color: #ff4444;
-            color: #ff6666;
+            color: var(--danger-soft);
             box-shadow: none;
         }
 
         /* --- Карточки перевода --- */
         .card {
-            background: #111118;
+            background: var(--surface);
             border-radius: 12px;
             padding: 16px;
             min-height: 60px;
@@ -257,7 +369,7 @@
             font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 1px;
-            color: #666;
+            color: var(--muted);
             margin-bottom: 8px;
             transition: opacity 0.25s;
         }
@@ -271,11 +383,11 @@
             border-left: 3px solid #7c6aff;
         }
         .card.translation .card-text {
-            color: #c4b5ff;
+            color: var(--accent-soft);
             font-size: 18px;
         }
         .card.original .card-text {
-            color: #888;
+            color: var(--text-soft);
         }
 
         /* --- VAD индикатор --- */
@@ -289,7 +401,7 @@
         .vad-bar {
             width: 3px;
             height: 8px;
-            background: #333;
+            background: var(--border-strong);
             border-radius: 2px;
             transition: height 0.1s, background 0.1s;
         }
@@ -308,28 +420,28 @@
             scrollbar-color: #333 transparent;
         }
         .history-item {
-            background: #0d0d14;
+            background: var(--surface3);
             border-radius: 8px;
             padding: 10px 12px;
             font-size: 13px;
         }
         .history-time {
-            color: #555;
+            color: var(--text2);
             font-size: 11px;
             margin-bottom: 4px;
         }
         .history-original {
-            color: #777;
+            color: var(--text-soft2);
         }
         .history-translation {
-            color: #b0a0ff;
+            color: var(--accent-soft2);
             margin-top: 2px;
         }
 
         /* --- Разделитель --- */
         .divider {
             height: 1px;
-            background: #1a1a24;
+            background: var(--surface2);
             margin: 4px 0;
         }
 
@@ -337,7 +449,7 @@
         .loading {
             text-align: center;
             padding: 20px;
-            color: #555;
+            color: var(--text2);
             font-size: 13px;
         }
 
@@ -353,7 +465,7 @@
         .top-nav {
             position: fixed; top: 0; left: 0; right: 0; z-index: 300;
             height: 52px;
-            background: rgba(255,255,255,0.85);
+            background: var(--nav-bg);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border-bottom: 1px solid var(--border);
@@ -397,9 +509,10 @@
     <nav class="top-nav">
         <a href="/landing" class="top-nav-logo">VOX</a>
         <div class="top-nav-right">
-            <a href="/review?source=host" class="top-nav-btn review-btn" target="_blank">⭐ <span class="nav-label">Відгук</span></a>
-            <a href="/cabinet" class="top-nav-btn">👤 <span class="nav-label">Кабінет</span></a>
-            <a href="/host" class="top-nav-btn">🏠 <span class="nav-label">Назад</span></a>
+            <a href="/review?source=host" class="top-nav-btn review-btn" target="_blank">⭐ <span class="nav-label" id="navReviewLabel">Відгук</span></a>
+            <a href="/cabinet" class="top-nav-btn">👤 <span class="nav-label" id="navCabinetLabel">Кабінет</span></a>
+            <button class="theme-toggle-btn" id="themeToggleBtn" type="button" onclick="toggleTheme()" aria-label="Switch theme" title="Switch theme">🌙</button>
+            <a href="/host" class="top-nav-btn">🏠 <span class="nav-label" id="navBackLabel">Назад</span></a>
         </div>
     </nav>
     <div class="container">
@@ -470,7 +583,16 @@
             </div>
         </div>
 
-        <!-- VAD индикатор -->
+        <!-- Вибір мікрофону -->
+        <div class="mic-selector">
+            <label id="micSelectorLabel">🎤</label>
+            <select id="micDeviceSelect" onchange="onMicDeviceChange(this.value)"></select>
+            <button class="mic-hint-btn" id="micHintBtn" onclick="toggleMicHint()" title="?">ⓘ</button>
+            <button class="mic-refresh-btn" onclick="populateMicDevices()" title="Оновити список">↺</button>
+        </div>
+        <div class="mic-hint-box" id="micHintBox"></div>
+
+        <!-- VAD індикатор -->
         <div class="vad-indicator" id="vadIndicator">
             <div class="vad-bar"></div>
             <div class="vad-bar"></div>
@@ -542,6 +664,16 @@
             labelOriginal:      'Оригінал',
             labelTranslation:   'Переклад',
             labelHistory:       'Історія',
+            themeToLight:       'Світла тема',
+            themeToDark:        'Темна тема',
+            navReview:          'Відгук',
+            navCabinet:         'Кабінет',
+            navBack:            'Назад',
+            micLabel:           '🎤 Мікрофон:',
+            micDefault:         'За замовчуванням',
+            micRefreshTitle:    'Оновити список',
+            micUnknown:         'Мікрофон',
+            micHint:            '💡 «За замовчуванням» — браузер вибирає мікрофон сам. Якщо підключена гарнітура і хочете записувати зовнішній звук — виберіть «За замовчуванням» і вимкніть мікрофон гарнітури фізично. Вбудований мікрофон телефону краще чує дальні джерела звуку.',
             langTooltip:        (lang, conf) => `Мова: ${lang} (${conf}%)`,
         },
         en: {
@@ -565,6 +697,16 @@
             labelOriginal:      'Original',
             labelTranslation:   'Translation',
             labelHistory:       'History',
+            themeToLight:       'Light theme',
+            themeToDark:        'Dark theme',
+            navReview:          'Review',
+            navCabinet:         'Cabinet',
+            navBack:            'Back',
+            micLabel:           '🎤 Microphone:',
+            micDefault:         'Default',
+            micRefreshTitle:    'Refresh list',
+            micUnknown:         'Microphone',
+            micHint:            '💡 "Default" lets the browser pick the microphone automatically. If you wear headphones and want to capture external sound — choose "Default" and physically disable the headset mic. The phone\'s built-in mic generally picks up distant sound sources better.',
             langTooltip:        (lang, conf) => `Language: ${lang} (${conf}%)`,
         },
         de: {
@@ -588,11 +730,22 @@
             labelOriginal:      'Original',
             labelTranslation:   'Übersetzung',
             labelHistory:       'Verlauf',
+            themeToLight:       'Helles Thema',
+            themeToDark:        'Dunkles Thema',
+            navReview:          'Bewertung',
+            navCabinet:         'Kabinett',
+            navBack:            'Zurück',
+            micLabel:           '🎤 Mikrofon:',
+            micDefault:         'Standard',
+            micRefreshTitle:    'Liste aktualisieren',
+            micUnknown:         'Mikrofon',
+            micHint:            '💡 „Standard" lässt den Browser das Mikrofon automatisch wählen. Wenn Sie Kopfhörer tragen und externen Ton aufnehmen möchten — wählen Sie „Standard" und deaktivieren Sie das Headset-Mikrofon physisch. Das eingebaute Telefonmikrofon erfasst entfernte Tonquellen in der Regel besser.',
             langTooltip:        (lang, conf) => `Sprache: ${lang} (${conf}%)`,
         },
     };
 
-    let currentUILang = 'uk';
+    let currentUILang = localStorage.getItem('vox_ui_lang_solo') || 'uk';
+    let currentTheme = localStorage.getItem('vox_theme') || 'light';
 
     // Map internal status keys to i18n keys
     const statusKeyMap = {
@@ -616,6 +769,27 @@
      * Apply all UI strings — with a quick crossfade.
      * Elements with class `i18n-fade` get opacity 0 → update → opacity 1.
      */
+    function updateThemeToggle() {
+        const btn = document.getElementById('themeToggleBtn');
+        if (!btn) return;
+        const isDark = currentTheme === 'dark';
+        btn.textContent = isDark ? '☀️' : '🌙';
+        const label = t(isDark ? 'themeToLight' : 'themeToDark');
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+    }
+
+    function applyTheme() {
+        document.documentElement.dataset.theme = currentTheme;
+        updateThemeToggle();
+    }
+
+    function toggleTheme() {
+        currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('vox_theme', currentTheme);
+        applyTheme();
+    }
+
     function applyUILanguage(animate) {
         const fadeEls = document.querySelectorAll('.i18n-fade');
 
@@ -636,6 +810,32 @@
             statusText.textContent = t(statusKeyMap[currentStatusKey] || 'statusDisconnected');
 
             document.documentElement.lang = currentUILang;
+            localStorage.setItem('vox_ui_lang_solo', currentUILang);
+            updateThemeToggle();
+
+            // Nav labels
+            const navR = document.getElementById('navReviewLabel');
+            const navC = document.getElementById('navCabinetLabel');
+            const navB = document.getElementById('navBackLabel');
+            if (navR) navR.textContent = t('navReview');
+            if (navC) navC.textContent = t('navCabinet');
+            if (navB) navB.textContent = t('navBack');
+
+            // Mic selector label & refresh button title
+            const micLbl = document.getElementById('micSelectorLabel');
+            const micRefBtn = document.querySelector('.mic-refresh-btn');
+            if (micLbl) micLbl.textContent = t('micLabel');
+            if (micRefBtn) micRefBtn.title = t('micRefreshTitle');
+            // Re-render default option text
+            const micSel = document.getElementById('micDeviceSelect');
+            if (micSel && micSel.options.length > 0 && micSel.options[0].value === '') {
+                micSel.options[0].textContent = t('micDefault');
+            }
+            // Якщо підказка відкрита — оновити текст
+            const micHintBox = document.getElementById('micHintBox');
+            if (micHintBox && micHintBox.classList.contains('open')) {
+                micHintBox.textContent = t('micHint');
+            }
         }
 
         if (animate) {
@@ -648,6 +848,8 @@
             update();
         }
     }
+
+    applyTheme();
 
     // --- UI Language Switcher click handler ---
     document.querySelectorAll('.ui-lang-btn').forEach(b => b.classList.toggle('active', b.dataset.uilang === currentUILang));
@@ -686,8 +888,11 @@
     let soloFullHistory = [];
 
     // --- Очередь аудио для воспроизведения ---
-    let playbackContext = null;
+    // Используем Audio() вместо AudioContext чтобы не конфликтовать с
+    // capture AudioContext и не ломать маршрутизацию на Android.
     let audioQueue = [];
+    let currentAudio = null;
+    let currentAudioUrl = null;
     let isPlaying = false;
 
     // =====================================================================
@@ -711,11 +916,12 @@
         };
 
         ws.onclose = () => {
-            setStatus('disconnected', 'disconnected_init');
-            console.log('WebSocket closed');
+            // Не перезаписуємо статус якщо юзер сам натиснув Stop
             if (isListening) {
+                setStatus('disconnected', 'disconnected_init');
                 setTimeout(connectWebSocket, 2000);
             }
+            console.log('WebSocket closed');
         };
 
         ws.onerror = (e) => {
@@ -765,9 +971,11 @@
         }
     }
 
-    async function processAudioQueue() {
+    function processAudioQueue() {
         if (audioQueue.length === 0) {
             isPlaying = false;
+            currentAudio = null;
+            currentAudioUrl = null;
             return;
         }
 
@@ -775,16 +983,28 @@
         const mp3Bytes = audioQueue.shift();
 
         try {
-            if (!playbackContext) {
-                playbackContext = new AudioContext();
-            }
+            const blob = new Blob([mp3Bytes], { type: 'audio/mpeg' });
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            currentAudio = audio;
+            currentAudioUrl = url;
 
-            const audioBuffer = await playbackContext.decodeAudioData(mp3Bytes.slice(0));
-            const source = playbackContext.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(playbackContext.destination);
-            source.onended = () => processAudioQueue();
-            source.start(0);
+            audio.onended = () => {
+                URL.revokeObjectURL(url);
+                currentAudioUrl = null;
+                processAudioQueue();
+            };
+            audio.onerror = () => {
+                URL.revokeObjectURL(url);
+                currentAudioUrl = null;
+                processAudioQueue();
+            };
+            audio.play().catch(e => {
+                console.warn('Audio play failed:', e);
+                URL.revokeObjectURL(url);
+                currentAudioUrl = null;
+                processAudioQueue();
+            });
         } catch (e) {
             console.error('Audio playback error:', e);
             processAudioQueue();
@@ -796,15 +1016,32 @@
     // =====================================================================
     async function startMicrophone() {
         try {
-            mediaStream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    sampleRate: 16000,
-                    channelCount: 1,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
+            const micConstraints = {
+                sampleRate: 16000,
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+            };
+            if (_selectedMicId) micConstraints.deviceId = { exact: _selectedMicId };
+
+            // Спробуємо з вибраним deviceId; якщо пристрій зник — fallback на default
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints });
+            } catch(devErr) {
+                if (_selectedMicId && (devErr.name === 'OverconstrainedError' || devErr.name === 'NotFoundError')) {
+                    console.warn('Selected mic unavailable, falling back to default:', devErr.message);
+                    _selectedMicId = '';
+                    localStorage.removeItem('vox_mic_id');
+                    // Оновити select щоб показав "За замовчуванням"
+                    const sel = document.getElementById('micDeviceSelect');
+                    if (sel) sel.value = '';
+                    delete micConstraints.deviceId;
+                    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints });
+                } else {
+                    throw devErr;
                 }
-            });
+            }
 
             audioContext = new AudioContext({ sampleRate: 16000 });
 
@@ -852,7 +1089,10 @@
             };
 
             source.connect(audioWorkletNode);
-            audioWorkletNode.connect(audioContext.destination);
+            // NOTE: audioWorkletNode НЕ подключается к destination —
+            // он только захватывает PCM и отправляет на сервер через WebSocket.
+            // Подключение к destination создаёт аудио-петлю и ломает
+            // маршрутизацию звука на Android (режим VOICE_COMMUNICATION).
 
         } catch (e) {
             console.error('Microphone error:', e);
@@ -890,6 +1130,17 @@
             if (ws) {
                 ws.close();
                 ws = null;
+            }
+            // Очищаем очередь и останавливаем текущее воспроизведение
+            audioQueue = [];
+            isPlaying = false;
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+            }
+            if (currentAudioUrl) {
+                URL.revokeObjectURL(currentAudioUrl);
+                currentAudioUrl = null;
             }
             setStatus('disconnected', 'stopped');
             resetVAD();
@@ -1055,10 +1306,6 @@
         const filename = `vox-solo-history-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`;
         pdfMake.createPdf(docDefinition).download(filename);
     }
-        window.addEventListener('beforeunload', () => {
-        sessionStorage.removeItem('vox_solo_history');
-        sessionStorage.removeItem('vox_solo_history_full');
-    });
 
     function addToHistory(original, translation, langFrom, langTo) {
         const now = new Date();
@@ -1100,6 +1347,69 @@
     // --- Инициализация ---
     applyUILanguage(false);
     console.log('VOX Solo v0.1.0');
+
+    // ======== MIC DEVICE SELECTOR ========
+    let _selectedMicId = localStorage.getItem('vox_mic_id') || '';
+
+    async function populateMicDevices() {
+        try {
+            // Перевіряємо чи дозвіл вже є через Permissions API
+            // Якщо ні — запитуємо один раз щоб labels були видимі
+            let needsRequest = true;
+            if (navigator.permissions) {
+                try {
+                    const perm = await navigator.permissions.query({ name: 'microphone' });
+                    needsRequest = perm.state !== 'granted';
+                } catch(_) { /* Permissions API not supported */ }
+            }
+            if (needsRequest) {
+                const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+                if (tempStream) tempStream.getTracks().forEach(t => t.stop());
+            }
+
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const mics = devices.filter(d => d.kind === 'audioinput');
+            const sel = document.getElementById('micDeviceSelect');
+            if (!sel) return;
+
+            const saved = _selectedMicId;
+            sel.innerHTML = `<option value="">${t('micDefault')}</option>`;
+            mics.forEach((d, i) => {
+                const opt = document.createElement('option');
+                opt.value = d.deviceId;
+                opt.textContent = d.label || `${t('micUnknown')} ${i + 1}`;
+                opt.selected = d.deviceId === saved;
+                sel.appendChild(opt);
+            });
+
+            // Підписи
+            const micLbl = document.getElementById('micSelectorLabel');
+            const micRefBtn = document.querySelector('.mic-refresh-btn');
+            if (micLbl) micLbl.textContent = t('micLabel');
+            if (micRefBtn) micRefBtn.title = t('micRefreshTitle');
+        } catch(e) {
+            console.warn('populateMicDevices failed:', e);
+        }
+    }
+
+    function onMicDeviceChange(deviceId) {
+        _selectedMicId = deviceId;
+        localStorage.setItem('vox_mic_id', deviceId);
+    }
+
+    function toggleMicHint() {
+        const box = document.getElementById('micHintBox');
+        if (!box) return;
+        if (!box.classList.contains('open')) {
+            box.textContent = t('micHint');
+        }
+        box.classList.toggle('open');
+    }
+
+    // Заповнити список при завантаженні та при підключенні нового пристрою
+    populateMicDevices();
+    navigator.mediaDevices.addEventListener('devicechange', populateMicDevices);
+
     </script>
 </body>
 </html>
