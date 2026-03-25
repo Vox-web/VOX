@@ -1,10 +1,9 @@
 """
 VOX — Синтез речи (Text-to-Speech)
 
-Трёхступенчатый fallback:
-1. OpenAI gpt-4o-mini-tts — основной, более живой голос
-2. OpenAI tts-1 — резервный OpenAI TTS
-3. edge-tts (Microsoft) — последний бесплатный fallback
+Два движка:
+1. OpenAI TTS (tts-1) — основной, высокое качество
+2. edge-tts (Microsoft) — бесплатный fallback
 """
 
 import os
@@ -18,19 +17,10 @@ logger = logging.getLogger("vox.tts")
 
 class TTSEngine:
     """
-    TTS движок с трёхступенчатым fallback.
+    TTS движок с автоматическим fallback.
 
-    Порядок попыток:
-    1) gpt-4o-mini-tts
-    2) tts-1
-    3) edge-tts
+    Сначала пытается edge-tts (быстрее, бесплатно), при ошибке — OpenAI TTS.
     """
-
-    OPENAI_LIVE_INSTRUCTIONS = (
-        "Speak naturally, warmly, and conversationally. "
-        "Use smooth pacing, subtle expressiveness, and human-like intonation. "
-        "Do not sound robotic, overexcited, or theatrical."
-    )
 
     # Карта голосов: язык → {openai_voice, edge_voice}
     VOICE_MAP = {
@@ -77,65 +67,39 @@ class TTSEngine:
         Returns:
             MP3 bytes или None при ошибке
         """
-        text = text.strip()
-        if not text:
+        if not text.strip():
             return None
 
         voices = self._get_voices(lang)
 
-        # Попытка 1: OpenAI gpt-4o-mini-tts
-        if self.openai_client:
-            try:
-                audio = self._openai_tts_gpt4o_mini(text, voices["openai"])
-                if audio:
-                    logger.info(f"🔊 OpenAI gpt-4o-mini-tts [{lang}]: {len(audio)} байт")
-                    return audio
-                logger.warning(
-                    f"⚠️ OpenAI gpt-4o-mini-tts [{lang}]: пустой ответ, переключаюсь на tts-1"
-                )
-            except Exception as e:
-                logger.warning(f"⚠️ OpenAI gpt-4o-mini-tts ошибка: {e}, переключаюсь на tts-1")
-
-            # Попытка 2: OpenAI tts-1
-            try:
-                audio = self._openai_tts_tts1(text, voices["openai"])
-                if audio:
-                    logger.info(f"🔊 OpenAI tts-1 [{lang}]: {len(audio)} байт")
-                    return audio
-                logger.warning(
-                    f"⚠️ OpenAI tts-1 [{lang}]: пустой ответ, переключаюсь на edge-tts"
-                )
-            except Exception as e:
-                logger.warning(f"⚠️ OpenAI tts-1 ошибка: {e}, переключаюсь на edge-tts")
-
-        # Попытка 3: edge-tts
+        # Попытка 1: edge-tts (быстрее и бесплатно)
         try:
             audio = self._edge_tts_sync(text, voices["edge"])
             if audio:
                 logger.info(f"🔊 edge-tts [{lang}]: {len(audio)} байт")
                 return audio
-            logger.warning(f"⚠️ edge-tts [{lang}]: пустой ответ")
+            else:
+                logger.warning(f"⚠️ edge-tts [{lang}]: пустой ответ, переключаюсь на OpenAI TTS")
         except Exception as e:
-            logger.error(f"❌ edge-tts тоже упал: {e}")
+            logger.warning(f"⚠️ edge-tts ошибка: {e}, переключаюсь на OpenAI TTS")
+
+        # Попытка 2: OpenAI TTS (fallback, платный)
+        if self.openai_client:
+            try:
+                audio = self._openai_tts(text, voices["openai"])
+                if audio:
+                    logger.info(f"🔊 OpenAI TTS [{lang}]: {len(audio)} байт")
+                    return audio
+                else:
+                    logger.warning(f"⚠️ OpenAI TTS [{lang}]: пустой ответ")
+            except Exception as e:
+                logger.error(f"❌ OpenAI TTS тоже упал: {e}")
 
         logger.error(f"❌ TTS [{lang}]: все движки не дали результата для '{text[:30]}...'")
         return None
 
-    def _openai_tts_gpt4o_mini(self, text: str, voice: str) -> Optional[bytes]:
-        """Синтез через OpenAI gpt-4o-mini-tts."""
-        response = self.openai_client.audio.speech.create(
-            model="gpt-4o-mini-tts",
-            voice=voice,
-            input=text,
-            instructions=self.OPENAI_LIVE_INSTRUCTIONS,
-            response_format="mp3",
-        )
-        audio_bytes = response.content
-        logger.debug(f"🔊 OpenAI gpt-4o-mini-tts: {len(audio_bytes)} байт")
-        return audio_bytes if audio_bytes else None
-
-    def _openai_tts_tts1(self, text: str, voice: str) -> Optional[bytes]:
-        """Синтез через OpenAI tts-1."""
+    def _openai_tts(self, text: str, voice: str) -> Optional[bytes]:
+        """Синтез через OpenAI TTS API."""
         response = self.openai_client.audio.speech.create(
             model="tts-1",
             voice=voice,
@@ -143,9 +107,11 @@ class TTSEngine:
             response_format="mp3",
             speed=1.0,
         )
+
+        # Читаем все байты
         audio_bytes = response.content
-        logger.debug(f"🔊 OpenAI tts-1: {len(audio_bytes)} байт")
-        return audio_bytes if audio_bytes else None
+        logger.debug(f"🔊 OpenAI TTS: {len(audio_bytes)} байт")
+        return audio_bytes
 
     def _edge_tts_sync(self, text: str, voice: str) -> Optional[bytes]:
         """
@@ -162,6 +128,8 @@ class TTSEngine:
                     buffer.write(chunk["data"])
             return buffer.getvalue()
 
+        # Запускаем async код в новом event loop
+        # (потому что вызывается из sync контекста через asyncio.to_thread)
         loop = asyncio.new_event_loop()
         try:
             audio_bytes = loop.run_until_complete(_generate())
@@ -170,7 +138,9 @@ class TTSEngine:
         finally:
             loop.close()
 
-    async def synthesize_parallel(self, translations: dict[str, str]) -> dict[str, bytes]:
+    async def synthesize_parallel(
+        self, translations: dict[str, str]
+    ) -> dict[str, bytes]:
         """
         Параллельный синтез для нескольких языков.
         Используется в режиме Web-комнаты.
