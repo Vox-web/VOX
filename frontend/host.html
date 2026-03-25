@@ -351,6 +351,15 @@
             transition: all 0.2s; flex-shrink: 0;
         }
         .mic-selector .mic-refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .tts-toggle-btn {
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            background: none; border: 1px solid var(--border);
+            border-radius: 99px; padding: 6px 16px;
+            font-size: 13px; font-weight: 500; color: var(--text2);
+            cursor: pointer; transition: all 0.2s; width: 100%;
+        }
+        .tts-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .tts-toggle-btn.tts-off { opacity: 0.6; }
         .mic-hint-btn {
             background: none; border: none; cursor: pointer;
             font-size: 14px; color: var(--text2); padding: 0 2px;
@@ -661,6 +670,10 @@
                 <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
             </div>
             <button class="solo-btn i18n" id="soloBtn" onclick="soloToggle()">СЛУХАТИ</button>
+            <button class="tts-toggle-btn" id="ttsToggleBtn" onclick="toggleTts()">
+                <span id="ttsToggleIcon">🔊</span>
+                <span id="ttsToggleLabel">Озвучка увімкнена</span>
+            </button>
             <div class="card original">
                 <div class="card-label i18n" id="soloLabelOrig">Оригінал</div>
                 <div class="card-text" id="soloOriginal">—</div>
@@ -815,6 +828,7 @@
             pdfEmpty: 'Історія порожня', pdfOriginalLabel: 'Оригінал', pdfTranslationLabel: 'Переклад', themeToLight: 'Світла тема', themeToDark: 'Темна тема',
             micLabel: '🎤 Мікрофон:', micDefault: 'За замовчуванням', micRefreshTitle: 'Оновити список',
             micHint: '💡 «За замовчуванням» — браузер вибирає мікрофон сам. Якщо підключена гарнітура і хочете записувати зовнішній звук — виберіть «За замовчуванням» і вимкніть мікрофон гарнітури фізично. Вбудований мікрофон телефону краще чує дальні джерела звуку.',
+            ttsOn: 'Озвучка увімкнена', ttsOff: 'Озвучка вимкнена',
         },
         en: {
             subtitle: 'Real-time AI Translation',
@@ -857,6 +871,7 @@
             pdfEmpty: 'History is empty', pdfOriginalLabel: 'Original', pdfTranslationLabel: 'Translation', themeToLight: 'Light theme', themeToDark: 'Dark theme',
             micLabel: '🎤 Microphone:', micDefault: 'Default', micRefreshTitle: 'Refresh list',
             micHint: '💡 "Default" lets the browser pick the microphone automatically. If you wear headphones and want to capture external sound — choose "Default" and physically disable the headset mic. The phone\'s built-in mic generally picks up distant sound sources better.',
+            ttsOn: 'Audio on', ttsOff: 'Audio off',
         },
         de: {
             subtitle: 'KI-Übersetzung in Echtzeit',
@@ -899,6 +914,7 @@
             pdfEmpty: 'Verlauf ist leer', pdfOriginalLabel: 'Original', pdfTranslationLabel: 'Übersetzung', themeToLight: 'Helles Thema', themeToDark: 'Dunkles Thema',
             micLabel: '🎤 Mikrofon:', micDefault: 'Standard', micRefreshTitle: 'Liste aktualisieren',
             micHint: '💡 „Standard" lässt den Browser das Mikrofon automatisch wählen. Wenn Sie Kopfhörer tragen und externen Ton aufnehmen möchten — wählen Sie „Standard" und deaktivieren Sie das Headset-Mikrofon physisch. Das eingebaute Telefonmikrofon erfasst entfernte Tonquellen in der Regel besser.',
+            ttsOn: 'Ton an', ttsOff: 'Ton aus',
         },
     };
 
@@ -981,6 +997,7 @@
             if (micHintBox && micHintBox.classList.contains('open')) {
                 micHintBox.textContent = t('micHint');
             }
+            _updateTtsBtn();
         }
         if (animate) {
             els.forEach(el => el.classList.add('fading'));
@@ -1084,7 +1101,36 @@
             audio.play().catch(e => { console.warn('Play err:', e); URL.revokeObjectURL(url); _curAudioUrl=null; _pQ(); });
         } catch(e) { console.error('Play err:',e); _pQ(); }
     }
-    function _audioMsg(d) { const p = new TextDecoder().decode(new Uint8Array(d,0,6)); if (p==='AUDIO:') _playA(d.slice(6)); }
+    // ======== TTS TOGGLE ========
+    let _ttsEnabled = localStorage.getItem('vox_tts_enabled') !== 'false';
+
+    function _updateTtsBtn() {
+        const icon = document.getElementById('ttsToggleIcon');
+        const lbl  = document.getElementById('ttsToggleLabel');
+        const btn  = document.getElementById('ttsToggleBtn');
+        if (!btn) return;
+        icon.textContent = _ttsEnabled ? '🔊' : '🔇';
+        lbl.textContent  = t(_ttsEnabled ? 'ttsOn' : 'ttsOff');
+        btn.classList.toggle('tts-off', !_ttsEnabled);
+    }
+
+    function toggleTts() {
+        _ttsEnabled = !_ttsEnabled;
+        localStorage.setItem('vox_tts_enabled', _ttsEnabled);
+        // Повідомляємо сервер — він пропустить синтез TTS якщо вимкнено
+        if (soloWs?.readyState === WebSocket.OPEN) {
+            soloWs.send(JSON.stringify({ type: 'config', tts_enabled: _ttsEnabled }));
+        }
+        if (!_ttsEnabled) {
+            aQ.length = 0;
+            if (_curAudio) { _curAudio.pause(); _curAudio = null; }
+            if (_curAudioUrl) { URL.revokeObjectURL(_curAudioUrl); _curAudioUrl = null; }
+            aPlaying = false;
+        }
+        _updateTtsBtn();
+    }
+
+    function _audioMsg(d) { const p = new TextDecoder().decode(new Uint8Array(d,0,6)); if (p==='AUDIO:' && _ttsEnabled) _playA(d.slice(6)); }
 
     async function _mic(name, onChunk) {
         const _micConstraints = {sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true};
@@ -1269,6 +1315,7 @@
                 type: 'config',
                 source_lang: srcLang === 'auto' ? null : srcLang,
                 target_lang: tgtLang,
+                tts_enabled: _ttsEnabled,
             }));
             clearInterval(_soloPingInterval);
             _soloPingInterval = setInterval(() => {
@@ -1355,6 +1402,7 @@
         const payload = {
             source_lang: srcSel.value === 'auto' ? null : srcSel.value,
             target_lang: tgtSel.value,
+            tts_enabled: _ttsEnabled,
         };
         try {
             await fetch('/set-config', {
@@ -1669,6 +1717,7 @@
     // Init
     // =====================================================================
     applyI18n(false);
+    _updateTtsBtn();
     // Восстановление комнаты после рефреша
     const savedRoom = sessionStorage.getItem('vox_host_room');
     if (savedRoom) {

@@ -323,6 +323,18 @@
         }
         .mic-hint-box.open { display: block; }
 
+        /* --- TTS toggle --- */
+        .tts-toggle-btn {
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            margin: 0 auto;
+            background: none; border: 1px solid var(--border);
+            border-radius: 99px; padding: 6px 16px;
+            font-size: 13px; font-weight: 500; color: var(--text2);
+            cursor: pointer; transition: all 0.2s;
+        }
+        .tts-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .tts-toggle-btn.tts-off { border-color: var(--text3); color: var(--text3); opacity: 0.7; }
+
         /* --- Главная кнопка --- */
         .main-btn {
             width: 140px;
@@ -610,6 +622,12 @@
             СЛУХАТИ
         </button>
 
+        <!-- TTS toggle -->
+        <button class="tts-toggle-btn" id="ttsToggleBtn" onclick="toggleTts()">
+            <span id="ttsToggleIcon">🔊</span>
+            <span id="ttsToggleLabel">Озвучка увімкнена</span>
+        </button>
+
         <!-- Оригинал -->
         <div class="card original">
             <div class="card-label i18n-fade" id="labelOriginal">Оригінал</div>
@@ -666,6 +684,8 @@
             labelHistory:       'Історія',
             themeToLight:       'Світла тема',
             themeToDark:        'Темна тема',
+            ttsOn:              'Озвучка увімкнена',
+            ttsOff:             'Озвучка вимкнена',
             navReview:          'Відгук',
             navCabinet:         'Кабінет',
             navBack:            'Назад',
@@ -699,6 +719,8 @@
             labelHistory:       'History',
             themeToLight:       'Light theme',
             themeToDark:        'Dark theme',
+            ttsOn:              'Audio on',
+            ttsOff:             'Audio off',
             navReview:          'Review',
             navCabinet:         'Cabinet',
             navBack:            'Back',
@@ -732,6 +754,8 @@
             labelHistory:       'Verlauf',
             themeToLight:       'Helles Thema',
             themeToDark:        'Dunkles Thema',
+            ttsOn:              'Ton an',
+            ttsOff:             'Ton aus',
             navReview:          'Bewertung',
             navCabinet:         'Kabinett',
             navBack:            'Zurück',
@@ -812,6 +836,7 @@
             document.documentElement.lang = currentUILang;
             localStorage.setItem('vox_ui_lang_solo', currentUILang);
             updateThemeToggle();
+            _updateTtsBtn();
 
             // Nav labels
             const navR = document.getElementById('navReviewLabel');
@@ -910,6 +935,7 @@
                 type: 'config',
                 source_lang: sourceLangSelect.value,
                 target_lang: langSelect.value,
+                tts_enabled: _ttsEnabled,
             }));
             setStatus('connected', 'connected');
             console.log('WebSocket connected');
@@ -953,9 +979,43 @@
         }
     }
 
+    // ======== TTS TOGGLE ========
+    let _ttsEnabled = localStorage.getItem('vox_tts_enabled') !== 'false';
+
+    function _updateTtsBtn() {
+        const btn  = document.getElementById('ttsToggleBtn');
+        const icon = document.getElementById('ttsToggleIcon');
+        const lbl  = document.getElementById('ttsToggleLabel');
+        if (!btn) return;
+        icon.textContent = _ttsEnabled ? '🔊' : '🔇';
+        lbl.textContent  = t(_ttsEnabled ? 'ttsOn' : 'ttsOff');
+        btn.classList.toggle('tts-off', !_ttsEnabled);
+    }
+
+    function toggleTts() {
+        _ttsEnabled = !_ttsEnabled;
+        localStorage.setItem('vox_tts_enabled', _ttsEnabled);
+        // Повідомляємо сервер — він пропустить синтез TTS якщо вимкнено
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'config', tts_enabled: _ttsEnabled }));
+        }
+        // Якщо вимкнули — зупиняємо поточне відтворення і чистимо чергу
+        if (!_ttsEnabled) {
+            audioQueue.length = 0;
+            if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+            if (currentAudioUrl) { URL.revokeObjectURL(currentAudioUrl); currentAudioUrl = null; }
+            isPlaying = false;
+        }
+        _updateTtsBtn();
+    }
+
+    // Init TTS button
+    _updateTtsBtn();
+
     function handleAudioMessage(data) {
         const prefix = new TextDecoder().decode(new Uint8Array(data, 0, 6));
         if (prefix === 'AUDIO:') {
+            if (!_ttsEnabled) return; // TTS вимкнено — не відтворюємо
             const audioData = data.slice(6);
             playAudio(audioData);
         }
@@ -1197,6 +1257,7 @@
         const payload = {
             source_lang: sourceLangSelect.value,
             target_lang: langSelect.value,
+            tts_enabled: _ttsEnabled,
         };
 
         try {

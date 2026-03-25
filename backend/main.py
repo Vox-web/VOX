@@ -468,6 +468,10 @@ async def websocket_solo(ws: WebSocket):
     await ws.accept()
     logger.info("🔌 WebSocket підключено (Solo)")
 
+    # Per-session стан — не глобальний session_config
+    # Кожне Solo-підключення має власний tts_enabled
+    session_tts_enabled: bool = True
+
     from billing_db import deduct_session_cost as _deduct
     _user_id = None
     try:
@@ -482,6 +486,8 @@ async def websocket_solo(ws: WebSocket):
                     session_config["source_lang"] = first["source_lang"]
                 if first.get("target_lang"):
                     session_config["target_lang"] = first["target_lang"]
+                if "tts_enabled" in first:
+                    session_tts_enabled = bool(first["tts_enabled"])
     except (asyncio.TimeoutError, Exception):
         pass
 
@@ -545,11 +551,12 @@ async def websocket_solo(ws: WebSocket):
                             "lang_from": source_lang,
                             "lang_to": target_lang,
                         })
-                        audio_bytes = await asyncio.to_thread(
-                            tts_engine.synthesize, translated, target_lang,
-                        )
-                        if audio_bytes:
-                            await ws.send_bytes(b"AUDIO:" + audio_bytes)
+                        if session_tts_enabled:
+                            audio_bytes = await asyncio.to_thread(
+                                tts_engine.synthesize, translated, target_lang,
+                            )
+                            if audio_bytes:
+                                await ws.send_bytes(b"AUDIO:" + audio_bytes)
                     else:
                         # Язык источника == язык вывода:
                         # корректируем ASR-ошибки через GPT (без перевода)
@@ -563,12 +570,13 @@ async def websocket_solo(ws: WebSocket):
                             "lang_to": target_lang,
                             "note": "asr_corrected",
                         })
-                        # TTS озвучивает исправленный текст на том же языке
-                        audio_bytes = await asyncio.to_thread(
-                            tts_engine.synthesize, corrected, target_lang,
-                        )
-                        if audio_bytes:
-                            await ws.send_bytes(b"AUDIO:" + audio_bytes)
+                        if session_tts_enabled:
+                            # TTS озвучивает исправленный текст на том же языке
+                            audio_bytes = await asyncio.to_thread(
+                                tts_engine.synthesize, corrected, target_lang,
+                            )
+                            if audio_bytes:
+                                await ws.send_bytes(b"AUDIO:" + audio_bytes)
                     logger.info(f"📝 [{source_lang}→{target_lang}] {result.text[:60]}")
             except Exception as e:
                 if "disconnect" in str(e).lower():
@@ -604,8 +612,10 @@ async def websocket_solo(ws: WebSocket):
                             session_config["source_lang"] = new_src
                             await dg.stop()
                             await dg.start(language=new_src)
+                        if "tts_enabled" in msg:
+                            session_tts_enabled = bool(msg["tts_enabled"])
                         src = session_config.get("source_lang")
-                        logger.info(f"🎤 Solo config: source={src}, target={session_config['target_lang']}")
+                        logger.info(f"🎤 Solo config: source={src}, target={session_config['target_lang']}, tts={session_tts_enabled}")
                 except json.JSONDecodeError:
                     pass
     except WebSocketDisconnect:
