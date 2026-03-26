@@ -663,6 +663,13 @@
                 <button class="mic-refresh-btn" onclick="populateMicDevices()" title="Оновити список">↺</button>
             </div>
             <div class="mic-hint-box" id="micHintBox"></div>
+            <div class="mic-selector">
+                <label id="outputSelectorLabel">🔊</label>
+                <select id="audioOutputSelect" onchange="onOutputDeviceChange(this.value)"></select>
+                <button class="mic-hint-btn" id="outputPickerBtn" onclick="requestOutputDevice()" title="Вибрати аудіовихід">🎧</button>
+                <button class="mic-refresh-btn" onclick="populateOutputDevices()" title="Оновити список">↺</button>
+            </div>
+            <div class="mic-hint-box" id="hybridModeStatus" style="display:block;max-height:none;padding:10px 12px;"></div>
 
             <div class="vad-indicator" id="soloVad">
                 <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
@@ -828,6 +835,12 @@
             pdfEmpty: 'Історія порожня', pdfOriginalLabel: 'Оригінал', pdfTranslationLabel: 'Переклад', themeToLight: 'Світла тема', themeToDark: 'Темна тема',
             micLabel: '🎤 Мікрофон:', micDefault: 'За замовчуванням', micRefreshTitle: 'Оновити список',
             micHint: '💡 «За замовчуванням» — браузер вибирає мікрофон сам. Якщо підключена гарнітура і хочете записувати зовнішній звук — виберіть «За замовчуванням» і вимкніть мікрофон гарнітури фізично. Вбудований мікрофон телефону краще чує дальні джерела звуку.',
+            outputLabel: '🔊 Вивід звуку:', outputDefault: 'Системний за замовчуванням',
+            outputRefreshTitle: 'Оновити список', outputPickerTitle: 'Вибрати аудіовихід',
+            outputUnknown: 'Аудіовихід', hybridReady: 'Hybrid mode: готово. Вивід = системний за замовчуванням.',
+            hybridSelected: 'Hybrid mode: вибрано окремий вивід звуку.',
+            hybridFallback: 'Hybrid mode: браузер не дав окремо вибрати вивід. Працює системний маршрут.',
+            hybridUnsupported: 'Hybrid mode недоступний у цьому браузері. Вивід іде через системний маршрут.',
             ttsOn: 'Озвучка увімкнена', ttsOff: 'Озвучка вимкнена',
         },
         en: {
@@ -914,6 +927,12 @@
             pdfEmpty: 'Verlauf ist leer', pdfOriginalLabel: 'Original', pdfTranslationLabel: 'Übersetzung', themeToLight: 'Helles Thema', themeToDark: 'Dunkles Thema',
             micLabel: '🎤 Mikrofon:', micDefault: 'Standard', micRefreshTitle: 'Liste aktualisieren',
             micHint: '💡 „Standard" lässt den Browser das Mikrofon automatisch wählen. Wenn Sie Kopfhörer tragen und externen Ton aufnehmen möchten — wählen Sie „Standard" und deaktivieren Sie das Headset-Mikrofon physisch. Das eingebaute Telefonmikrofon erfasst entfernte Tonquellen in der Regel besser.',
+            outputLabel: '🔊 Audioausgabe:', outputDefault: 'Systemstandard',
+            outputRefreshTitle: 'Liste aktualisieren', outputPickerTitle: 'Audioausgabe wählen',
+            outputUnknown: 'Ausgabe', hybridReady: 'Hybrid-Modus: bereit. Ausgabe = Systemstandard.',
+            hybridSelected: 'Hybrid-Modus: separate Audioausgabe ausgewählt.',
+            hybridFallback: 'Hybrid-Modus: der Browser erlaubt keine getrennte Ausgabeauswahl. Systemroute wird verwendet.',
+            hybridUnsupported: 'Hybrid-Modus ist in diesem Browser nicht verfügbar. Ausgabe folgt der Systemroute.',
             ttsOn: 'Ton an', ttsOff: 'Ton aus',
         },
     };
@@ -1098,7 +1117,9 @@
             _curAudioUrl = url;
             audio.onended = () => { URL.revokeObjectURL(url); _curAudioUrl=null; _pQ(); };
             audio.onerror = () => { URL.revokeObjectURL(url); _curAudioUrl=null; _pQ(); };
-            audio.play().catch(e => { console.warn('Play err:', e); URL.revokeObjectURL(url); _curAudioUrl=null; _pQ(); });
+            bindAudioOutput(audio).finally(() => {
+                audio.play().catch(e => { console.warn('Play err:', e); URL.revokeObjectURL(url); _curAudioUrl=null; _pQ(); });
+            });
         } catch(e) { console.error('Play err:',e); _pQ(); }
     }
     // ======== TTS TOGGLE ========
@@ -1938,9 +1959,75 @@
         }
     }
 
+    async function populateOutputDevices() {
+        try {
+            const sel = document.getElementById('audioOutputSelect');
+            if (!sel) return;
+
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const outs = devices.filter(d => d.kind === 'audiooutput');
+            const saved = _selectedOutputId;
+            sel.innerHTML = `<option value="">${t('outputDefault')}</option>`;
+            outs.forEach((d, i) => {
+                const opt = document.createElement('option');
+                opt.value = d.deviceId;
+                opt.textContent = d.label || `${t('outputUnknown')} ${i + 1}`;
+                opt.selected = d.deviceId === saved;
+                sel.appendChild(opt);
+            });
+
+            const outLbl = document.getElementById('outputSelectorLabel');
+            const outPickerBtn = document.getElementById('outputPickerBtn');
+            const refreshBtns = document.querySelectorAll('.mic-refresh-btn');
+            if (outLbl) outLbl.textContent = t('outputLabel');
+            if (outPickerBtn) outPickerBtn.title = t('outputPickerTitle');
+            if (refreshBtns[1]) refreshBtns[1].title = t('outputRefreshTitle');
+            updateHybridStatus();
+        } catch(e) {
+            console.warn('populateOutputDevices failed:', e);
+            updateHybridStatus('fallback');
+        }
+    }
+
     function onMicDeviceChange(deviceId) {
         _selectedMicId = deviceId;
         localStorage.setItem('vox_mic_id', deviceId);
+    }
+
+    function onOutputDeviceChange(deviceId) {
+        _selectedOutputId = deviceId || '';
+        localStorage.setItem('vox_output_id', _selectedOutputId);
+        updateHybridStatus();
+    }
+
+    async function requestOutputDevice() {
+        if (!outputPickerSupported()) {
+            updateHybridStatus('fallback');
+            return;
+        }
+        try {
+            const info = await navigator.mediaDevices.selectAudioOutput();
+            if (info?.deviceId) {
+                _selectedOutputId = info.deviceId;
+                localStorage.setItem('vox_output_id', _selectedOutputId);
+                const sel = document.getElementById('audioOutputSelect');
+                if (sel) sel.value = _selectedOutputId;
+            }
+            updateHybridStatus();
+        } catch(e) {
+            console.warn('selectAudioOutput failed:', e);
+            updateHybridStatus('fallback');
+        }
+    }
+
+    async function bindAudioOutput(audioEl) {
+        if (!audioEl || !_selectedOutputId || !hybridSupported()) return;
+        try {
+            await audioEl.setSinkId(_selectedOutputId);
+        } catch(e) {
+            console.warn('setSinkId failed:', e);
+            updateHybridStatus('fallback');
+        }
     }
 
     function toggleMicHint() {
@@ -1951,7 +2038,11 @@
     }
 
     populateMicDevices();
-    navigator.mediaDevices.addEventListener('devicechange', populateMicDevices);
+    populateOutputDevices();
+    navigator.mediaDevices.addEventListener('devicechange', async () => {
+        await populateMicDevices();
+        await populateOutputDevices();
+    });
 
     </script>
     <!-- ── Review FAB Button ── -->

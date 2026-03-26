@@ -309,6 +309,16 @@
                     </select>
                 </div>
 
+                <div class="join-row">
+                    <label id="guestOutputLabel">Audio output:</label>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <select id="guestOutputSelect" onchange="onGuestOutputDeviceChange(this.value)" style="flex:1;min-width:180px;"></select>
+                        <button class="btn btn-ghost" id="guestOutputPickerBtn" type="button" onclick="requestGuestOutputDevice()" style="width:auto;white-space:nowrap;">🎧</button>
+                        <button class="btn btn-ghost" id="guestOutputRefreshBtn" type="button" onclick="populateGuestOutputDevices()" style="width:auto;white-space:nowrap;">↺</button>
+                    </div>
+                </div>
+                <div id="guestHybridStatus" style="font-size:12px;color:var(--text2);background:var(--panel);border:1px solid var(--border);padding:10px 12px;border-radius:12px;margin-top:10px;"></div>
+
                 <div style="margin: 8px 0;">
                     <input type="text" id="displayNameInput" placeholder="Your name (optional)" maxlength="30">
                 </div>
@@ -438,6 +448,12 @@
             hostSpeaking: 'Host is speaking...',
             downloadPdf: 'Download PDF', pdfTitleRoom: 'Translation history (Room)',
             pdfEmpty: 'History is empty', pdfOriginalLabel: 'Original', pdfTranslationLabel: 'Translation',
+            outputLabel: 'Audio output:', outputDefault: 'System default', outputPickerTitle: 'Choose audio output',
+            outputRefreshTitle: 'Refresh list', outputUnknown: 'Output',
+            hybridReady: 'Hybrid mode: ready. Output = system default.',
+            hybridSelected: 'Hybrid mode: separate audio output selected.',
+            hybridFallback: 'Hybrid mode: browser did not allow separate output selection. System route is used.',
+            hybridUnsupported: 'Hybrid mode is unavailable in this browser. Output follows the system route.',
         },
         uk: {
             joinTitle: 'Приєднатися', langLabel: 'Ваша мова:', btnJoin: 'Увійти',
@@ -457,6 +473,12 @@
             hostSpeaking: 'Ведучий говорить...',
             downloadPdf: 'Завантажити PDF', pdfTitleRoom: 'Історія перекладу (Room)',
             pdfEmpty: 'Історія порожня', pdfOriginalLabel: 'Оригінал', pdfTranslationLabel: 'Переклад',
+            outputLabel: 'Вивід звуку:', outputDefault: 'Системний за замовчуванням', outputPickerTitle: 'Вибрати аудіовихід',
+            outputRefreshTitle: 'Оновити список', outputUnknown: 'Аудіовихід',
+            hybridReady: 'Hybrid mode: готово. Вивід = системний за замовчуванням.',
+            hybridSelected: 'Hybrid mode: вибрано окремий вивід звуку.',
+            hybridFallback: 'Hybrid mode: браузер не дав окремо вибрати вивід. Працює системний маршрут.',
+            hybridUnsupported: 'Hybrid mode недоступний у цьому браузері. Вивід іде через системний маршрут.',
         },
         de: {
             joinTitle: 'Raum beitreten', langLabel: 'Ihre Sprache:', btnJoin: 'Beitreten',
@@ -476,6 +498,12 @@
             hostSpeaking: 'Moderator spricht...',
             downloadPdf: 'PDF herunterladen', pdfTitleRoom: 'Übersetzungsverlauf (Room)',
             pdfEmpty: 'Verlauf ist leer', pdfOriginalLabel: 'Original', pdfTranslationLabel: 'Übersetzung',
+            outputLabel: 'Audioausgabe:', outputDefault: 'Systemstandard', outputPickerTitle: 'Audioausgabe wählen',
+            outputRefreshTitle: 'Liste aktualisieren', outputUnknown: 'Ausgabe',
+            hybridReady: 'Hybrid-Modus: bereit. Ausgabe = Systemstandard.',
+            hybridSelected: 'Hybrid-Modus: separate Audioausgabe ausgewählt.',
+            hybridFallback: 'Hybrid-Modus: der Browser erlaubt keine getrennte Ausgabeauswahl. Systemroute wird verwendet.',
+            hybridUnsupported: 'Hybrid-Modus ist in diesem Browser nicht verfügbar. Ausgabe folgt der Systemroute.',
         },
         ru: {
             joinTitle: 'Присоединиться', langLabel: 'Ваш язык:', btnJoin: 'Войти',
@@ -495,6 +523,12 @@
             hostSpeaking: 'Ведущий говорит...',
             downloadPdf: 'Скачать PDF', pdfTitleRoom: 'История перевода (Room)',
             pdfEmpty: 'История пуста', pdfOriginalLabel: 'Оригинал', pdfTranslationLabel: 'Перевод',
+            outputLabel: 'Вывод звука:', outputDefault: 'Системный по умолчанию', outputPickerTitle: 'Выбрать аудиовыход',
+            outputRefreshTitle: 'Обновить список', outputUnknown: 'Аудиовыход',
+            hybridReady: 'Hybrid mode: готово. Вывод = системный по умолчанию.',
+            hybridSelected: 'Hybrid mode: выбран отдельный вывод звука.',
+            hybridFallback: 'Hybrid mode: браузер не дал отдельно выбрать вывод. Используется системный маршрут.',
+            hybridUnsupported: 'Hybrid mode недоступен в этом браузере. Вывод идёт через системный маршрут.',
         },
         pl: {
             joinTitle: 'Dołącz do pokoju', langLabel: 'Twój język:', btnJoin: 'Dołącz',
@@ -774,6 +808,15 @@
         document.getElementById('closedMsg').textContent = t('closedMsg');
         const downloadPdfBtn = document.getElementById('downloadPdfBtn');
         if (downloadPdfBtn) downloadPdfBtn.textContent = t('downloadPdf');
+        const outputLabel = document.getElementById('guestOutputLabel');
+        const outputSelect = document.getElementById('guestOutputSelect');
+        const outputPickerBtn = document.getElementById('guestOutputPickerBtn');
+        const outputRefreshBtn = document.getElementById('guestOutputRefreshBtn');
+        if (outputLabel) outputLabel.textContent = t('outputLabel');
+        if (outputSelect && outputSelect.options.length > 0 && outputSelect.options[0].value === '') outputSelect.options[0].textContent = t('outputDefault');
+        if (outputPickerBtn) outputPickerBtn.title = t('outputPickerTitle');
+        if (outputRefreshBtn) outputRefreshBtn.title = t('outputRefreshTitle');
+        updateGuestHybridStatus();
         updateHandButton();
         // Render join hint
         const hintEl = document.getElementById('joinHint');
@@ -1543,6 +1586,88 @@
     let _audioUnlocked = false;
 
     // Браузер блокирует AudioContext без user gesture.
+    let _selectedGuestOutputId = localStorage.getItem('vox_output_id') || '';
+
+    function guestHybridSupported() {
+        return typeof HTMLMediaElement !== 'undefined'
+            && typeof HTMLMediaElement.prototype.setSinkId === 'function';
+    }
+
+    function guestOutputPickerSupported() {
+        return !!(navigator.mediaDevices && navigator.mediaDevices.selectAudioOutput);
+    }
+
+    function updateGuestHybridStatus(mode) {
+        const el = document.getElementById('guestHybridStatus');
+        if (!el) return;
+        if (!guestHybridSupported()) {
+            el.textContent = t('hybridUnsupported');
+            return;
+        }
+        if (mode === 'fallback') {
+            el.textContent = t('hybridFallback');
+            return;
+        }
+        el.textContent = _selectedGuestOutputId ? t('hybridSelected') : t('hybridReady');
+    }
+
+    async function populateGuestOutputDevices() {
+        try {
+            const sel = document.getElementById('guestOutputSelect');
+            if (!sel) return;
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const outs = devices.filter(d => d.kind === 'audiooutput');
+            sel.innerHTML = `<option value="">${t('outputDefault')}</option>`;
+            outs.forEach((d, i) => {
+                const opt = document.createElement('option');
+                opt.value = d.deviceId;
+                opt.textContent = d.label || `${t('outputUnknown')} ${i + 1}`;
+                opt.selected = d.deviceId === _selectedGuestOutputId;
+                sel.appendChild(opt);
+            });
+            updateGuestHybridStatus();
+        } catch(e) {
+            console.warn('populateGuestOutputDevices failed:', e);
+            updateGuestHybridStatus('fallback');
+        }
+    }
+
+    function onGuestOutputDeviceChange(deviceId) {
+        _selectedGuestOutputId = deviceId || '';
+        localStorage.setItem('vox_output_id', _selectedGuestOutputId);
+        updateGuestHybridStatus();
+    }
+
+    async function requestGuestOutputDevice() {
+        if (!guestOutputPickerSupported()) {
+            updateGuestHybridStatus('fallback');
+            return;
+        }
+        try {
+            const info = await navigator.mediaDevices.selectAudioOutput();
+            if (info?.deviceId) {
+                _selectedGuestOutputId = info.deviceId;
+                localStorage.setItem('vox_output_id', _selectedGuestOutputId);
+                const sel = document.getElementById('guestOutputSelect');
+                if (sel) sel.value = _selectedGuestOutputId;
+            }
+            updateGuestHybridStatus();
+        } catch(e) {
+            console.warn('requestGuestOutputDevice failed:', e);
+            updateGuestHybridStatus('fallback');
+        }
+    }
+
+    async function bindGuestAudioOutput(audioEl) {
+        if (!audioEl || !_selectedGuestOutputId || !guestHybridSupported()) return;
+        try {
+            await audioEl.setSinkId(_selectedGuestOutputId);
+        } catch(e) {
+            console.warn('Guest setSinkId failed:', e);
+            updateGuestHybridStatus('fallback');
+        }
+    }
+
     // =================================================================
     // TTS Playback — через <audio> тег, без Web Audio API
     // Это единственный надёжный способ на Android: не создаётся второй
@@ -1579,10 +1704,12 @@
             const blob = new Blob([mp3], { type: 'audio/mpeg' });
             _audioObjectUrl = URL.createObjectURL(blob);
             _audioPlayer.src = _audioObjectUrl;
-            _audioPlayer.play().catch(e => {
-                console.warn('Audio play() failed:', e);
-                isPlaying = false;
-                processAudioQueue();
+            bindGuestAudioOutput(_audioPlayer).finally(() => {
+                _audioPlayer.play().catch(e => {
+                    console.warn('Audio play() failed:', e);
+                    isPlaying = false;
+                    processAudioQueue();
+                });
             });
         } catch (e) {
             console.error('processAudioQueue error:', e);
@@ -1734,6 +1861,8 @@
 
     // Init i18n
     applyI18n();
+    populateGuestOutputDevices();
+    navigator.mediaDevices?.addEventListener?.('devicechange', populateGuestOutputDevices);
     console.log('VOX Guest v0.6.0');
     </script>
 </body>
