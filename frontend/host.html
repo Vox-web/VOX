@@ -1781,6 +1781,11 @@
     // =====================================================================
     // Init
     // =====================================================================
+    // ВАЖНО: hybrid state must exist before applyI18n(false),
+    // because applyI18n -> update -> _updateHybridBtn() reads it.
+    let _hybridMode = localStorage.getItem('vox_hybrid_mode') === 'true';
+    let _hybridToggling = false;
+
     applyI18n(false);
     _updateTtsBtn();
     // Восстановление комнаты после рефреша
@@ -1963,7 +1968,6 @@
     }, 5000);
 
     // ======== HYBRID MIC MODE ========
-    let _hybridMode = localStorage.getItem('vox_hybrid_mode') === 'true';
     function _updateHybridBtn(found = false) {
         const btn = document.getElementById('hybridToggleBtn');
         const lbl = document.getElementById('hybridToggleLabel');
@@ -1989,22 +1993,34 @@
         } catch { return ''; }
     }
     async function toggleHybrid() {
-        _hybridMode = !_hybridMode;
-        localStorage.setItem('vox_hybrid_mode', _hybridMode ? 'true' : 'false');
-        let found = false;
-        if (_hybridMode) {
-            const builtIn = await _findBuiltInMicId();
-            if (builtIn) {
-                _selectedMicId = builtIn;
-                localStorage.setItem('vox_mic_id', builtIn);
-                const sel = document.getElementById('micDeviceSelect');
-                if (sel) sel.value = builtIn;
-                found = true;
+        if (_hybridToggling) return;
+        _hybridToggling = true;
+        try {
+            _hybridMode = !_hybridMode;
+            localStorage.setItem('vox_hybrid_mode', _hybridMode ? 'true' : 'false');
+            let found = false;
+            if (_hybridMode) {
+                const builtIn = await _findBuiltInMicId();
+                if (builtIn) {
+                    _selectedMicId = builtIn;
+                    localStorage.setItem('vox_mic_id', builtIn);
+                    const sel = document.getElementById('micDeviceSelect');
+                    if (sel) sel.value = builtIn;
+                    found = true;
+                }
             }
+            _updateHybridBtn(found);
+            if (soloListening) {
+                soloStop();
+                setTimeout(() => soloToggle(), 150);
+            }
+            if (roomMicActive) {
+                roomToggleMic();
+                setTimeout(() => roomToggleMic(), 150);
+            }
+        } finally {
+            _hybridToggling = false;
         }
-        _updateHybridBtn(found);
-        if (soloListening) { soloStop(); setTimeout(() => soloToggle(), 150); }
-        if (roomMicActive) { roomToggleMic(); setTimeout(() => roomToggleMic(), 150); }
     }
 
     // ======== SPEAKER OUTPUT SELECTOR (setSinkId) ========
