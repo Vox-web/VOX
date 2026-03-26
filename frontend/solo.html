@@ -323,6 +323,18 @@
         }
         .mic-hint-box.open { display: block; }
 
+        /* --- TTS toggle --- */
+        .tts-toggle-btn {
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            margin: 0 auto;
+            background: none; border: 1px solid var(--border);
+            border-radius: 99px; padding: 6px 16px;
+            font-size: 13px; font-weight: 500; color: var(--text2);
+            cursor: pointer; transition: all 0.2s;
+        }
+        .tts-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .tts-toggle-btn.tts-off { border-color: var(--text3); color: var(--text3); opacity: 0.7; }
+
         /* --- Speaker selector --- */
         .speaker-selector {
             display: flex; align-items: center; gap: 8px;
@@ -349,18 +361,6 @@
             font-size: 11px; color: var(--text2); padding: 2px 12px;
             display: none; text-align: center;
         }
-
-        /* --- TTS toggle --- */
-        .tts-toggle-btn {
-            display: flex; align-items: center; justify-content: center; gap: 6px;
-            margin: 0 auto;
-            background: none; border: 1px solid var(--border);
-            border-radius: 99px; padding: 6px 16px;
-            font-size: 13px; font-weight: 500; color: var(--text2);
-            cursor: pointer; transition: all 0.2s;
-        }
-        .tts-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
-        .tts-toggle-btn.tts-off { border-color: var(--text3); color: var(--text3); opacity: 0.7; }
 
         /* --- Hybrid mic mode toggle --- */
         .hybrid-toggle-btn {
@@ -650,11 +650,10 @@
         </div>
         <div class="mic-hint-box" id="micHintBox"></div>
 
-        <!-- Вибір динаміка (speaker output) -->
         <div class="speaker-selector" id="speakerSelectorRow">
             <label id="speakerSelectorLabel">🔊</label>
             <select id="speakerDeviceSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
-            <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Оновити список">↺</button>
+            <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Refresh">↺</button>
         </div>
         <div class="speaker-no-support" id="speakerNoSupport"></div>
 
@@ -682,7 +681,6 @@
             <span id="ttsToggleLabel">Озвучка увімкнена</span>
         </button>
 
-        <!-- Hybrid mic mode toggle -->
         <button class="hybrid-toggle-btn" id="hybridToggleBtn" onclick="toggleHybrid()">
             <span id="hybridToggleIcon">📱🎧</span>
             <span id="hybridToggleLabel">Гібридний режим</span>
@@ -753,15 +751,16 @@
             micDefault:         'За замовчуванням',
             micRefreshTitle:    'Оновити список',
             micUnknown:         'Мікрофон',
-            micHint:            '💡 «За замовчуванням» — браузер вибирає мікрофон сам. Якщо підключена гарнітура і хочете записувати зовнішній звук — виберіть «За замовчуванням» і вимкніть мікрофон гарнітури фізично. Вбудований мікрофон телефону краще чує дальні джерела звуку.',
-            langTooltip:        (lang, conf) => `Мова: ${lang} (${conf}%)`,
-            speakerLabel:       '🔊 Динамік:',
-            speakerDefault:     'Системний (авто)',
+            speakerLabel:       '🔊 Навушники:',
+            speakerDefault:     'За замовчуванням',
             speakerRefreshTitle:'Оновити список',
+            speakerUnknown:     'Вивід',
             speakerNoSupport:   'Вибір пристрою виводу не підтримується цим браузером',
             hybridOff:          '📱🎧 Гібридний мік (телефон)',
             hybridOn:           '📱✅ Мікрофон телефону активний',
             hybridWarn:         '⚠️ Вбудований мік не знайдено',
+            micHint:            '💡 «За замовчуванням» — браузер вибирає мікрофон сам. Якщо підключена гарнітура і хочете записувати зовнішній звук — виберіть «За замовчуванням» і вимкніть мікрофон гарнітури фізично. Вбудований мікрофон телефону краще чує дальні джерела звуку.',
+            langTooltip:        (lang, conf) => `Мова: ${lang} (${conf}%)`,
         },
         en: {
             statusDisconnected: 'Disconnected',
@@ -795,15 +794,16 @@
             micDefault:         'Default',
             micRefreshTitle:    'Refresh list',
             micUnknown:         'Microphone',
-            micHint:            '💡 "Default" lets the browser pick the microphone automatically. If you wear headphones and want to capture external sound — choose "Default" and physically disable the headset mic. The phone\'s built-in mic generally picks up distant sound sources better.',
-            langTooltip:        (lang, conf) => `Language: ${lang} (${conf}%)`,
-            speakerLabel:       '🔊 Speaker:',
-            speakerDefault:     'System (auto)',
+            speakerLabel:       '🔊 Headphones:',
+            speakerDefault:     'System default',
             speakerRefreshTitle:'Refresh list',
+            speakerUnknown:     'Output',
             speakerNoSupport:   'Output device selection is not supported by this browser',
             hybridOff:          '📱🎧 Hybrid mic (phone)',
             hybridOn:           '📱✅ Phone mic active',
             hybridWarn:         '⚠️ Built-in mic not found',
+            micHint:            '💡 "Default" lets the browser pick the microphone automatically. If you wear headphones and want to capture external sound — choose "Default" and physically disable the headset mic. The phone\'s built-in mic generally picks up distant sound sources better.',
+            langTooltip:        (lang, conf) => `Language: ${lang} (${conf}%)`,
         },
         de: {
             statusDisconnected: 'Nicht verbunden',
@@ -837,15 +837,16 @@
             micDefault:         'Standard',
             micRefreshTitle:    'Liste aktualisieren',
             micUnknown:         'Mikrofon',
-            micHint:            '💡 „Standard" lässt den Browser das Mikrofon automatisch wählen. Wenn Sie Kopfhörer tragen und externen Ton aufnehmen möchten — wählen Sie „Standard" und deaktivieren Sie das Headset-Mikrofon physisch. Das eingebaute Telefonmikrofon erfasst entfernte Tonquellen in der Regel besser.',
-            langTooltip:        (lang, conf) => `Sprache: ${lang} (${conf}%)`,
-            speakerLabel:       '🔊 Lautsprecher:',
-            speakerDefault:     'System (auto)',
+            speakerLabel:       '🔊 Kopfhörer:',
+            speakerDefault:     'Systemstandard',
             speakerRefreshTitle:'Liste aktualisieren',
+            speakerUnknown:     'Ausgabe',
             speakerNoSupport:   'Ausgabegerät-Auswahl wird von diesem Browser nicht unterstützt',
             hybridOff:          '📱🎧 Hybrid-Mikrofon (Telefon)',
             hybridOn:           '📱✅ Telefonmikrofon aktiv',
             hybridWarn:         '⚠️ Eingebautes Mikrofon nicht gefunden',
+            micHint:            '💡 „Standard" lässt den Browser das Mikrofon automatisch wählen. Wenn Sie Kopfhörer tragen und externen Ton aufnehmen möchten — wählen Sie „Standard" und deaktivieren Sie das Headset-Mikrofon physisch. Das eingebaute Telefonmikrofon erfasst entfernte Tonquellen in der Regel besser.',
+            langTooltip:        (lang, conf) => `Sprache: ${lang} (${conf}%)`,
         },
     };
 
@@ -899,28 +900,28 @@
         const fadeEls = document.querySelectorAll('.i18n-fade');
 
         function update() {
-            document.getElementById('sourceLangLabel').textContent   = t('sourceLangLabel');
-            document.getElementById('langLabel').textContent         = t('langLabel');
-            document.getElementById('labelOriginal').textContent     = t('labelOriginal');
-            document.getElementById('labelTranslation').textContent  = t('labelTranslation');
-            document.getElementById('labelHistory').textContent      = t('labelHistory');
-            document.getElementById('downloadPdfBtn').textContent    = t('downloadPdf');
-            document.getElementById('swapLangBtn').title             = t('swapLangs');
-            document.getElementById('swapLangBtn').setAttribute('aria-label', t('swapLangs'));
+            const setText = (id, key) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = t(key);
+            };
+            setText('sourceLangLabel', 'sourceLangLabel');
+            setText('langLabel', 'langLabel');
+            setText('labelOriginal', 'labelOriginal');
+            setText('labelTranslation', 'labelTranslation');
+            setText('labelHistory', 'labelHistory');
+            setText('downloadPdfBtn', 'downloadPdf');
+            const swapBtn = document.getElementById('swapLangBtn');
+            if (swapBtn) { swapBtn.title = t('swapLangs'); swapBtn.setAttribute('aria-label', t('swapLangs')); }
 
-            // Button text depends on current state
             mainBtn.textContent = isListening ? t('btnStop') : t('btnListen');
-
-            // Status text
             statusText.textContent = t(statusKeyMap[currentStatusKey] || 'statusDisconnected');
 
             document.documentElement.lang = currentUILang;
             localStorage.setItem('vox_ui_lang_solo', currentUILang);
             updateThemeToggle();
             _updateTtsBtn();
-            if (typeof _updateHybridBtn === 'function') _updateHybridBtn(false);
+            _updateHybridBtn(!_hybridMode || !!_selectedMicId);
 
-            // Nav labels
             const navR = document.getElementById('navReviewLabel');
             const navC = document.getElementById('navCabinetLabel');
             const navB = document.getElementById('navBackLabel');
@@ -928,46 +929,29 @@
             if (navC) navC.textContent = t('navCabinet');
             if (navB) navB.textContent = t('navBack');
 
-            // Mic selector label & refresh button title
             const micLbl = document.getElementById('micSelectorLabel');
             const micRefBtn = document.querySelector('.mic-refresh-btn');
             if (micLbl) micLbl.textContent = t('micLabel');
             if (micRefBtn) micRefBtn.title = t('micRefreshTitle');
-            // Re-render default option text
             const micSel = document.getElementById('micDeviceSelect');
-            if (micSel && micSel.options.length > 0 && micSel.options[0].value === '') {
-                micSel.options[0].textContent = t('micDefault');
-            }
-            // Якщо підказка відкрита — оновити текст
+            if (micSel && micSel.options.length > 0 && micSel.options[0].value === '') micSel.options[0].textContent = t('micDefault');
             const micHintBox = document.getElementById('micHintBox');
-            if (micHintBox && micHintBox.classList.contains('open')) {
-                micHintBox.textContent = t('micHint');
-            }
+            if (micHintBox && micHintBox.classList.contains('open')) micHintBox.textContent = t('micHint');
 
-            // Speaker selector label & refresh button title
             const spkLbl = document.getElementById('speakerSelectorLabel');
             const spkRefBtn = document.querySelector('.spk-refresh-btn');
+            const spkSel = document.getElementById('speakerDeviceSelect');
+            const spkNoSup = document.getElementById('speakerNoSupport');
             if (spkLbl) spkLbl.textContent = t('speakerLabel');
             if (spkRefBtn) spkRefBtn.title = t('speakerRefreshTitle');
-            const spkSel = document.getElementById('speakerDeviceSelect');
-            if (spkSel && spkSel.options.length > 0 && spkSel.options[0].value === '') {
-                spkSel.options[0].textContent = t('speakerDefault');
-            }
-            const spkNoSup = document.getElementById('speakerNoSupport');
-            if (spkNoSup && spkNoSup.style.display !== 'none') {
-                spkNoSup.textContent = t('speakerNoSupport');
-            }
+            if (spkSel && spkSel.options.length > 0 && spkSel.options[0].value === '') spkSel.options[0].textContent = t('speakerDefault');
+            if (spkNoSup) spkNoSup.textContent = t('speakerNoSupport');
         }
 
-        if (animate) {
-            fadeEls.forEach(el => el.classList.add('fading'));
-            setTimeout(() => {
-                update();
-                fadeEls.forEach(el => el.classList.remove('fading'));
-            }, 250);
-        } else {
-            update();
-        }
+        if (animate) fadeEls.forEach(el => el.classList.add('fading'));
+        setTimeout(() => {
+            try { update(); } finally { fadeEls.forEach(el => el.classList.remove('fading')); }
+        }, animate ? 250 : 0);
     }
 
     applyTheme();
@@ -1108,77 +1092,6 @@
     // Init TTS button
     _updateTtsBtn();
 
-    // =====================================================================
-    // Hybrid mic mode — мікрофон телефону + вимкнення EC/NS/AGC
-    // Дозволяє знімати звук з вбудованого мікрофону телефону, а TTS
-    // відтворювати в навушниках через setSinkId (speaker selector).
-    // =====================================================================
-    let _hybridMode = localStorage.getItem('vox_hybrid_mode') === 'true';
-
-    function _updateHybridBtn(warn) {
-        const btn = document.getElementById('hybridToggleBtn');
-        const lbl = document.getElementById('hybridToggleLabel');
-        if (!btn) return;
-        if (!_hybridMode) {
-            btn.className = 'hybrid-toggle-btn';
-            lbl.textContent = t('hybridOff');
-        } else if (warn) {
-            btn.className = 'hybrid-toggle-btn hybrid-warn';
-            lbl.textContent = t('hybridWarn');
-        } else {
-            btn.className = 'hybrid-toggle-btn hybrid-on';
-            lbl.textContent = t('hybridOn');
-        }
-    }
-
-    /**
-     * Знайти deviceId вбудованого мікрофону телефону.
-     * Виключає гарнітури і bluetooth пристрої за назвою.
-     * Повертає '' якщо не знайдено — буде використаний системний default.
-     */
-    async function _findBuiltInMicId() {
-        try {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const mics    = devices.filter(d => d.kind === 'audioinput');
-
-            const externalKw = ['headset','headphone','earphone','airpod','bluetooth',
-                                'bt ','wireless','гарнітура','наушник','гарнитура',
-                                'беспровод','бездрот','wired headset','usb audio'];
-            const builtInKw  = ['built-in','builtin','internal','вбудований','встроенный',
-                                 'встроен','phone mic','bottom mic','front mic',
-                                 'internal microphone'];
-
-            const isExt  = l => externalKw.some(k => l.toLowerCase().includes(k));
-            const isBlt  = l => builtInKw.some(k  => l.toLowerCase().includes(k));
-
-            // Крок 1: явно built-in
-            const explicit = mics.find(d => d.label && isBlt(d.label) && !isExt(d.label));
-            if (explicit) return explicit.deviceId;
-
-            // Крок 2: не-зовнішній і не default
-            const nonExt = mics.find(d => d.label && !isExt(d.label) && d.deviceId !== 'default');
-            if (nonExt) return nonExt.deviceId;
-
-            return ''; // fallback на системний default
-        } catch(e) {
-            console.warn('[Hybrid] _findBuiltInMicId error:', e);
-            return '';
-        }
-    }
-
-    async function toggleHybrid() {
-        _hybridMode = !_hybridMode;
-        localStorage.setItem('vox_hybrid_mode', _hybridMode);
-        _updateHybridBtn(false);
-        // Якщо зараз слухаємо — перезапустити мікрофон з новими параметрами
-        if (isListening) {
-            stopMicrophone();
-            await startMicrophone();
-        }
-    }
-
-    _updateHybridBtn(false);
-
     function handleAudioMessage(data) {
         const prefix = new TextDecoder().decode(new Uint8Array(data, 0, 6));
         if (prefix === 'AUDIO:') {
@@ -1226,14 +1139,12 @@
                 currentAudioUrl = null;
                 processAudioQueue();
             };
-            _applySinkId(audio).then(() => {
-                audio.play().catch(e => {
-                    console.warn('Audio play failed:', e);
-                    URL.revokeObjectURL(url);
-                    currentAudioUrl = null;
-                    processAudioQueue();
-                });
-            });
+            _applySinkId(audio).finally(() => audio.play().catch(e => {
+                console.warn('Audio play failed:', e);
+                URL.revokeObjectURL(url);
+                currentAudioUrl = null;
+                processAudioQueue();
+            }));
         } catch (e) {
             console.error('Audio playback error:', e);
             processAudioQueue();
@@ -1245,44 +1156,26 @@
     // =====================================================================
     async function startMicrophone() {
         try {
-            // --- Hybrid mic mode ---
-            // Вимикаємо EC/NS/AGC і шукаємо вбудований мікрофон телефону.
-            // Це критично: з echoCancellation:true браузер/ОС переводить
-            // аудіо в режим VOICE_COMMUNICATION і прив'язує вхід і вихід
-            // до одного пристрою (наушники), ламаючи гібридний режим.
-            let micId = _selectedMicId;
-            let ec = true, ns = true, agc = true;
-
-            if (_hybridMode) {
-                const builtInId = await _findBuiltInMicId();
-                const found = !!builtInId;
-                micId = builtInId; // '' → системний default
-                ec = false; ns = false; agc = false;
-                _updateHybridBtn(!found);
-                console.log('[Hybrid] mode ON | deviceId:', micId || 'system-default', '| EC/NS/AGC: off');
-            }
-
             const micConstraints = {
                 sampleRate: 16000,
                 channelCount: 1,
-                echoCancellation: ec,
-                noiseSuppression: ns,
-                autoGainControl: agc,
+                echoCancellation: !_hybridMode,
+                noiseSuppression: !_hybridMode,
+                autoGainControl: !_hybridMode,
             };
-            if (micId) micConstraints.deviceId = { exact: micId };
+            if (_selectedMicId) micConstraints.deviceId = { exact: _selectedMicId };
 
             // Спробуємо з вибраним deviceId; якщо пристрій зник — fallback на default
             try {
                 mediaStream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints });
             } catch(devErr) {
-                if (micId && (devErr.name === 'OverconstrainedError' || devErr.name === 'NotFoundError')) {
+                if (_selectedMicId && (devErr.name === 'OverconstrainedError' || devErr.name === 'NotFoundError')) {
                     console.warn('Selected mic unavailable, falling back to default:', devErr.message);
-                    if (!_hybridMode) {
-                        _selectedMicId = '';
-                        localStorage.removeItem('vox_mic_id');
-                        const sel = document.getElementById('micDeviceSelect');
-                        if (sel) sel.value = '';
-                    }
+                    _selectedMicId = '';
+                    localStorage.removeItem('vox_mic_id');
+                    // Оновити select щоб показав "За замовчуванням"
+                    const sel = document.getElementById('micDeviceSelect');
+                    if (sel) sel.value = '';
                     delete micConstraints.deviceId;
                     mediaStream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints });
                 } else {
@@ -1656,91 +1549,9 @@
 
     // Заповнити список при завантаженні та при підключенні нового пристрою
     populateMicDevices();
-    navigator.mediaDevices.addEventListener('devicechange', () => {
-        populateMicDevices();
-        populateSpeakerDevices();
-    });
-
-    // ======== SPEAKER OUTPUT SELECTOR (setSinkId) ========
-    let _selectedSpeakerId = localStorage.getItem('vox_speaker_id') || '';
-
-    /**
-     * Перевірити підтримку setSinkId браузером.
-     * Chrome desktop/Android — підтримує. Firefox — підтримує. Safari/iOS — ні.
-     */
-    function _sinkIdSupported() {
-        return typeof HTMLMediaElement !== 'undefined' &&
-               typeof HTMLMediaElement.prototype.setSinkId === 'function';
-    }
-
-    async function populateSpeakerDevices() {
-        const row    = document.getElementById('speakerSelectorRow');
-        const noSup  = document.getElementById('speakerNoSupport');
-        const sel    = document.getElementById('speakerDeviceSelect');
-        const lbl    = document.getElementById('speakerSelectorLabel');
-        const refBtn = document.querySelector('.spk-refresh-btn');
-        if (!sel) return;
-
-        if (lbl)    lbl.textContent    = t('speakerLabel');
-        if (refBtn) refBtn.title       = t('speakerRefreshTitle');
-
-        if (!_sinkIdSupported()) {
-            // Браузер не підтримує setSinkId — ховаємо selector, показуємо повідомлення
-            if (row)   row.style.display   = 'none';
-            if (noSup) {
-                noSup.textContent    = t('speakerNoSupport');
-                noSup.style.display  = 'block';
-            }
-            return;
-        }
-
-        try {
-            // Запитуємо дозвіл, якщо ще не маємо — через selectAudioOutput якщо є, інакше через getUserMedia
-            if (typeof navigator.mediaDevices.selectAudioOutput === 'function') {
-                // selectAudioOutput — явний вибір користувачем, дає доступ до audiooutput
-                // Але викликати без user gesture не можна — тому просто enumerate
-            }
-
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const speakers = devices.filter(d => d.kind === 'audiooutput');
-
-            const saved = _selectedSpeakerId;
-            sel.innerHTML = `<option value="">${t('speakerDefault')}</option>`;
-            speakers.forEach((d, i) => {
-                const opt = document.createElement('option');
-                opt.value       = d.deviceId;
-                opt.textContent = d.label || `${t('speakerDefault')} ${i + 1}`;
-                opt.selected    = d.deviceId === saved;
-                sel.appendChild(opt);
-            });
-
-            if (row)   row.style.display   = '';
-            if (noSup) noSup.style.display  = 'none';
-        } catch(e) {
-            console.warn('populateSpeakerDevices failed:', e);
-        }
-    }
-
-    function onSpeakerDeviceChange(deviceId) {
-        _selectedSpeakerId = deviceId;
-        localStorage.setItem('vox_speaker_id', deviceId);
-    }
-
-    /**
-     * Призначити пристрій виводу для Audio елемента.
-     * Якщо setSinkId не підтримується або sinkId не вибраний — нічого не робить.
-     */
-    async function _applySinkId(audioEl) {
-        if (!_sinkIdSupported() || !_selectedSpeakerId) return;
-        try {
-            await audioEl.setSinkId(_selectedSpeakerId);
-        } catch(e) {
-            console.warn('setSinkId failed:', e);
-        }
-    }
-
-    // Ініціалізація
     populateSpeakerDevices();
+    _updateHybridBtn(!_hybridMode || !!_selectedMicId);
+    navigator.mediaDevices.addEventListener('devicechange', async () => { await populateMicDevices(); await populateSpeakerDevices(); });
 
     </script>
 </body>
