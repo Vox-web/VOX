@@ -1139,6 +1139,12 @@
                 currentAudioUrl = null;
                 processAudioQueue();
             };
+            const backlog = audioQueue.length;
+            let rate = 1.0;
+            if (backlog >= 6) rate = 1.22;
+            else if (backlog >= 4) rate = 1.15;
+            else if (backlog >= 2) rate = 1.08;
+            audio.playbackRate = rate;
             _applySinkId(audio).finally(() => audio.play().catch(e => {
                 console.warn('Audio play failed:', e);
                 URL.revokeObjectURL(url);
