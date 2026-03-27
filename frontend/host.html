@@ -1162,11 +1162,11 @@
             _curAudioUrl = url;
             audio.onended = () => { URL.revokeObjectURL(url); _curAudioUrl=null; _pQ(); };
             audio.onerror = () => { URL.revokeObjectURL(url); _curAudioUrl=null; _pQ(); };
-            const backlog = aQ.length;
-            let rate = 1.0;
-            if (backlog >= 6) rate = 1.22;
-            else if (backlog >= 4) rate = 1.15;
-            else if (backlog >= 2) rate = 1.08;
+            const backlog = aQ.length;   // host
+            let rate = 1.08;
+            if (backlog >= 1) rate = 1.12;
+            if (backlog >= 2) rate = 1.18;
+            if (backlog >= 4) rate = 1.26;
             audio.playbackRate = rate;
 
             _applySinkId(audio).finally(() => audio.play().catch(e => {
