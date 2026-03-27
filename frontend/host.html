@@ -1056,19 +1056,17 @@
             }
             // Mic selector
             const micLbl = document.getElementById('micSelectorLabel');
-            const micRefBtn = document.querySelector('.mic-refresh-btn');
+            const micRefreshBtns = document.querySelectorAll('.mic-refresh-btn');
             if (micLbl) micLbl.textContent = t('micLabel');
-            if (micRefBtn) micRefBtn.title = t('micRefreshTitle');
+            micRefreshBtns.forEach(btn => btn.title = t('micRefreshTitle'));
 
-            // Синхронизируем room-селектор микрофона
-            const roomMicSel = document.getElementById('roomMicDeviceSelect');
-            const roomMicLbl = document.getElementById('roomMicSelectorLabel');
-            if (roomMicSel) roomMicSel.innerHTML = document.getElementById('micDeviceSelect').innerHTML;
-            if (roomMicLbl) roomMicLbl.textContent = t('micLabel');
             const micSel = document.getElementById('micDeviceSelect');
             if (micSel && micSel.options.length > 0 && micSel.options[0].value === '') {
                 micSel.options[0].textContent = t('micDefault');
             }
+            // Room mic label — только label, не перезаписываем options
+            const roomMicLbl = document.getElementById('roomMicSelectorLabel');
+            if (roomMicLbl) roomMicLbl.textContent = t('micLabel');
             const micHintBox = document.getElementById('micHintBox');
             if (micHintBox && micHintBox.classList.contains('open')) {
                 micHintBox.textContent = t('micHint');
