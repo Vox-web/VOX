@@ -1538,6 +1538,12 @@ self.addEventListener('fetch', e => e.respondWith(fetch(e.request)));
     from fastapi.responses import Response
     return Response(content=sw_code, media_type="application/javascript")
 
+@app.get("/pwa-install.js")
+async def serve_pwa_install_js():
+    pwa_path = FRONTEND_DIR / "pwa-install.js"
+    if not pwa_path.exists():
+        raise HTTPException(status_code=404, detail="pwa-install.js not found")
+    return FileResponse(pwa_path, media_type="application/javascript")
 
 @app.get("/icons/icon-{size}.png")
 async def serve_icon(size: str):

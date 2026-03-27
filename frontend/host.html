@@ -322,11 +322,127 @@
         .howto-content ol { margin: 0; padding-left: 20px; }
         .howto-content ol li { margin-bottom: 6px; }
         .howto-content .section { margin-bottom: 14px; }
-        .pwa-btn { display: none; width: 100%; padding: 13px; border-radius: 10px;
-            border: 1.5px dashed var(--accent); background: var(--accent-dim);
-            color: var(--accent); font-size: 14px; font-weight: 600; cursor: pointer;
-            transition: all .2s; }
-        .pwa-btn:hover { background: rgba(124,106,255,.2); border-style: solid; }
+        .pwa-btn {
+            display: flex;
+            width: 100%;
+            padding: 13px 14px;
+            border-radius: 10px;
+            border: 1.5px dashed var(--accent);
+            background: var(--accent-dim);
+            color: var(--accent);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .2s;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .pwa-btn:hover {
+            background: rgba(124,106,255,.2);
+            border-style: solid;
+        }
+        .pwa-btn.installed {
+            border-style: solid;
+            border-color: var(--green);
+            color: var(--green);
+            background: rgba(46,204,113,0.08);
+        }
+
+        .pwa-modal-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(0,0,0,.42);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            z-index: 3000;
+        }
+        .pwa-modal-overlay.open {
+            display: flex;
+        }
+        .pwa-modal {
+            width: 100%;
+            max-width: 360px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: 0 24px 60px rgba(0,0,0,.24);
+            padding: 22px 18px 16px;
+            color: var(--text);
+        }
+        .pwa-modal-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .pwa-modal-text {
+            font-size: 14px;
+            color: var(--text2);
+            line-height: 1.6;
+            text-align: center;
+            margin-bottom: 14px;
+        }
+        .pwa-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .pwa-step {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 13px;
+            color: var(--text);
+            line-height: 1.45;
+        }
+        .pwa-step b {
+            color: var(--accent);
+        }
+        .pwa-modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 6px;
+        }
+        .pwa-modal-btn {
+            flex: 1;
+            border: none;
+            border-radius: 10px;
+            padding: 11px 14px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .2s;
+        }
+        .pwa-modal-btn.primary {
+            background: var(--accent);
+            color: #fff;
+        }
+        .pwa-modal-btn.primary:hover {
+            filter: brightness(1.1);
+        }
+        .pwa-modal-btn.secondary {
+            background: var(--surface2);
+            color: var(--text2);
+            border: 1px solid var(--border);
+        }
+        .pwa-modal-btn.secondary:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .pwa-help-note {
+            margin-top: 4px;
+            margin-bottom: 4px;
+            font-size: 12px;
+            color: var(--text2);
+            text-align: center;
+        }
         .howto-content .section:last-child { margin-bottom: 0; }
 
         /* ── Mic selector ── */
@@ -640,7 +756,7 @@
                 <span class="arrow">▼</span>
             </button>
             <div class="howto-content" id="howtoContent"></div>
-            <button class="pwa-btn" id="pwaInstallBtn" onclick="pwaInstall()">📲 <span id="pwaInstallLabel" class="i18n">Додати на головний екран</span></button>
+            <button class="pwa-btn" id="pwaInstallBtn">📲 <span id="pwaInstallLabel" class="i18n">Додати на головний екран</span></button>
         </div>
 
         <!-- SCREEN: SOLO -->
@@ -1851,36 +1967,7 @@
             });
         } catch(e) { sessionStorage.removeItem('vox_host_room'); }
     }
-    // PWA
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
-    let _deferredPrompt = null;
-    const _pwaBtn = document.getElementById('pwaInstallBtn');
-    window.addEventListener('beforeinstallprompt', e => {
-        e.preventDefault(); _deferredPrompt = e;
-        if (_pwaBtn) {
-            document.getElementById('pwaInstallLabel').textContent = t('pwaInstallLabel');
-            _pwaBtn.style.display = 'block';
-        }
-    });
-    window.addEventListener('appinstalled', () => {
-        _deferredPrompt = null;
-        if (_pwaBtn) _pwaBtn.style.display = 'none';
-    });
-    async function pwaInstall() {
-        if (_deferredPrompt) {
-            _deferredPrompt.prompt();
-            await _deferredPrompt.userChoice;
-            _deferredPrompt = null;
-            if (_pwaBtn) _pwaBtn.style.display = 'none';
-        } else if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
-            alert({ uk:'Натисніть 📤 → «На екран «Початок»»', en:'Tap Share 📤 → «Add to Home Screen»', de:'Tippen Sie 📤 → «Zum Home-Bildschirm»' }[uiLang] || 'Tap Share 📤 → Add to Home Screen');
-        }
-    }
-    if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !window.navigator.standalone && _pwaBtn) {
-        document.getElementById('pwaInstallLabel').textContent = t('pwaInstallLabel');
-        _pwaBtn.style.display = 'block';
-    }
-
+   
     console.log('VOX v0.3.3 — Deepgram Streaming');
 
     // =====================================================================
@@ -2205,5 +2292,6 @@
     <span>⭐</span>
     <span>Відгук</span>
 </a>
+<script src="/pwa-install.js"></script>
 </body>
 </html>
