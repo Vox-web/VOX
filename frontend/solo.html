@@ -1089,13 +1089,165 @@
         _updateTtsBtn();
     }
 
-    // Init TTS button
+        // Init TTS button
     _updateTtsBtn();
+
+    // ======== HYBRID MIC MODE ========
+    let _hybridMode = localStorage.getItem('vox_hybrid_mode') === 'true';
+    let _hybridToggling = false;
+
+    function _updateHybridBtn(found = false) {
+        const btn = document.getElementById('hybridToggleBtn');
+        const lbl = document.getElementById('hybridToggleLabel');
+        if (!btn || !lbl) return;
+
+        if (!_hybridMode) {
+            btn.className = 'hybrid-toggle-btn';
+            lbl.textContent = t('hybridOff');
+        } else if (!found) {
+            btn.className = 'hybrid-toggle-btn hybrid-warn';
+            lbl.textContent = t('hybridWarn');
+        } else {
+            btn.className = 'hybrid-toggle-btn hybrid-on';
+            lbl.textContent = t('hybridOn');
+        }
+    }
+
+    async function _findBuiltInMicId() {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const mics = devices.filter(d => d.kind === 'audioinput');
+
+            const rank = s => {
+                const x = (s || '').toLowerCase();
+                if (!x) return 0;
+                if (/(bluetooth|headset|headphone|buds|airpods|hands-free|handsfree|wireless|usb)/.test(x)) return -10;
+                if (/(built-?in|internal|phone|handset|default)/.test(x)) return 5;
+                return 1;
+            };
+
+            mics.sort((a, b) => rank(b.label) - rank(a.label));
+            const best = mics.find(m => rank(m.label) > 1);
+            return best?.deviceId || '';
+        } catch {
+            return '';
+        }
+    }
+
+    async function toggleHybrid() {
+        if (_hybridToggling) return;
+        _hybridToggling = true;
+
+        try {
+            _hybridMode = !_hybridMode;
+            localStorage.setItem('vox_hybrid_mode', _hybridMode ? 'true' : 'false');
+
+            let found = false;
+            const sel = document.getElementById('micDeviceSelect');
+
+            if (_hybridMode) {
+                const builtIn = await _findBuiltInMicId();
+                if (builtIn) {
+                    _selectedMicId = builtIn;
+                    localStorage.setItem('vox_mic_id', builtIn);
+                    if (sel) sel.value = builtIn;
+                    found = true;
+                } else {
+                    _selectedMicId = '';
+                    localStorage.removeItem('vox_mic_id');
+                    if (sel) sel.value = '';
+                }
+            } else {
+                _selectedMicId = '';
+                localStorage.removeItem('vox_mic_id');
+                if (sel) sel.value = '';
+            }
+
+            _updateHybridBtn(found);
+
+            if (isListening) {
+                await toggleListening();
+                setTimeout(() => { toggleListening(); }, 150);
+            }
+        } finally {
+            _hybridToggling = false;
+        }
+    }
+
+    // ======== SPEAKER OUTPUT SELECTOR (setSinkId) ========
+    let _selectedSpeakerId = localStorage.getItem('vox_speaker_id') || '';
+
+    function _speakerSupported() {
+        return typeof HTMLMediaElement !== 'undefined'
+            && typeof HTMLMediaElement.prototype.setSinkId === 'function';
+    }
+
+    async function populateSpeakerDevices() {
+        const row = document.getElementById('speakerSelectorRow');
+        const noSup = document.getElementById('speakerNoSupport');
+        const sel = document.getElementById('speakerDeviceSelect');
+
+        if (!row || !noSup || !sel) return;
+
+        if (!_speakerSupported()) {
+            row.style.display = 'none';
+            noSup.textContent = t('speakerNoSupport');
+            noSup.style.display = 'block';
+            return;
+        }
+
+        row.style.display = '';
+        noSup.style.display = 'none';
+
+        try {
+            if (typeof navigator.mediaDevices.selectAudioOutput === 'function') {
+                try {
+                    await navigator.mediaDevices.selectAudioOutput({
+                        deviceId: _selectedSpeakerId || undefined
+                    });
+                } catch (_) {}
+            }
+
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const outs = devices.filter(d => d.kind === 'audiooutput');
+
+            sel.innerHTML = `<option value="">${t('speakerDefault')}</option>`;
+
+            outs.forEach((d, i) => {
+                const opt = document.createElement('option');
+                opt.value = d.deviceId;
+                opt.textContent = d.label || `${t('speakerUnknown')} ${i + 1}`;
+                opt.selected = d.deviceId === _selectedSpeakerId;
+                sel.appendChild(opt);
+            });
+        } catch (e) {
+            console.warn('populateSpeakerDevices failed:', e);
+        }
+    }
+
+    function onSpeakerDeviceChange(deviceId) {
+        _selectedSpeakerId = deviceId || '';
+        localStorage.setItem('vox_speaker_id', _selectedSpeakerId);
+
+        if (currentAudio) {
+            _applySinkId(currentAudio);
+        }
+    }
+
+    async function _applySinkId(audioEl) {
+        if (!audioEl || !_speakerSupported() || !_selectedSpeakerId) return;
+
+        try {
+            await audioEl.setSinkId(_selectedSpeakerId);
+        } catch (e) {
+            console.warn('setSinkId failed:', e);
+        }
+    }
 
     function handleAudioMessage(data) {
         const prefix = new TextDecoder().decode(new Uint8Array(data, 0, 6));
         if (prefix === 'AUDIO:') {
-            if (!_ttsEnabled) return; // TTS вимкнено — не відтворюємо
+            if (!_ttsEnabled) return;
             const audioData = data.slice(6);
             playAudio(audioData);
         }
@@ -1139,12 +1291,14 @@
                 currentAudioUrl = null;
                 processAudioQueue();
             };
-            const backlog = audioQueue.length;   // solo
+
+            const backlog = audioQueue.length;
             let rate = 1.08;
             if (backlog >= 1) rate = 1.12;
             if (backlog >= 2) rate = 1.18;
             if (backlog >= 4) rate = 1.26;
             audio.playbackRate = rate;
+
             _applySinkId(audio).finally(() => audio.play().catch(e => {
                 console.warn('Audio play failed:', e);
                 URL.revokeObjectURL(url);
@@ -1169,24 +1323,26 @@
                 noiseSuppression: true,
                 autoGainControl: true,
             };
+
             if (!_hybridMode) {
                 micConstraints.echoCancellation = true;
                 micConstraints.noiseSuppression = true;
                 micConstraints.autoGainControl = true;
             }
+
             if (_selectedMicId) micConstraints.deviceId = { exact: _selectedMicId };
 
-            // Спробуємо з вибраним deviceId; якщо пристрій зник — fallback на default
             try {
                 mediaStream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints });
-            } catch(devErr) {
+            } catch (devErr) {
                 if (_selectedMicId && (devErr.name === 'OverconstrainedError' || devErr.name === 'NotFoundError')) {
                     console.warn('Selected mic unavailable, falling back to default:', devErr.message);
                     _selectedMicId = '';
                     localStorage.removeItem('vox_mic_id');
-                    // Оновити select щоб показав "За замовчуванням"
+
                     const sel = document.getElementById('micDeviceSelect');
                     if (sel) sel.value = '';
+
                     delete micConstraints.deviceId;
                     mediaStream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints });
                 } else {
@@ -1240,11 +1396,6 @@
             };
 
             source.connect(audioWorkletNode);
-            // NOTE: audioWorkletNode НЕ подключается к destination —
-            // он только захватывает PCM и отправляет на сервер через WebSocket.
-            // Подключение к destination создаёт аудио-петлю и ломает
-            // маршрутизацию звука на Android (режим VOICE_COMMUNICATION).
-
         } catch (e) {
             console.error('Microphone error:', e);
             setStatus('disconnected', 'mic_error');
@@ -1278,21 +1429,25 @@
             mainBtn.classList.remove('active');
             mainBtn.textContent = t('btnListen');
             stopMicrophone();
+
             if (ws) {
                 ws.close();
                 ws = null;
             }
-            // Очищаем очередь и останавливаем текущее воспроизведение
+
             audioQueue = [];
             isPlaying = false;
+
             if (currentAudio) {
                 currentAudio.pause();
                 currentAudio = null;
             }
+
             if (currentAudioUrl) {
                 URL.revokeObjectURL(currentAudioUrl);
                 currentAudioUrl = null;
             }
+
             setStatus('disconnected', 'stopped');
             resetVAD();
         } else {
@@ -1505,15 +1660,14 @@
 
     async function populateMicDevices() {
         try {
-            // Перевіряємо чи дозвіл вже є через Permissions API
-            // Якщо ні — запитуємо один раз щоб labels були видимі
             let needsRequest = true;
             if (navigator.permissions) {
                 try {
                     const perm = await navigator.permissions.query({ name: 'microphone' });
                     needsRequest = perm.state !== 'granted';
-                } catch(_) { /* Permissions API not supported */ }
+                } catch (_) {}
             }
+
             if (needsRequest) {
                 const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
                 if (tempStream) tempStream.getTracks().forEach(t => t.stop());
@@ -1526,6 +1680,7 @@
 
             const saved = _selectedMicId;
             sel.innerHTML = `<option value="">${t('micDefault')}</option>`;
+
             mics.forEach((d, i) => {
                 const opt = document.createElement('option');
                 opt.value = d.deviceId;
@@ -1534,19 +1689,19 @@
                 sel.appendChild(opt);
             });
 
-            // Підписи
             const micLbl = document.getElementById('micSelectorLabel');
             const micRefBtn = document.querySelector('.mic-refresh-btn');
             if (micLbl) micLbl.textContent = t('micLabel');
             if (micRefBtn) micRefBtn.title = t('micRefreshTitle');
-        } catch(e) {
+        } catch (e) {
             console.warn('populateMicDevices failed:', e);
         }
     }
 
     function onMicDeviceChange(deviceId) {
-        _selectedMicId = deviceId;
-        localStorage.setItem('vox_mic_id', deviceId);
+        _selectedMicId = deviceId || '';
+        localStorage.setItem('vox_mic_id', _selectedMicId);
+        _updateHybridBtn(!_hybridMode || !!_selectedMicId);
     }
 
     function toggleMicHint() {
@@ -1558,11 +1713,15 @@
         box.classList.toggle('open');
     }
 
-    // Заповнити список при завантаженні та при підключенні нового пристрою
     populateMicDevices();
     populateSpeakerDevices();
     _updateHybridBtn(!_hybridMode || !!_selectedMicId);
-    navigator.mediaDevices.addEventListener('devicechange', async () => { await populateMicDevices(); await populateSpeakerDevices(); });
+
+    navigator.mediaDevices.addEventListener('devicechange', async () => {
+        await populateMicDevices();
+        await populateSpeakerDevices();
+        _updateHybridBtn(!_hybridMode || !!_selectedMicId);
+    });
 
     </script>
 </body>
