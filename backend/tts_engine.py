@@ -105,7 +105,7 @@ class TTSEngine:
             voice=voice,
             input=text,
             response_format="mp3",
-            speed=1.0,
+            speed=1.15,
         )
 
         # Читаем все байты
