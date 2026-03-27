@@ -999,6 +999,7 @@
     let currentAudio = null;
     let currentAudioUrl = null;
     let isPlaying = false;
+    let _micPausedForTts = false;
 
     // =====================================================================
     // WebSocket
@@ -1268,10 +1269,34 @@
             isPlaying = false;
             currentAudio = null;
             currentAudioUrl = null;
+
+            if (_micPausedForTts) {
+                _micPausedForTts = false;
+
+                if (isListening) {
+                    startMicrophone()
+                        .then(() => {
+                            if (isListening) {
+                                setStatus('listening', 'listening');
+                            }
+                        })
+                        .catch(e => {
+                            console.error('Failed to resume microphone after TTS:', e);
+                            setStatus('disconnected', 'mic_error');
+                        });
+                }
+            }
+
             return;
         }
 
         isPlaying = true;
+
+        if (isListening && !_micPausedForTts) {
+            stopMicrophone();
+            _micPausedForTts = true;
+        }
+
         const mp3Bytes = audioQueue.shift();
 
         try {
@@ -1286,6 +1311,7 @@
                 currentAudioUrl = null;
                 processAudioQueue();
             };
+
             audio.onerror = () => {
                 URL.revokeObjectURL(url);
                 currentAudioUrl = null;
@@ -1299,12 +1325,14 @@
             if (backlog >= 4) rate = 1.26;
             audio.playbackRate = rate;
 
-            _applySinkId(audio).finally(() => audio.play().catch(e => {
-                console.warn('Audio play failed:', e);
-                URL.revokeObjectURL(url);
-                currentAudioUrl = null;
-                processAudioQueue();
-            }));
+            _applySinkId(audio).finally(() => {
+                audio.play().catch(e => {
+                    console.warn('Audio play failed:', e);
+                    URL.revokeObjectURL(url);
+                    currentAudioUrl = null;
+                    processAudioQueue();
+                });
+            });
         } catch (e) {
             console.error('Audio playback error:', e);
             processAudioQueue();
@@ -1428,6 +1456,7 @@
             isListening = false;
             mainBtn.classList.remove('active');
             mainBtn.textContent = t('btnListen');
+
             stopMicrophone();
 
             if (ws) {
@@ -1435,18 +1464,9 @@
                 ws = null;
             }
 
-            audioQueue = [];
-            isPlaying = false;
-
-            if (currentAudio) {
-                currentAudio.pause();
-                currentAudio = null;
-            }
-
-            if (currentAudioUrl) {
-                URL.revokeObjectURL(currentAudioUrl);
-                currentAudioUrl = null;
-            }
+            // ВАЖНО:
+            // не трогаем currentAudio и не чистим audioQueue,
+            // чтобы уже начатый перевод доиграл до конца
 
             setStatus('disconnected', 'stopped');
             resetVAD();
@@ -1459,7 +1479,10 @@
             connectWebSocket();
 
             await new Promise(r => setTimeout(r, 500));
-            await startMicrophone();
+
+            if (!isPlaying) {
+                await startMicrophone();
+            }
 
             if (isListening) {
                 setStatus('listening', 'listening');
