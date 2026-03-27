@@ -810,6 +810,21 @@
                     </div>
                 </div>
             </div>
+            <!-- Вибір мікрофону (Room) -->
+            <div class="mic-selector" id="roomMicSelectorRow">
+                <label id="roomMicSelectorLabel">🎤</label>
+                <select id="roomMicDeviceSelect" onchange="onMicDeviceChange(this.value)"></select>
+                <button class="mic-refresh-btn" onclick="populateMicDevices()" title="Оновити">↺</button>
+            </div>
+
+            <!-- Вибір динаміка (Room) -->
+            <div class="speaker-selector" id="roomSpeakerSelectorRow">
+                <label id="roomSpeakerSelectorLabel">🔊</label>
+                <select id="roomSpeakerDeviceSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
+                <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Оновити">↺</button>
+            </div>
+            <div class="speaker-no-support" id="roomSpeakerNoSupport"></div>
+
             <div class="card original">
                 <div class="card-label i18n" id="roomLabelOrig">Оригінал</div>
                 <div class="card-text" id="roomOriginal">—</div>
@@ -1044,6 +1059,12 @@
             const micRefBtn = document.querySelector('.mic-refresh-btn');
             if (micLbl) micLbl.textContent = t('micLabel');
             if (micRefBtn) micRefBtn.title = t('micRefreshTitle');
+
+            // Синхронизируем room-селектор микрофона
+            const roomMicSel = document.getElementById('roomMicDeviceSelect');
+            const roomMicLbl = document.getElementById('roomMicSelectorLabel');
+            if (roomMicSel) roomMicSel.innerHTML = document.getElementById('micDeviceSelect').innerHTML;
+            if (roomMicLbl) roomMicLbl.textContent = t('micLabel');
             const micSel = document.getElementById('micDeviceSelect');
             if (micSel && micSel.options.length > 0 && micSel.options[0].value === '') {
                 micSel.options[0].textContent = t('micDefault');
@@ -1060,6 +1081,14 @@
             if (spkRefBtn) spkRefBtn.title = t('speakerRefreshTitle');
             if (spkSel && spkSel.options.length > 0 && spkSel.options[0].value === '') spkSel.options[0].textContent = t('speakerDefault');
             if (spkNoSup) spkNoSup.textContent = t('speakerNoSupport');
+
+            // Room speaker selector — те же строки что и Solo
+            const roomSpkLbl = document.getElementById('roomSpeakerSelectorLabel');
+            const roomSpkSel = document.getElementById('roomSpeakerDeviceSelect');
+            const roomSpkNoSup = document.getElementById('roomSpeakerNoSupport');
+            if (roomSpkLbl) roomSpkLbl.textContent = t('speakerLabel');
+            if (roomSpkSel && roomSpkSel.options.length > 0 && roomSpkSel.options[0].value === '') roomSpkSel.options[0].textContent = t('speakerDefault');
+            if (roomSpkNoSup) roomSpkNoSup.textContent = t('speakerNoSupport');
             _updateTtsBtn();
             _updateHybridBtn(_hybridMode ? !!_selectedMicId : false);
         }
@@ -2065,6 +2094,22 @@
                 sel.appendChild(opt);
             });
         } catch(e) { console.warn('populateSpeakerDevices failed:', e); }
+
+        // Синхронизируем room-селектор динамика
+        const roomRow  = document.getElementById('roomSpeakerSelectorRow');
+        const roomNoSup = document.getElementById('roomSpeakerNoSupport');
+        const roomSel  = document.getElementById('roomSpeakerDeviceSelect');
+        if (roomRow && roomNoSup && roomSel) {
+            if (!_speakerSupported()) {
+                roomRow.style.display = 'none';
+                roomNoSup.textContent = t('speakerNoSupport');
+                roomNoSup.style.display = 'block';
+            } else {
+                roomRow.style.display = '';
+                roomNoSup.style.display = 'none';
+                roomSel.innerHTML = document.getElementById('speakerDeviceSelect').innerHTML;
+            }
+        }
     }
     function onSpeakerDeviceChange(deviceId) {
         _selectedSpeakerId = deviceId || '';

@@ -177,6 +177,16 @@
         .overlay p { color: var(--text2); font-size: 14px; }
 
         /* Speaker selector */
+        .mic-selector {
+            display: flex; align-items: center; gap: 8px;
+            padding: 0 4px; margin-top: 4px;
+        }
+        .mic-selector label { font-size: 13px; color: var(--text2); white-space: nowrap; flex-shrink: 0; }
+        .mic-selector select { flex: 1; min-width: 0; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 13px; outline: none; cursor: pointer; }
+        .mic-selector select:focus { border-color: var(--accent); }
+        .mic-selector .mic-refresh-btn { background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--text2); font-size: 15px; padding: 6px 8px; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
+        .mic-selector .mic-refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
         .speaker-selector {
             display: flex; align-items: center; gap: 8px;
             padding: 0 4px; margin-top: 4px;
@@ -376,6 +386,13 @@
                 <span id="speakerName"></span>
             </div>
 
+            <!-- Вибір мікрофону (тільки коли гость говорить) -->
+            <div class="mic-selector" id="guestMicSelectorRow">
+                <label id="guestMicSelectorLabel">🎤</label>
+                <select id="guestMicDeviceSelect" onchange="onGuestMicDeviceChange(this.value)"></select>
+                <button class="mic-refresh-btn" onclick="populateGuestMicDevices()" title="Refresh">↺</button>
+            </div>
+
             <div class="speaker-selector" id="speakerSelectorRow">
                 <label id="speakerSelectorLabel">🔊</label>
                 <select id="speakerDeviceSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
@@ -451,6 +468,7 @@
             unmutedMsg: 'You have been unmuted',
             kickedMsg: 'You have been removed from the room',
             closedMsg: 'The room has been closed',
+            micLabel: '🎤 Microphone:', micDefault: 'Default', micUnknown: 'Microphone',
             speakerLabel: '🔊 Headphones:', speakerDefault: 'System default', speakerRefreshTitle: 'Refresh list', speakerUnknown: 'Output', speakerNoSupport: 'Output device selection is not supported by this browser',
             deniedMsg: 'Your request was denied',
             recording: 'Recording',
@@ -471,6 +489,7 @@
             unmutedMsg: 'Вас увімкнено',
             kickedMsg: 'Вас відключено від кімнати',
             closedMsg: 'Кімнату закрито',
+            micLabel: '🎤 Мікрофон:', micDefault: 'За замовчуванням', micUnknown: 'Мікрофон',
             speakerLabel: '🔊 Навушники:', speakerDefault: 'За замовчуванням', speakerRefreshTitle: 'Оновити список', speakerUnknown: 'Вивід', speakerNoSupport: 'Вибір пристрою виводу не підтримується цим браузером',
             deniedMsg: 'Ваш запит відхилено',
             recording: 'Записую',
@@ -491,6 +510,7 @@
             unmutedMsg: 'Sie wurden entstummt',
             kickedMsg: 'Sie wurden aus dem Raum entfernt',
             closedMsg: 'Der Raum wurde geschlossen',
+            micLabel: '🎤 Mikrofon:', micDefault: 'Standard', micUnknown: 'Mikrofon',
             speakerLabel: '🔊 Kopfhörer:', speakerDefault: 'Systemstandard', speakerRefreshTitle: 'Liste aktualisieren', speakerUnknown: 'Ausgabe', speakerNoSupport: 'Ausgabegerät-Auswahl wird von diesem Browser nicht unterstützt',
             deniedMsg: 'Ihre Anfrage wurde abgelehnt',
             recording: 'Aufnahme',
@@ -511,6 +531,7 @@
             unmutedMsg: 'Вас включили',
             kickedMsg: 'Вас отключили от комнаты',
             closedMsg: 'Комната закрыта',
+            micLabel: '🎤 Микрофон:', micDefault: 'По умолчанию', micUnknown: 'Микрофон',
             speakerLabel: '🔊 Наушники:', speakerDefault: 'По умолчанию', speakerRefreshTitle: 'Обновить список', speakerUnknown: 'Вывод', speakerNoSupport: 'Выбор устройства вывода не поддерживается этим браузером',
             deniedMsg: 'Ваш запрос отклонён',
             recording: 'Записываю',
@@ -532,6 +553,7 @@
             kickedMsg: 'Zostałeś usunięty z pokoju',
             closedMsg: 'Pokój został zamknięty',
             deniedMsg: 'Twoja prośba została odrzucona',
+            micLabel: '🎤 Mikrofon:', micDefault: 'Domyślny', micUnknown: 'Mikrofon',
             recording: 'Nagrywam',
             speaking: 'mówi...',
             hostSpeaking: 'Moderator mówi...',
@@ -549,6 +571,7 @@
             kickedMsg: 'Vous avez été retiré de la salle',
             closedMsg: 'La salle a été fermée',
             deniedMsg: 'Votre demande a été refusée',
+            micLabel: '🎤 Microphone :', micDefault: 'Par défaut', micUnknown: 'Microphone',
         },
         zh: {
             joinTitle: '加入房间', langLabel: '您的语言：', btnJoin: '加入',
@@ -563,6 +586,7 @@
             kickedMsg: '您已被移出房间',
             closedMsg: '房间已关闭',
             deniedMsg: '您的请求已被拒绝',
+            micLabel: '🎤 麦克风：', micDefault: '默认', micUnknown: '麦克风',
         },
         es: {
             joinTitle: 'Unirse a la sala', langLabel: 'Tu idioma:', btnJoin: 'Unirse',
@@ -577,6 +601,7 @@
             kickedMsg: 'Has sido eliminado de la sala',
             closedMsg: 'La sala ha sido cerrada',
             deniedMsg: 'Tu solicitud fue rechazada',
+            micLabel: '🎤 Micrófono:', micDefault: 'Predeterminado', micUnknown: 'Micrófono',
         },
         it: {
             joinTitle: 'Entra nella stanza', langLabel: 'La tua lingua:', btnJoin: 'Entra',
@@ -591,6 +616,7 @@
             kickedMsg: 'Sei stato rimosso dalla stanza',
             closedMsg: 'La stanza è stata chiusa',
             deniedMsg: 'La tua richiesta è stata rifiutata',
+            micLabel: '🎤 Microfono:', micDefault: 'Predefinito', micUnknown: 'Microfono',
         },
         pt: {
             joinTitle: 'Entrar na sala', langLabel: 'Seu idioma:', btnJoin: 'Entrar',
@@ -605,6 +631,7 @@
             kickedMsg: 'Você foi removido da sala',
             closedMsg: 'A sala foi fechada',
             deniedMsg: 'Seu pedido foi negado',
+            micLabel: '🎤 Microfone:', micDefault: 'Padrão', micUnknown: 'Microfone',
         },
         ja: {
             joinTitle: 'ルームに参加', langLabel: '言語：', btnJoin: '参加',
@@ -619,6 +646,7 @@
             kickedMsg: 'ルームから削除されました',
             closedMsg: 'ルームが閉じられました',
             deniedMsg: 'リクエストが拒否されました',
+            micLabel: '🎤 マイク：', micDefault: 'デフォルト', micUnknown: 'マイク',
         },
         ko: {
             joinTitle: '방 참가', langLabel: '언어:', btnJoin: '참가',
@@ -633,6 +661,7 @@
             kickedMsg: '방에서 퇴장되었습니다',
             closedMsg: '방이 닫혔습니다',
             deniedMsg: '요청이 거부되었습니다',
+            micLabel: '🎤 마이크:', micDefault: '기본값', micUnknown: '마이크',
         },
         ar: {
             joinTitle: 'انضم إلى الغرفة', langLabel: 'لغتك:', btnJoin: 'انضم',
@@ -647,6 +676,7 @@
             kickedMsg: 'تمت إزالتك من الغرفة',
             closedMsg: 'تم إغلاق الغرفة',
             deniedMsg: 'تم رفض طلبك',
+            micLabel: '🎤 ميكروفون:', micDefault: 'افتراضي', micUnknown: 'ميكروفون',
         },
         tr: {
             joinTitle: 'Odaya katıl', langLabel: 'Diliniz:', btnJoin: 'Katıl',
@@ -661,6 +691,7 @@
             kickedMsg: 'Odadan çıkarıldınız',
             closedMsg: 'Oda kapatıldı',
             deniedMsg: 'İsteğiniz reddedildi',
+            micLabel: '🎤 Mikrofon:', micDefault: 'Varsayılan', micUnknown: 'Mikrofon',
         },
         hi: {
             joinTitle: 'कमरे में शामिल हों', langLabel: 'आपकी भाषा:', btnJoin: 'शामिल हों',
@@ -675,6 +706,7 @@
             kickedMsg: 'आपको कमरे से हटा दिया गया',
             closedMsg: 'कमरा बंद कर दिया गया',
             deniedMsg: 'आपका अनुरोध अस्वीकार कर दिया गया',
+            micLabel: '🎤 माइक्रोफ़ोन:', micDefault: 'डिफ़ॉल्ट', micUnknown: 'माइक्रोफ़ोन',
         },
     };
 
@@ -806,6 +838,11 @@
         if (spkRefBtn) spkRefBtn.title = t('speakerRefreshTitle');
         if (spkSel && spkSel.options.length > 0 && spkSel.options[0].value === '') spkSel.options[0].textContent = t('speakerDefault');
         if (spkNoSup) spkNoSup.textContent = t('speakerNoSupport');
+        // Mic selector i18n
+        const micLbl = document.getElementById('guestMicSelectorLabel');
+        const micSel = document.getElementById('guestMicDeviceSelect');
+        if (micLbl) micLbl.textContent = t('micLabel');
+        if (micSel && micSel.options.length > 0 && micSel.options[0].value === '') micSel.options[0].textContent = t('micDefault');
         const hintEl = document.getElementById('joinHint');
         if (hintEl) {
             const title = t('joinHintTitle');
@@ -1056,10 +1093,21 @@
             noiseSuppression: false,
             autoGainControl: false,
         };
+        // Если гость выбрал конкретный микрофон — используем его
+        if (_selectedGuestMicId) requestedConstraints.deviceId = { exact: _selectedGuestMicId };
 
-        const st = await navigator.mediaDevices.getUserMedia({
-            audio: requestedConstraints
-        });
+        let st;
+        try {
+            st = await navigator.mediaDevices.getUserMedia({ audio: requestedConstraints });
+        } catch(devErr) {
+            if (_selectedGuestMicId && (devErr.name === 'OverconstrainedError' || devErr.name === 'NotFoundError')) {
+                // Выбранный микрофон недоступен — fallback на дефолт
+                _selectedGuestMicId = '';
+                localStorage.removeItem('vox_guest_mic_id');
+                delete requestedConstraints.deviceId;
+                st = await navigator.mediaDevices.getUserMedia({ audio: requestedConstraints });
+            } else { throw devErr; }
+        }
 
         const track = st.getAudioTracks()[0] || null;
         const settings = track?.getSettings ? track.getSettings() : {};
@@ -1652,7 +1700,33 @@
     // =================================================================
     // Speaker output selector (setSinkId)
     // =================================================================
+    let _selectedGuestMicId = localStorage.getItem('vox_guest_mic_id') || '';
     let _selectedSpeakerId = localStorage.getItem('vox_speaker_id') || '';
+    async function populateGuestMicDevices() {
+        try {
+            const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+            if (tempStream) tempStream.getTracks().forEach(tr => tr.stop());
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const mics = devices.filter(d => d.kind === 'audioinput');
+            const sel = document.getElementById('guestMicDeviceSelect');
+            const lbl = document.getElementById('guestMicSelectorLabel');
+            if (!sel) return;
+            sel.innerHTML = `<option value="">${t('micDefault')}</option>`;
+            mics.forEach((d, i) => {
+                const opt = document.createElement('option');
+                opt.value = d.deviceId;
+                opt.textContent = d.label || `${t('micUnknown')} ${i + 1}`;
+                opt.selected = d.deviceId === _selectedGuestMicId;
+                sel.appendChild(opt);
+            });
+            if (lbl) lbl.textContent = t('micLabel');
+        } catch(e) { console.warn('populateGuestMicDevices failed:', e); }
+    }
+    function onGuestMicDeviceChange(deviceId) {
+        _selectedGuestMicId = deviceId || '';
+        localStorage.setItem('vox_guest_mic_id', _selectedGuestMicId);
+    }
+
     function _speakerSupported() {
         return typeof HTMLMediaElement !== 'undefined' && typeof HTMLMediaElement.prototype.setSinkId === 'function';
     }
@@ -1823,6 +1897,7 @@
     // Init i18n
     applyI18n();
     populateSpeakerDevices();
+    populateGuestMicDevices();
     // Один глобальный listener — не дублируется при реконнектах
     window.addEventListener('online', () => {
         if (guestId && !_wasKicked && (!ws || ws.readyState === WebSocket.CLOSED)) connectGuestWS();

@@ -1317,11 +1317,20 @@
                 processAudioQueue();
             };
 
+            // Дроп середины: если накопилось 3+ фрагмента — оставляем только последний (самый свежий).
+            // Слушатель теряет середину, но слышит актуальное, а не хвост из прошлого.
+            if (audioQueue.length >= 3) {
+                const last = audioQueue[audioQueue.length - 1];
+                audioQueue.length = 0;
+                audioQueue.push(last);
+                console.warn('[VOX] backlog drop: kept last fragment only');
+            }
+
+            // Ускорение: 1.0x (норма) → 1.35x (1 в очереди) → 1.5x (2+ в очереди)
             const backlog = audioQueue.length;
-            let rate = 1.08;
-            if (backlog >= 1) rate = 1.12;
-            if (backlog >= 2) rate = 1.18;
-            if (backlog >= 4) rate = 1.26;
+            let rate = 1.0;
+            if (backlog === 1) rate = 1.35;
+            if (backlog >= 2) rate = 1.5;
             audio.playbackRate = rate;
 
             _applySinkId(audio).finally(() => {
