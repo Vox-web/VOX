@@ -1165,10 +1165,15 @@
             const micConstraints = {
                 sampleRate: 16000,
                 channelCount: 1,
-                echoCancellation: !_hybridMode,
-                noiseSuppression: !_hybridMode,
-                autoGainControl: !_hybridMode,
+                echoCancellation: false,
+                noiseSuppression: true,
+                autoGainControl: true,
             };
+            if (!_hybridMode) {
+                micConstraints.echoCancellation = true;
+                micConstraints.noiseSuppression = true;
+                micConstraints.autoGainControl = true;
+            }
             if (_selectedMicId) micConstraints.deviceId = { exact: _selectedMicId };
 
             // Спробуємо з вибраним deviceId; якщо пристрій зник — fallback на default
@@ -1491,12 +1496,12 @@
     langSelect.addEventListener('change', syncSoloConfig);
     sourceLangSelect.addEventListener('change', syncSoloConfig);
 
+    // ======== MIC DEVICE SELECTOR ========
+    let _selectedMicId = localStorage.getItem('vox_mic_id') || '';
+
     // --- Инициализация ---
     applyUILanguage(false);
     console.log('VOX Solo v0.1.0');
-
-    // ======== MIC DEVICE SELECTOR ========
-    let _selectedMicId = localStorage.getItem('vox_mic_id') || '';
 
     async function populateMicDevices() {
         try {
