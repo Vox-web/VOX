@@ -721,7 +721,6 @@
                 <span id="ttsToggleLabel">Озвучка увімкнена</span>
             </button>
             <button class="hybrid-toggle-btn" id="hybridToggleBtn" onclick="toggleHybrid()">
-                
                 <span id="hybridToggleLabel">Гібридний режим</span>
             </button>
             <div class="card original">
@@ -854,7 +853,7 @@
             soloNoSpeech: '⚠️ Мова не розпізнається. Перевірте мову джерела або гучність.',
             soloWrongLang: '⚠️ Схоже, мова спікера не відповідає обраній. Змініть мову джерела.',
             micUnknown: 'Мікрофон',
-            speakerLabel: '🔊 Навушники:', speakerDefault: 'За замовчуванням', speakerRefreshTitle: 'Оновити список', speakerUnknown: 'Вивід', speakerNoSupport: 'Вибір пристрою виводу не підтримується цим браузером',
+            speakerLabel: '🔊 Навушники:', speakerDefault: 'За замовчуванням', speakerRefreshTitle: 'Оновити список', speakerUnknown: 'Вивід', speakerNoSupport: 'Окремий вибір навушників не підтримується. Використовується системний аудіовихід.',
             hybridOff: '📱🎧 Гібридний мік (телефон)', hybridOn: '📱✅ Мікрофон телефону активний', hybridWarn: '⚠️ Вбудований мік не знайдено',
             roomSetupTitle: 'Налаштування кімнати', roomHostLangLabel: 'Ваша мова:',
             btnCreateRoom: 'Створити кімнату', roomQrLabel: 'Скануйте для входу',
@@ -1062,7 +1061,7 @@
             if (spkSel && spkSel.options.length > 0 && spkSel.options[0].value === '') spkSel.options[0].textContent = t('speakerDefault');
             if (spkNoSup) spkNoSup.textContent = t('speakerNoSupport');
             _updateTtsBtn();
-            _updateHybridBtn(!_hybridMode || !!_selectedMicId);
+            _updateHybridBtn(_hybridMode ? !!_selectedMicId : false);
         }
         if (animate) {
             els.forEach(el => el.classList.add('fading'));
@@ -1198,7 +1197,12 @@
     function _audioMsg(d) { const p = new TextDecoder().decode(new Uint8Array(d,0,6)); if (p==='AUDIO:' && _ttsEnabled) _playA(d.slice(6)); }
 
     async function _mic(name, onChunk) {
-        const _micConstraints = {sampleRate:16000,channelCount:1,echoCancellation:!_hybridMode,noiseSuppression:!_hybridMode,autoGainControl:!_hybridMode};
+        const _micConstraints = {sampleRate:16000,channelCount:1,echoCancellation:false,noiseSuppression:true,autoGainControl:true};
+        if (!_hybridMode) {
+            _micConstraints.echoCancellation = true;
+            _micConstraints.noiseSuppression = true;
+            _micConstraints.autoGainControl = true;
+        }
         if (_selectedMicId) _micConstraints.deviceId = { exact: _selectedMicId };
 
         // Fallback: якщо збережений пристрій зник — використати default
@@ -1781,8 +1785,6 @@
     // =====================================================================
     // Init
     // =====================================================================
-    // ВАЖНО: hybrid state must exist before applyI18n(false),
-    // because applyI18n -> update -> _updateHybridBtn() reads it.
     let _hybridMode = localStorage.getItem('vox_hybrid_mode') === 'true';
     let _hybridToggling = false;
 
@@ -2010,14 +2012,8 @@
                 }
             }
             _updateHybridBtn(found);
-            if (soloListening) {
-                soloStop();
-                setTimeout(() => soloToggle(), 150);
-            }
-            if (roomMicActive) {
-                roomToggleMic();
-                setTimeout(() => roomToggleMic(), 150);
-            }
+            if (soloListening) { soloStop(); setTimeout(() => soloToggle(), 150); }
+            if (roomMicActive) { roomToggleMic(); setTimeout(() => roomToggleMic(), 150); }
         } finally {
             _hybridToggling = false;
         }
@@ -2122,7 +2118,7 @@
 
     populateMicDevices();
     populateSpeakerDevices();
-    _updateHybridBtn(!_hybridMode || !!_selectedMicId);
+    _updateHybridBtn(_hybridMode ? !!_selectedMicId : false);
     navigator.mediaDevices.addEventListener('devicechange', async () => { await populateMicDevices(); await populateSpeakerDevices(); });
 
     </script>
