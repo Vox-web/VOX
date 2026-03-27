@@ -2093,22 +2093,32 @@
                 opt.selected = d.deviceId === _selectedSpeakerId;
                 sel.appendChild(opt);
             });
-        } catch(e) { console.warn('populateSpeakerDevices failed:', e); }
-
-        // Синхронизируем room-селектор динамика
-        const roomRow  = document.getElementById('roomSpeakerSelectorRow');
-        const roomNoSup = document.getElementById('roomSpeakerNoSupport');
-        const roomSel  = document.getElementById('roomSpeakerDeviceSelect');
-        if (roomRow && roomNoSup && roomSel) {
-            if (!_speakerSupported()) {
-                roomRow.style.display = 'none';
-                roomNoSup.textContent = t('speakerNoSupport');
-                roomNoSup.style.display = 'block';
-            } else {
+            // Синхронизируем room-селектор динамика (внутри try, после заполнения solo-селектора)
+            const roomRow  = document.getElementById('roomSpeakerSelectorRow');
+            const roomNoSup = document.getElementById('roomSpeakerNoSupport');
+            const roomSel  = document.getElementById('roomSpeakerDeviceSelect');
+            if (roomRow && roomNoSup && roomSel) {
                 roomRow.style.display = '';
                 roomNoSup.style.display = 'none';
-                roomSel.innerHTML = document.getElementById('speakerDeviceSelect').innerHTML;
+                roomSel.innerHTML = sel.innerHTML;
             }
+        } catch(e) {
+            console.warn('populateSpeakerDevices failed:', e);
+            // При ошибке скрываем оба селектора
+            const roomRow = document.getElementById('roomSpeakerSelectorRow');
+            const roomNoSup = document.getElementById('roomSpeakerNoSupport');
+            if (roomRow) roomRow.style.display = 'none';
+            if (roomNoSup) { roomNoSup.textContent = t('speakerNoSupport'); roomNoSup.style.display = 'block'; }
+        }
+
+        // Если setSinkId не поддерживается — скрываем оба селектора
+        if (!_speakerSupported()) {
+            ['speakerSelectorRow','roomSpeakerSelectorRow'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.style.display = 'none';
+            });
+            ['speakerNoSupport','roomSpeakerNoSupport'].forEach(id => {
+                const el = document.getElementById(id); if (el) { el.textContent = t('speakerNoSupport'); el.style.display = 'block'; }
+            });
         }
     }
     function onSpeakerDeviceChange(deviceId) {
@@ -2153,10 +2163,23 @@
                 sel.appendChild(opt);
             });
 
+            // Если сохранённый ID не найден среди реальных устройств — сбрасываем
+            if (_selectedMicId && !mics.some(d => d.deviceId === _selectedMicId)) {
+                _selectedMicId = '';
+                localStorage.removeItem('vox_mic_id');
+                sel.value = '';
+            }
+
             const micLbl = document.getElementById('micSelectorLabel');
             const micRefBtn = document.querySelector('.mic-refresh-btn');
             if (micLbl) micLbl.textContent = t('micLabel');
             if (micRefBtn) micRefBtn.title = t('micRefreshTitle');
+
+            // Синхронизируем room-селектор — копируем options из solo-селектора
+            const roomMicSel = document.getElementById('roomMicDeviceSelect');
+            const roomMicLbl = document.getElementById('roomMicSelectorLabel');
+            if (roomMicSel) roomMicSel.innerHTML = sel.innerHTML;
+            if (roomMicLbl) roomMicLbl.textContent = t('micLabel');
         } catch(e) {
             console.warn('populateMicDevices failed:', e);
         }

@@ -1093,18 +1093,19 @@
             noiseSuppression: false,
             autoGainControl: false,
         };
-        // Если гость выбрал конкретный микрофон — используем его
-        if (_selectedGuestMicId) requestedConstraints.deviceId = { exact: _selectedGuestMicId };
+
+        // deviceId передаётся отдельным top-level ключом, не внутри audio-constraints
+        const getUserMediaConstraints = { audio: { ...requestedConstraints } };
+        if (_selectedGuestMicId) getUserMediaConstraints.audio.deviceId = { exact: _selectedGuestMicId };
 
         let st;
         try {
-            st = await navigator.mediaDevices.getUserMedia({ audio: requestedConstraints });
+            st = await navigator.mediaDevices.getUserMedia(getUserMediaConstraints);
         } catch(devErr) {
             if (_selectedGuestMicId && (devErr.name === 'OverconstrainedError' || devErr.name === 'NotFoundError')) {
                 // Выбранный микрофон недоступен — fallback на дефолт
                 _selectedGuestMicId = '';
                 localStorage.removeItem('vox_guest_mic_id');
-                delete requestedConstraints.deviceId;
                 st = await navigator.mediaDevices.getUserMedia({ audio: requestedConstraints });
             } else { throw devErr; }
         }
@@ -1711,6 +1712,11 @@
             const sel = document.getElementById('guestMicDeviceSelect');
             const lbl = document.getElementById('guestMicSelectorLabel');
             if (!sel) return;
+            // Если сохранённый ID не найден среди реальных устройств — сбрасываем
+            if (_selectedGuestMicId && !mics.some(d => d.deviceId === _selectedGuestMicId)) {
+                _selectedGuestMicId = '';
+                localStorage.removeItem('vox_guest_mic_id');
+            }
             sel.innerHTML = `<option value="">${t('micDefault')}</option>`;
             mics.forEach((d, i) => {
                 const opt = document.createElement('option');
