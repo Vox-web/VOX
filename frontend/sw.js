@@ -6,7 +6,7 @@
  * WebSocket и API-запросы не кешируются — всегда идут в сеть.
  */
 
-const CACHE_NAME = 'vox-v3';
+const CACHE_NAME = 'vox-v4';
 
 // Что кешируем при установке
 const PRECACHE = [
