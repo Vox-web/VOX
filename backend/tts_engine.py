@@ -72,18 +72,7 @@ class TTSEngine:
 
         voices = self._get_voices(lang)
 
-        # Попытка 1: edge-tts (быстрее и бесплатно)
-        try:
-            audio = self._edge_tts_sync(text, voices["edge"])
-            if audio:
-                logger.info(f"🔊 edge-tts [{lang}]: {len(audio)} байт")
-                return audio
-            else:
-                logger.warning(f"⚠️ edge-tts [{lang}]: пустой ответ, переключаюсь на OpenAI TTS")
-        except Exception as e:
-            logger.warning(f"⚠️ edge-tts ошибка: {e}, переключаюсь на OpenAI TTS")
-
-        # Попытка 2: OpenAI TTS (fallback, платный)
+        # Попытка 1: OpenAI TTS (основной, лучшее качество и ударения)
         if self.openai_client:
             try:
                 audio = self._openai_tts(text, voices["openai"])
@@ -91,9 +80,20 @@ class TTSEngine:
                     logger.info(f"🔊 OpenAI TTS [{lang}]: {len(audio)} байт")
                     return audio
                 else:
-                    logger.warning(f"⚠️ OpenAI TTS [{lang}]: пустой ответ")
+                    logger.warning(f"⚠️ OpenAI TTS [{lang}]: пустой ответ, переключаюсь на edge-tts")
             except Exception as e:
-                logger.error(f"❌ OpenAI TTS тоже упал: {e}")
+                logger.warning(f"⚠️ OpenAI TTS ошибка: {e}, переключаюсь на edge-tts")
+
+        # Попытка 2: edge-tts (fallback, бесплатный)
+        try:
+            audio = self._edge_tts_sync(text, voices["edge"])
+            if audio:
+                logger.info(f"🔊 edge-tts [{lang}]: {len(audio)} байт")
+                return audio
+            else:
+                logger.warning(f"⚠️ edge-tts [{lang}]: пустой ответ")
+        except Exception as e:
+            logger.error(f"❌ edge-tts тоже упал: {e}")
 
         logger.error(f"❌ TTS [{lang}]: все движки не дали результата для '{text[:30]}...'")
         return None

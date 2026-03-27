@@ -463,7 +463,7 @@ async def serve_privacy():
 # ===========================================================================
 # Solo TTS буфер — накапливаем переводы, озвучиваем пакетами каждые N сек
 # ===========================================================================
-TTS_BUFFER_INTERVAL = 5  # секунд
+TTS_BUFFER_INTERVAL = 6  # секунд
 
 async def _tts_buffer_flush(buffer: list, target_lang: str, ws: WebSocket):
     """Взять накопленные переводы, суммаризировать через GPT, отдать в TTS."""
@@ -490,11 +490,12 @@ async def _tts_buffer_flush(buffer: list, target_lang: str, ws: WebSocket):
                     "content": (
                         f"You are a real-time speech interpreter. "
                         f"The following is a raw machine translation of a speech fragment in {lang_name}. "
-                        f"Rewrite it as natural, fluent, speakable {lang_name} speech. "
-                        f"Preserve ALL names, locations, numbers and key facts. "
-                        f"You may compress or rephrase to improve flow, but never lose meaning. "
-                        f"If the text is already short and clear — return it as-is. "
-                        f"Output ONLY the final text. No explanations."
+                        "Rewrite it as natural, lively, conversational {lang_name} speech ready for TTS. "
+                        "Preserve ALL names, locations, numbers and key facts exactly. "
+                        "Connect fragments into complete, meaningful sentences with natural flow. "
+                        "You may compress repeated or redundant parts, but never lose key meaning. "
+                        "Add natural spoken connectors (well, so, you know, actually) only if they improve flow. "
+                        "Output ONLY the final text. No line breaks. No explanations."
                     )
                 }, {
                     "role": "user",
