@@ -84,7 +84,7 @@ class Translator:
         "- Output ONLY the corrected phrase, nothing else."
     )
 
-    def __init__(self, cache_size: int = 50, context_size: int = 5):
+    def __init__(self, cache_size: int = 50, context_size: int = 10):
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             logger.warning("⚠️ OPENAI_API_KEY не задан! Перевод будет недоступен.")

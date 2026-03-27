@@ -183,8 +183,8 @@ class DeepgramTranscriber:
         params = [
             "model=nova-2",
             "interim_results=true",
-            "utterance_end_ms=1000",
-            "endpointing=150",
+            "utterance_end_ms=1500",
+            "endpointing=300",
             "encoding=linear16",
             f"sample_rate={SAMPLE_RATE}",
             "channels=1",
