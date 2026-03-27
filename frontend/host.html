@@ -2169,9 +2169,8 @@
             }
 
             const micLbl = document.getElementById('micSelectorLabel');
-            const micRefBtn = document.querySelector('.mic-refresh-btn');
             if (micLbl) micLbl.textContent = t('micLabel');
-            if (micRefBtn) micRefBtn.title = t('micRefreshTitle');
+            document.querySelectorAll('.mic-refresh-btn').forEach(btn => btn.title = t('micRefreshTitle'));
 
             // Синхронизируем room-селектор — копируем options из solo-селектора
             const roomMicSel = document.getElementById('roomMicDeviceSelect');

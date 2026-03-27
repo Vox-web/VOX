@@ -974,6 +974,7 @@
     // --- Состояние ---
     let isListening = false;
     let ws = null;
+    let _lastFinalOriginal = '—'; // финальный оригинал для истории (не перезаписывается interim)
     let audioContext = null;
     let audioWorkletNode = null;
     let mediaStream = null;
@@ -1046,7 +1047,14 @@
 
     function handleJsonMessage(msg) {
         if (msg.type === 'transcript') {
-            originalText.textContent = msg.text || '—';
+            if (msg.is_final) {
+                _lastFinalOriginal = msg.text || '—';
+                originalText.textContent = _lastFinalOriginal;
+                originalText.style.opacity = '1';
+            } else {
+                originalText.textContent = '🎤 ' + (msg.text || '');
+                originalText.style.opacity = '0.7';
+            }
             if (msg.language) {
                 originalText.title = t('langTooltip') !== undefined
                     ? UI_STRINGS[currentUILang].langTooltip(msg.language, Math.round(msg.confidence * 100))
@@ -1055,7 +1063,7 @@
         }
         else if (msg.type === 'translation') {
             translationText.textContent = msg.text || '—';
-            addToHistory(originalText.textContent, msg.text, msg.lang_from, msg.lang_to);
+            addToHistory(_lastFinalOriginal, msg.text, msg.lang_from, msg.lang_to);
         }
     }
 
@@ -1466,6 +1474,7 @@
             mainBtn.textContent = t('btnListen');
 
             stopMicrophone();
+            _micPausedForTts = false; // сброс флага — mic уже остановлен вручную
 
             if (ws) {
                 ws.close();
