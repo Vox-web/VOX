@@ -1651,7 +1651,7 @@
         };
 
         const filename = `vox-solo-history-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`;
-        pdfMake.createPdf(docDefinition).download(filename);
+        pdfMake.createPdf(docDefinition).open();
     }
 
     function addToHistory(original, translation, langFrom, langTo) {

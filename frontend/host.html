@@ -1739,7 +1739,7 @@
         };
 
         const filename = `vox-${mode}-history-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`;
-        pdfMake.createPdf(docDefinition).download(filename);
+        pdfMake.createPdf(docDefinition).open();
     }
         window.addEventListener('beforeunload', () => {
         sessionStorage.removeItem('vox_hist_solo');
