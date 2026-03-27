@@ -466,7 +466,6 @@ async def serve_privacy():
 TTS_BUFFER_INTERVAL = 6  # секунд
 
 async def _tts_buffer_flush(buffer: list, target_lang: str, ws: WebSocket):
-    """Взять накопленные переводы, суммаризировать через GPT, отдать в TTS."""
     if not buffer:
         return
     combined = " ".join(buffer)
@@ -490,12 +489,12 @@ async def _tts_buffer_flush(buffer: list, target_lang: str, ws: WebSocket):
                     "content": (
                         f"You are a real-time speech interpreter. "
                         f"The following is a raw machine translation of a speech fragment in {lang_name}. "
-                        "Rewrite it as natural, lively, conversational {lang_name} speech ready for TTS. "
-                        "Preserve ALL names, locations, numbers and key facts exactly. "
-                        "Connect fragments into complete, meaningful sentences with natural flow. "
-                        "You may compress repeated or redundant parts, but never lose key meaning. "
-                        "Add natural spoken connectors (well, so, you know, actually) only if they improve flow. "
-                        "Output ONLY the final text. No line breaks. No explanations."
+                        f"Rewrite it as natural, lively, conversational {lang_name} speech ready for TTS. "
+                        f"Preserve ALL names, locations, numbers and key facts exactly. "
+                        f"Connect fragments into complete, meaningful sentences with natural flow. "
+                        f"You may compress repeated or redundant parts, but never lose key meaning. "
+                        f"Add natural spoken connectors (well, so, you know, actually) only if they improve flow. "
+                        f"Output ONLY the final text. No line breaks. No explanations."
                     )
                 }, {
                     "role": "user",
@@ -521,7 +520,6 @@ async def _tts_buffer_flush(buffer: list, target_lang: str, ws: WebSocket):
 
 
 async def _tts_buffer_ticker(buffer: list, get_target_lang, get_tts_enabled, ws: WebSocket):
-    """Каждые TTS_BUFFER_INTERVAL сек — флашим буфер если есть что озвучить."""
     while True:
         await asyncio.sleep(TTS_BUFFER_INTERVAL)
         if get_tts_enabled() and buffer:
@@ -588,7 +586,6 @@ async def websocket_solo(ws: WebSocket):
 
     billing_task = asyncio.create_task(billing_tick())
 
-    # TTS буфер — накапливает переводы для пакетной озвучки
     _tts_buffer: list = []
     tts_ticker_task = asyncio.create_task(
         _tts_buffer_ticker(
