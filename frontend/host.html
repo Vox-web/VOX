@@ -1413,9 +1413,6 @@
                 else soloStartFallback();
             }
         };
-        window.addEventListener('online', () => {
-            if (soloListening && (!soloWs || soloWs.readyState === WebSocket.CLOSED)) soloConnectWS();
-        });
         soloWs.onerror = () => soloSetStatus('soloStatusError');
         soloWs.onmessage = e => {
             if (e.data instanceof ArrayBuffer) { _audioMsg(e.data); return; }
@@ -1694,9 +1691,6 @@
             setTimeout(connectRoomWS, 500);
         };
 
-        window.addEventListener('online', () => {
-            if (roomId && (!roomWs || roomWs.readyState === WebSocket.CLOSED)) connectRoomWS();
-        });
         roomWs.onerror = () => roomSetStatus('roomStatusDisconnected');
         roomWs.onmessage = e => {
             if (e.data instanceof ArrayBuffer) _audioMsg(e.data);
@@ -1802,6 +1796,13 @@
 
     applyI18n(false);
     _updateTtsBtn();
+    // Единственные глобальные online-listeners — не дублируются при реконнектах
+    window.addEventListener('online', () => {
+        if (soloListening && (!soloWs || soloWs.readyState === WebSocket.CLOSED)) soloConnectWS();
+    });
+    window.addEventListener('online', () => {
+        if (roomId && (!roomWs || roomWs.readyState === WebSocket.CLOSED)) connectRoomWS();
+    });
     // Восстановление комнаты после рефреша
     const savedRoom = sessionStorage.getItem('vox_host_room');
     if (savedRoom) {

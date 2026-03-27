@@ -909,10 +909,6 @@
             if (guestId && !_wasKicked) setTimeout(connectGuestWS, 500);
         };
 
-        window.addEventListener('online', () => {
-            if (guestId && (!ws || ws.readyState === WebSocket.CLOSED)) connectGuestWS();
-        });
-
         ws.onerror = (err) => {
             console.error('[VOX guest] ws error', err);
             statusDot.className = 'status-dot';
@@ -998,15 +994,15 @@
                 const indicator = document.getElementById('speakerIndicator');
                 const nameEl = document.getElementById('speakerName');
                 if (msg.guest_id) {
+                    // Гость получил слово
                     currentSpeaker = msg.display_name || 'Guest';
                     nameEl.textContent = '🎤 ' + (msg.display_name || 'Guest') + ' ' + t('speaking');
                     indicator.style.display = 'block';
-                } else if (msg.guest_id === null) {
+                } else {
+                    // null или undefined → хост говорит (или никто)
                     currentSpeaker = 'Host';
                     nameEl.textContent = '🎤 ' + t('hostSpeaking');
                     indicator.style.display = 'block';
-                } else {
-                    indicator.style.display = 'none';
                 }
                 break;
 
@@ -1140,6 +1136,7 @@
     let guestMicObj = null;
     let guestMicMeta = null;
     let guestMicPreparing = null;
+    let _currentMicAbortToken = null;   // для отмены гонки prepareGuestMic vs stopGuestMic
     let guestFirstChunkArrived = false;
     let guestFirstChunkBlocked = false;
     let guestFirstChunkSent = false;
@@ -1296,8 +1293,14 @@
 
         guestFirstChunkSent = false;
         guestFirstChunkBlocked = false;
+        guestFirstChunkArrived = false;  // сбрасываем для корректного повторного логирования
         clearGuestPreRoll();
         serverLog('mic_prepare_begin', { reason });
+
+        // Токен отмены: если stopGuestMic() вызовут пока getUserMedia ещё висит,
+        // мы это заметим и не присвоим guestMicObj устаревшим треком.
+        const _abortToken = {};
+        _currentMicAbortToken = _abortToken;
 
         guestMicPreparing = (async () => {
             const mic = await _mic('VoxGP', buf => {
@@ -1402,6 +1405,14 @@
                     });
                 }
             });
+
+            // Если stopGuestMic() был вызван пока мы ждали getUserMedia —
+            // трек уже не нужен, останавливаем его и выходим.
+            if (_abortToken !== _currentMicAbortToken) {
+                serverLog('mic_prepare_aborted', { reason });
+                try { mic.stop(); } catch (_) {}
+                return null;
+            }
 
             guestMicObj = mic;
             guestMicMeta = mic?.meta || null;
@@ -1560,6 +1571,7 @@
     guestMicObj = null;
     guestMicMeta = null;
     guestMicPreparing = null;
+    _currentMicAbortToken = null;   // инвалидируем любой висящий prepareGuestMic
     guestFirstChunkArrived = false;
     guestFirstChunkBlocked = false;
     guestFirstChunkSent = false;
@@ -1811,6 +1823,10 @@
     // Init i18n
     applyI18n();
     populateSpeakerDevices();
+    // Один глобальный listener — не дублируется при реконнектах
+    window.addEventListener('online', () => {
+        if (guestId && !_wasKicked && (!ws || ws.readyState === WebSocket.CLOSED)) connectGuestWS();
+    });
     console.log('VOX Guest v0.6.0');
     </script>
 </body>
