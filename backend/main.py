@@ -461,6 +461,73 @@ async def serve_privacy():
 
 
 # ===========================================================================
+# Solo TTS буфер — накапливаем переводы, озвучиваем пакетами каждые N сек
+# ===========================================================================
+TTS_BUFFER_INTERVAL = 5  # секунд
+
+async def _tts_buffer_flush(buffer: list, target_lang: str, ws: WebSocket):
+    """Взять накопленные переводы, суммаризировать через GPT, отдать в TTS."""
+    if not buffer:
+        return
+    combined = " ".join(buffer)
+    buffer.clear()
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        lang_names = {
+            "uk": "Ukrainian", "ru": "Russian", "en": "English",
+            "de": "German", "pl": "Polish", "fr": "French",
+            "zh": "Chinese", "es": "Spanish", "it": "Italian",
+            "pt": "Portuguese", "ja": "Japanese", "ko": "Korean",
+            "ar": "Arabic", "tr": "Turkish", "hi": "Hindi",
+        }
+        lang_name = lang_names.get(target_lang, target_lang)
+        response = await asyncio.to_thread(
+            lambda: client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{
+                    "role": "system",
+                    "content": (
+                        f"You are a real-time speech interpreter. "
+                        f"The following is a raw machine translation of a speech fragment in {lang_name}. "
+                        f"Rewrite it as natural, fluent, speakable {lang_name} speech. "
+                        f"Preserve ALL names, locations, numbers and key facts. "
+                        f"You may compress or rephrase to improve flow, but never lose meaning. "
+                        f"If the text is already short and clear — return it as-is. "
+                        f"Output ONLY the final text. No explanations."
+                    )
+                }, {
+                    "role": "user",
+                    "content": combined
+                }],
+                temperature=0.2,
+                max_tokens=400,
+            )
+        )
+        polished = response.choices[0].message.content.strip()
+        logger.info(f"🎙 TTS buffer flush [{target_lang}]: {combined[:60]} → {polished[:60]}")
+        audio_bytes = await asyncio.to_thread(tts_engine.synthesize, polished, target_lang)
+        if audio_bytes:
+            await ws.send_bytes(b"AUDIO:" + audio_bytes)
+    except Exception as e:
+        logger.warning(f"TTS buffer flush error: {e}")
+        try:
+            audio_bytes = await asyncio.to_thread(tts_engine.synthesize, combined, target_lang)
+            if audio_bytes:
+                await ws.send_bytes(b"AUDIO:" + audio_bytes)
+        except Exception:
+            pass
+
+
+async def _tts_buffer_ticker(buffer: list, get_target_lang, get_tts_enabled, ws: WebSocket):
+    """Каждые TTS_BUFFER_INTERVAL сек — флашим буфер если есть что озвучить."""
+    while True:
+        await asyncio.sleep(TTS_BUFFER_INTERVAL)
+        if get_tts_enabled() and buffer:
+            await _tts_buffer_flush(buffer, get_target_lang(), ws)
+
+
+# ===========================================================================
 # WebSocket: Solo режим (Phase 3 proxy: аудіо → Railway → Deepgram)
 # ===========================================================================
 @app.websocket("/ws/solo")
@@ -520,6 +587,17 @@ async def websocket_solo(ws: WebSocket):
 
     billing_task = asyncio.create_task(billing_tick())
 
+    # TTS буфер — накапливает переводы для пакетной озвучки
+    _tts_buffer: list = []
+    tts_ticker_task = asyncio.create_task(
+        _tts_buffer_ticker(
+            _tts_buffer,
+            lambda: session_config["target_lang"],
+            lambda: session_tts_enabled,
+            ws,
+        )
+    )
+
     dg = DeepgramTranscriber()
     src_lang = session_config.get("source_lang") or "uk"
     await dg.start(language=src_lang)
@@ -552,11 +630,7 @@ async def websocket_solo(ws: WebSocket):
                             "lang_to": target_lang,
                         })
                         if session_tts_enabled:
-                            audio_bytes = await asyncio.to_thread(
-                                tts_engine.synthesize, translated, target_lang,
-                            )
-                            if audio_bytes:
-                                await ws.send_bytes(b"AUDIO:" + audio_bytes)
+                            _tts_buffer.append(translated)
                     else:
                         # Язык источника == язык вывода:
                         # корректируем ASR-ошибки через GPT (без перевода)
@@ -571,12 +645,7 @@ async def websocket_solo(ws: WebSocket):
                             "note": "asr_corrected",
                         })
                         if session_tts_enabled:
-                            # TTS озвучивает исправленный текст на том же языке
-                            audio_bytes = await asyncio.to_thread(
-                                tts_engine.synthesize, corrected, target_lang,
-                            )
-                            if audio_bytes:
-                                await ws.send_bytes(b"AUDIO:" + audio_bytes)
+                            _tts_buffer.append(corrected)
                     logger.info(f"📝 [{source_lang}→{target_lang}] {result.text[:60]}")
             except Exception as e:
                 if "disconnect" in str(e).lower():
@@ -625,6 +694,7 @@ async def websocket_solo(ws: WebSocket):
     finally:
         result_task.cancel()
         billing_task.cancel()
+        tts_ticker_task.cancel()
         try:
             await result_task
         except (asyncio.CancelledError, Exception):
