@@ -591,6 +591,7 @@ async def websocket_duo(ws: WebSocket):
     lang_a = "uk"
     lang_b = "en"
     session_tts_enabled = True
+    _last_duo_lang = [lang_a]  # отслеживаем последний известный язык
 
     try:
         first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
@@ -644,11 +645,15 @@ async def websocket_duo(ws: WebSocket):
                     "confidence": result.confidence,
                 })
                 if result.is_final and result.text.strip():
-                    detected = (result.language or "").split("-")[0]
-                    if detected == lang_b:
-                        src, tgt = lang_b, lang_a
-                    else:
-                        src, tgt = lang_a, lang_b
+                    if result.is_final and len(result.text.strip()) > 2:
+                        detected = (result.language or "").split("-")[0]
+                        if detected not in ('', 'unknown', 'multi'):
+                            _last_duo_lang[0] = detected
+                        effective = _last_duo_lang[0]
+                        if effective == lang_b:
+                            src, tgt = lang_b, lang_a
+                        else:
+                            src, tgt = lang_a, lang_b
                     translated = await asyncio.to_thread(
                         translator.translate, result.text, src, tgt
                     )
@@ -863,13 +868,15 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
                     })
                     if session.host_ws:
                         try:
+                            await session.host_ws.send_json({
+                                "type": "translation", "text": translated,
+                                "lang_from": session.lang_b, "lang_to": session.lang_a,
+                            })
                             audio = await asyncio.to_thread(
                                 tts_engine.synthesize, translated, session.lang_a
                             )
-                            if audio:
-                                await session.host_ws.send_bytes(b"AUDIO:" + audio)
-                        except Exception:
-                            pass
+                            if audio: await session.host_ws.send_bytes(b"AUDIO:" + audio)
+                        except Exception: pass
             except Exception as e:
                 if "disconnect" in str(e).lower():
                     break

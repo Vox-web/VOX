@@ -2066,7 +2066,7 @@
         };
         _duoRemoteWs.onmessage = e => {
             if (e.data instanceof ArrayBuffer) {
-                _audioMsg(e.data); return; // reuse existing audio queue
+                _playA(e.data.slice(6)); return; // всегда играть речь партнёра
             }
             const m = JSON.parse(e.data);
             _handleBillingWsMsg(m);
