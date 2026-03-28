@@ -591,7 +591,6 @@ async def websocket_duo(ws: WebSocket):
     lang_a = "uk"
     lang_b = "en"
     session_tts_enabled = True
-    _cur_src = ["uk"]  # текущий язык говорящего: lang_a -> lang_b -> lang_a
 
     try:
         first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
@@ -604,11 +603,22 @@ async def websocket_duo(ws: WebSocket):
                 lang_a = first.get("lang_a", "uk")
                 lang_b = first.get("lang_b", "en")
                 session_tts_enabled = bool(first.get("tts_enabled", True))
-                _cur_src[0] = lang_a
     except (asyncio.TimeoutError, Exception):
         pass
 
-    logger.info(f"🤝 Duo one-device: {lang_a}↔{lang_b} user={_user_id}")
+    logger.info(f"🤝 Duo one-device pair: {lang_a}↔{lang_b} user={_user_id}")
+
+    # Пары, которые реально поддерживаются в nova-3 multi
+    MULTI_LANGS = {"en", "es", "fr", "de", "hi", "ru", "pt", "ja", "it", "nl"}
+
+    if lang_a not in MULTI_LANGS or lang_b not in MULTI_LANGS:
+        await ws.send_json({
+            "type": "error",
+            "message": f"One-device auto mode is not supported for pair {lang_a}↔{lang_b}.",
+            "code": "pair_not_supported",
+        })
+        await ws.close()
+        return
 
     async def billing_tick():
         if not _user_id:
@@ -629,14 +639,7 @@ async def websocket_duo(ws: WebSocket):
     billing_task = asyncio.create_task(billing_tick())
 
     dg = DeepgramTranscriber()
-    await dg.start(language=_cur_src[0])
-
-    async def _restart_duo_transcriber():
-        try:
-            await dg.stop()
-        except Exception:
-            pass
-        await dg.start(language=_cur_src[0])
+    await dg.start(language="multi", model="nova-3")
 
     async def handle_results():
         while True:
@@ -654,32 +657,53 @@ async def websocket_duo(ws: WebSocket):
                     "confidence": result.confidence,
                 })
 
-                if result.is_final and result.text.strip():
-                    src = _cur_src[0]
-                    tgt = lang_b if src == lang_a else lang_a
+                if not (result.is_final and result.text and result.text.strip()):
+                    continue
 
-                    translated = await asyncio.to_thread(
-                        translator.translate, result.text, src, tgt
+                text = result.text.strip()
+                detected = (result.language or "").split("-")[0]
+
+                # Берём только язык из жёстко заданной пары
+                if detected not in (lang_a, lang_b):
+                    logger.info(
+                        f"🧭 Duo skip out-of-pair transcript: "
+                        f"text={text!r} detected={detected!r} pair={lang_a}/{lang_b}"
                     )
+                    continue
 
-                    await ws.send_json({
-                        "type": "translation",
-                        "text": translated,
-                        "lang_from": src,
-                        "lang_to": tgt,
-                    })
+                # Отсекаем слишком слабые короткие pseudo-final после interim_flush
+                if result.confidence < 0.65 and len(text.split()) <= 2:
+                    logger.info(
+                        f"🧭 Duo skip weak short final: "
+                        f"text={text!r} detected={detected!r} conf={result.confidence:.3f}"
+                    )
+                    continue
 
-                    if session_tts_enabled:
-                        audio_bytes = await asyncio.to_thread(
-                            tts_engine.synthesize, translated, tgt
-                        )
-                        if audio_bytes:
-                            await ws.send_bytes(b"AUDIO:" + audio_bytes)
+                src = detected
+                tgt = lang_b if detected == lang_a else lang_a
 
-                    logger.info(f"🤝 Duo [{src}→{tgt}] {result.text[:50]}")
+                translated = await asyncio.to_thread(
+                    translator.translate, text, src, tgt
+                )
 
-                    _cur_src[0] = tgt
-                    await _restart_duo_transcriber()
+                await ws.send_json({
+                    "type": "translation",
+                    "text": translated,
+                    "lang_from": src,
+                    "lang_to": tgt,
+                })
+
+                if session_tts_enabled:
+                    audio_bytes = await asyncio.to_thread(
+                        tts_engine.synthesize, translated, tgt
+                    )
+                    if audio_bytes:
+                        await ws.send_bytes(b"AUDIO:" + audio_bytes)
+
+                logger.info(
+                    f"🤝 Duo [{src}→{tgt}] "
+                    f"text={text[:80]!r} conf={result.confidence:.3f}"
+                )
 
             except Exception as e:
                 if "disconnect" in str(e).lower():
@@ -698,7 +722,7 @@ async def websocket_duo(ws: WebSocket):
 
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
-                    await dg.start(language=_cur_src[0])
+                    await dg.start(language="multi", model="nova-3")
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
@@ -711,12 +735,24 @@ async def websocket_duo(ws: WebSocket):
                         _user_id = _user["id"] if _user else None
 
                     elif msg_type == "config":
-                        lang_a = msg.get("lang_a", lang_a)
-                        lang_b = msg.get("lang_b", lang_b)
+                        new_a = msg.get("lang_a", lang_a)
+                        new_b = msg.get("lang_b", lang_b)
                         session_tts_enabled = bool(msg.get("tts_enabled", session_tts_enabled))
-                        _cur_src[0] = lang_a
-                        if dg.is_active:
-                            await _restart_duo_transcriber()
+
+                        if (new_a, new_b) != (lang_a, lang_b):
+                            lang_a, lang_b = new_a, new_b
+
+                            if lang_a not in MULTI_LANGS or lang_b not in MULTI_LANGS:
+                                await ws.send_json({
+                                    "type": "error",
+                                    "message": f"One-device auto mode is not supported for pair {lang_a}↔{lang_b}.",
+                                    "code": "pair_not_supported",
+                                })
+                                await ws.close()
+                                return
+
+                            await dg.stop()
+                            await dg.start(language="multi", model="nova-3")
 
                     elif msg_type == "ping":
                         pass

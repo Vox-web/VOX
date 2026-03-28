@@ -149,7 +149,12 @@ class DeepgramTranscriber:
         except asyncio.CancelledError:
             pass
 
-    async def start(self, language: Optional[str] = None, input_sample_rate: Optional[int] = None):
+    async def start(
+        self,
+        language: Optional[str] = None,
+        input_sample_rate: Optional[int] = None,
+        model: Optional[str] = None,
+    ):
         """
         Открыть новую сессию транскрипции.
 
@@ -181,7 +186,7 @@ class DeepgramTranscriber:
 
         # Параметры Deepgram
         params = [
-            "model=nova-2",
+            f"model={selected_model}",
             "interim_results=true",
             "utterance_end_ms=1500",
             "endpointing=300",
@@ -191,11 +196,12 @@ class DeepgramTranscriber:
             "punctuate=true",
         ]
 
-        if language:
+        if language == "multi":
+            params.append("language=multi")
+        elif language:
             params.append(f"language={language}")
         else:
-            # Streaming не поддерживает detect_language=true
-            # Nova-2 поддерживает language=multi для авто-определения
+            # Для streaming auto mode используем multilingual режим
             params.append("language=multi")
 
         url = f"wss://api.deepgram.com/v1/listen?{'&'.join(params)}"
