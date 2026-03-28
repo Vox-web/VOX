@@ -2010,6 +2010,9 @@
     function startDuoLocal() {
         const langA = document.getElementById('duoLangASelect').value;
         const langB = document.getElementById('duoLangBSelect').value;
+        // Prime audio element on user gesture — required for mobile autoplay policy
+        _duoAEl.src = 'data:audio/mpeg;base64,/+MYxAAAAANIAAAAAExBTUUzLjk4LjIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+        _duoAEl.play().catch(() => {});
         showScreen('screenDuo');
         document.getElementById('duoStatusDot').className = 'status-dot';
         document.getElementById('duoStatusText').textContent = t('duoStatusConnecting');
@@ -2079,6 +2082,9 @@
     async function startDuoRemote() {
         const langA = document.getElementById('duoLangASelect').value;
         const langB = document.getElementById('duoLangBSelect').value;
+        // Prime audio element on user gesture — required for mobile autoplay policy
+        _duoAEl.src = 'data:audio/mpeg;base64,/+MYxAAAAANIAAAAAExBTUUzLjk4LjIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+        _duoAEl.play().catch(() => {});
         const btn = document.getElementById('btnDuoRemote');
         btn.disabled = true; btn.textContent = '...';
         try {
