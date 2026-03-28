@@ -431,12 +431,30 @@ class DeepgramTranscriber:
                 is_final = data.get("is_final", False)
                 speech_final = data.get("speech_final", False)
 
-                # Определяем язык (для auto-detect)
-                lang = self._language
-                if not lang:
-                    detected = channel.get("detected_language")
-                    if detected:
-                        lang = detected
+                # Определяем язык
+                if self._language == "multi":
+                    # Для multilingual streaming Deepgram возвращает languages[]
+                    # и word-level language в alternatives[0]
+                    langs = alt.get("languages") or []
+                    words = alt.get("words") or []
+
+                    if langs:
+                        lang = langs[0]
+                    elif words:
+                        counts = {}
+                        for w in words:
+                            wl = w.get("language")
+                            if wl:
+                                counts[wl] = counts.get(wl, 0) + 1
+                        lang = max(counts, key=counts.get) if counts else "unknown"
+                    else:
+                        lang = "unknown"
+                else:
+                    lang = self._language
+                    if not lang:
+                        detected = channel.get("detected_language")
+                        if detected:
+                            lang = detected
 
                 if not text:
                     self._debug_empty_results_seen += 1
