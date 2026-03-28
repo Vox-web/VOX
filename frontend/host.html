@@ -933,6 +933,9 @@
             </div>
             <div class="divider"></div>
             <div class="card-label i18n" style="padding:0 4px;" id="duoLabelHist">Історія</div>
+            <div style="display:flex;justify-content:flex-end;padding:0 4px 8px;">
+                <button class="room-share-btn i18n" id="duoDownloadPdfBtn" type="button" onclick="downloadHistoryPdf('duo')">⬇ PDF</button>
+            </div>
             <div class="history" id="duoHistory"></div>
         </div>
 
@@ -976,6 +979,9 @@
             </div>
             <div class="divider"></div>
             <div class="card-label i18n" style="padding:0 4px;" id="duoRemoteLabelHist">Історія</div>
+            <div style="display:flex;justify-content:flex-end;padding:0 4px 8px;">
+                <button class="room-share-btn i18n" id="duoRemoteDownloadPdfBtn" type="button" onclick="downloadHistoryPdf('duo')">⬇ PDF</button>
+            </div>
             <div class="history" id="duoRemoteHistory"></div>
             <button class="btn btn-danger i18n" onclick="closeDuoRemote()" id="btnCloseDuo" style="margin-top:6px;">Закрити сесію</button>
         </div>
@@ -1131,7 +1137,7 @@
             pwaInstallLabel: 'Додати на головний екран',
             topupTitle: 'Поповнити баланс', topupBalLabel: 'Поточний баланс', topupMinLabel: 'хв Solo', topupClose: 'Закрити',
             soloSwapBtn: '⇄ Поміняти мови', downloadPdf: '⬇ PDF',
-            pdfTitleSolo: 'Історія перекладу (Solo)', pdfTitleRoom: 'Історія перекладу (Room)',
+            pdfTitleSolo: 'Історія перекладу (Solo)', pdfTitleRoom: 'Історія перекладу (Room)', pdfTitleDuo: 'Історія діалогу (Duo)',
             pdfEmpty: 'Історія порожня', pdfOriginalLabel: 'Оригінал', pdfTranslationLabel: 'Переклад', themeToLight: 'Світла тема', themeToDark: 'Темна тема',
             micLabel: '🎤 Мікрофон:', micDefault: 'За замовчуванням', micRefreshTitle: 'Оновити список',
             micHint: '💡 «За замовчуванням» — браузер вибирає мікрофон сам. Якщо підключена гарнітура і хочете записувати зовнішній звук — виберіть «За замовчуванням» і вимкніть мікрофон гарнітури фізично. Вбудований мікрофон телефону краще чує дальні джерела звуку.',
@@ -1186,7 +1192,7 @@
             pwaInstallLabel: 'Add to Home Screen',
             topupTitle: 'Top Up Balance', topupBalLabel: 'Current balance', topupMinLabel: 'min Solo', topupClose: 'Close',
             soloSwapBtn: '⇄ Swap languages', downloadPdf: '⬇ PDF',
-            pdfTitleSolo: 'Translation history (Solo)', pdfTitleRoom: 'Translation history (Room)',
+            pdfTitleSolo: 'Translation history (Solo)', pdfTitleRoom: 'Translation history (Room)', pdfTitleDuo: 'Dialogue history (Duo)',
             pdfEmpty: 'History is empty', pdfOriginalLabel: 'Original', pdfTranslationLabel: 'Translation', themeToLight: 'Light theme', themeToDark: 'Dark theme',
             micLabel: '🎤 Microphone:', micDefault: 'Default', micRefreshTitle: 'Refresh list',
             micHint: '💡 "Default" lets the browser pick the microphone automatically. If you wear headphones and want to capture external sound — choose "Default" and physically disable the headset mic. The phone\'s built-in mic generally picks up distant sound sources better.',
@@ -1241,7 +1247,7 @@
             pwaInstallLabel: 'Zum Startbildschirm hinzufügen',
             topupTitle: 'Guthaben aufladen', topupBalLabel: 'Aktuelles Guthaben', topupMinLabel: 'Min Solo', topupClose: 'Schließen',
             soloSwapBtn: '⇄ Sprachen tauschen', downloadPdf: '⬇ PDF',
-            pdfTitleSolo: 'Übersetzungsverlauf (Solo)', pdfTitleRoom: 'Übersetzungsverlauf (Room)',
+            pdfTitleSolo: 'Übersetzungsverlauf (Solo)', pdfTitleRoom: 'Übersetzungsverlauf (Room)', pdfTitleDuo: 'Dialogverlauf (Duo)',
             pdfEmpty: 'Verlauf ist leer', pdfOriginalLabel: 'Original', pdfTranslationLabel: 'Übersetzung', themeToLight: 'Helles Thema', themeToDark: 'Dunkles Thema',
             micLabel: '🎤 Mikrofon:', micDefault: 'Standard', micRefreshTitle: 'Liste aktualisieren',
             micHint: '💡 „Standard" lässt den Browser das Mikrofon automatisch wählen. Wenn Sie Kopfhörer tragen und externen Ton aufnehmen möchten — wählen Sie „Standard" und deaktivieren Sie das Headset-Mikrofon physisch. Das eingebaute Telefonmikrofon erfasst entfernte Tonquellen in der Regel besser.',
@@ -1317,9 +1323,13 @@
             const soloSwapBtn = document.getElementById('soloSwapBtn');
             const soloDownloadPdfBtn = document.getElementById('soloDownloadPdfBtn');
             const roomDownloadPdfBtn = document.getElementById('roomDownloadPdfBtn');
+            const duoDownloadPdfBtn = document.getElementById('duoDownloadPdfBtn');
+            const duoRemoteDownloadPdfBtn = document.getElementById('duoRemoteDownloadPdfBtn');
             if (soloSwapBtn) soloSwapBtn.textContent = t('soloSwapBtn');
             if (soloDownloadPdfBtn) soloDownloadPdfBtn.textContent = t('downloadPdf');
             if (roomDownloadPdfBtn) roomDownloadPdfBtn.textContent = t('downloadPdf');
+            if (duoDownloadPdfBtn) duoDownloadPdfBtn.textContent = t('downloadPdf');
+            if (duoRemoteDownloadPdfBtn) duoRemoteDownloadPdfBtn.textContent = t('downloadPdf');
             const noteEl = document.getElementById('roomCostNote');
             if(noteEl){
                 const tpl = (I18N[uiLang]||I18N.uk).roomCostNote;
@@ -1442,7 +1452,9 @@
         it.innerHTML = `<div class="history-time">${who}${tm}</div><div class="history-original">${_esc(o)}</div><div class="history-translation">${_esc(tr)}</div>`;
         el.insertBefore(it, el.firstChild);
         while (el.children.length > 20) el.removeChild(el.lastChild);
-        const key = el.id === 'roomHistory' ? 'vox_hist_room' : 'vox_hist_solo';
+        const key = el.id === 'roomHistory' ? 'vox_hist_room'
+                  : (el.id === 'duoHistory' || el.id === 'duoRemoteHistory') ? 'vox_hist_duo'
+                  : 'vox_hist_solo';
         const shortArr = JSON.parse(sessionStorage.getItem(key) || '[]');
         shortArr.unshift({o, tr, speaker, tm});
         if (shortArr.length > 20) shortArr.length = 20;
@@ -1458,19 +1470,6 @@
     function _playA(mp3) { aQ.push(mp3); if (!aPlaying) _pQ(); }
     function _notifyTtsDone() {
         if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(JSON.stringify({type:'tts_done'}));
-        // Duo: resume mic after TTS queue drains
-        if (_duoMicPaused) {
-            _duoMicPaused = false;
-            if (_duoListening && _duoWs) {
-                _startDuoMic('VoxDL', _duoWs)
-                    .then(mic => { console.log('[DUO] mic resumed after TTS'); _duoMic = mic; })
-                    .catch(err => console.error('[DUO] mic resume failed after TTS', err));
-            } else if (_duoRemoteListening && _duoRemoteWs) {
-                _startDuoMic('VoxDR', _duoRemoteWs)
-                    .then(mic => { console.log('[DUO-REMOTE] mic resumed after TTS'); _duoRemoteMic = mic; })
-                    .catch(err => console.error('[DUO-REMOTE] mic resume failed after TTS', err));
-            }
-        }
     }
     function _pQ() {
         if (!aQ.length) { aPlaying=false; _curAudio=null; _curAudioUrl=null; _notifyTtsDone(); return; }
@@ -1834,7 +1833,9 @@
     }
 
     async function downloadHistoryPdf(mode) {
-        const key = mode === 'room' ? 'vox_hist_room_full' : 'vox_hist_solo_full';
+        const key = mode === 'room' ? 'vox_hist_room_full'
+                  : mode === 'duo'  ? 'vox_hist_duo_full'
+                  : 'vox_hist_solo_full';
         const rawItems = JSON.parse(sessionStorage.getItem(key) || '[]');
 
         if (!rawItems.length) {
@@ -1843,7 +1844,9 @@
         }
 
         const items = rawItems.slice().reverse();
-        const title = mode === 'room' ? t('pdfTitleRoom') : t('pdfTitleSolo');
+        const title = mode === 'room' ? t('pdfTitleRoom')
+                    : mode === 'duo'  ? t('pdfTitleDuo')
+                    : t('pdfTitleSolo');
 
         const content = [
             { text: title, style: 'title', margin: [0, 0, 0, 14] },
@@ -1925,6 +1928,8 @@
         sessionStorage.removeItem('vox_hist_solo_full');
         sessionStorage.removeItem('vox_hist_room');
         sessionStorage.removeItem('vox_hist_room_full');
+        sessionStorage.removeItem('vox_hist_duo');
+        sessionStorage.removeItem('vox_hist_duo_full');
     });
 
     document.getElementById('soloLangSelect').addEventListener('change', syncSoloConfig);
@@ -1939,19 +1944,58 @@
     const _duoVadEl = document.getElementById('duoVad');
     const _duoRemoteVadEl = document.getElementById('duoRemoteVad');
 
-    // ── Audio playback for Duo (reuses _audioMsg / _pQ infrastructure) ──
-    // One-device: mic pauses during TTS via _duoMicPaused flag
+    // ── Dedicated audio player for Duo ──
+    // Single persistent Audio element — better autoplay policy support than new Audio() each time.
+    // This also avoids the broken _notifyTtsDone override that caused infinite recursion.
     let _duoMicPaused = false;
+    const _duoAQ = [];          // audio queue (ArrayBuffer chunks)
+    let _duoABusy = false;      // true while an audio clip is playing
+    let _duoAUrl = null;        // current object URL (to revoke after play)
+    const _duoAEl = new Audio();
+
+    function _duoResumeMic() {
+        if (!_duoMicPaused) return;
+        _duoMicPaused = false;
+        if (_duoListening && _duoWs) {
+            _startDuoMic('VoxDL', _duoWs)
+                .then(mic => { console.log('[DUO] mic resumed after TTS'); _duoMic = mic; })
+                .catch(err => console.error('[DUO] mic resume err', err));
+        } else if (_duoRemoteListening && _duoRemoteWs) {
+            _startDuoMic('VoxDR', _duoRemoteWs)
+                .then(mic => { console.log('[DUO-REMOTE] mic resumed after TTS'); _duoRemoteMic = mic; })
+                .catch(err => console.error('[DUO-REMOTE] mic resume err', err));
+        }
+    }
+
+    function _duoDrain() {
+        if (_duoABusy || !_duoAQ.length) { if (!_duoAQ.length) _duoResumeMic(); return; }
+        _duoABusy = true;
+        if (_duoAUrl) { URL.revokeObjectURL(_duoAUrl); _duoAUrl = null; }
+        _duoAUrl = URL.createObjectURL(new Blob([_duoAQ.shift()], { type: 'audio/mpeg' }));
+        _duoAEl.src = _duoAUrl;
+        _applySinkId(_duoAEl).finally(() => {
+            _duoAEl.play().catch(e => {
+                console.warn('[DUO] play failed:', e);
+                _duoABusy = false;
+                _duoDrain();
+            });
+        });
+    }
+
+    _duoAEl.onended = () => {
+        _duoABusy = false;
+        if (_duoAUrl) { URL.revokeObjectURL(_duoAUrl); _duoAUrl = null; }
+        if (_duoAQ.length) { _duoDrain(); } else { _duoResumeMic(); }
+    };
+    _duoAEl.onerror = () => { _duoABusy = false; _duoDrain(); };
 
     function _duoPlayAudio(arrayBuffer) {
-        // Pause mic while playing
         if (_duoMic && !_duoMicPaused) {
             _duoMic.stop(); _duoMic = null; _duoMicPaused = true;
         }
-        _playA(arrayBuffer.slice(6)); // reuse existing queue
+        _duoAQ.push(arrayBuffer.slice(6));
+        _duoDrain();
     }
-
-    // Duo mic resume logic is now handled inside the single _notifyTtsDone() defined above.
 
     async function _startDuoMic(name, ws) {
         const mic = await _mic(name, buf => {
@@ -2025,6 +2069,10 @@
         _duoMic?.stop(); _duoMic = null;
         _duoWs?.close(); _duoWs = null;
         _duoMicPaused = false;
+        // Stop dedicated duo audio player
+        _duoAEl.pause(); _duoAEl.src = '';
+        _duoAQ.length = 0; _duoABusy = false;
+        if (_duoAUrl) { URL.revokeObjectURL(_duoAUrl); _duoAUrl = null; }
     }
 
     // ── Remote Duo ──
@@ -2111,6 +2159,10 @@
         _duoRemoteMic?.stop(); _duoRemoteMic = null;
         _duoRemoteWs?.close(); _duoRemoteWs = null;
         _duoId = null; _duoMicPaused = false;
+        // Stop dedicated duo audio player
+        _duoAEl.pause(); _duoAEl.src = '';
+        _duoAQ.length = 0; _duoABusy = false;
+        if (_duoAUrl) { URL.revokeObjectURL(_duoAUrl); _duoAUrl = null; }
         const prev = navStack.pop() || 'screenMenu';
         document.getElementById(curScreen).classList.remove('active');
         document.getElementById(prev).classList.add('active');
