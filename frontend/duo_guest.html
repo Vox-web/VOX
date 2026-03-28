@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VOX — Duo</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤝</text></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#09080f;--surface:#15121f;--surface2:#1e1930;
+  --border:#2a2340;--text:#f0eeff;--text2:#9b93c4;
+  --accent:#7c6aff;--green:#2dd4a0;--red:#ff5f7e;
+  --radius:14px;--shadow:0 2px 12px rgba(100,80,160,0.12);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:var(--bg);color:var(--text);min-height:100dvh;
+  display:flex;flex-direction:column;align-items:center;padding:16px;
+  -webkit-tap-highlight-color:transparent;}
+.container{width:100%;max-width:420px;display:flex;flex-direction:column;gap:14px;}
+.logo{font-size:24px;font-weight:700;color:var(--accent);letter-spacing:4px;text-align:center;padding:16px 0 4px;}
+.status-bar{display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:8px 16px;border-radius:20px;background:var(--surface);font-size:13px;box-shadow:var(--shadow);}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--red);transition:background 0.3s;}
+.status-dot.connected{background:var(--green);}
+.card{background:var(--surface);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);}
+.card.translation{border-left:3px solid var(--accent);}
+.card-label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:8px;}
+.card-text{font-size:16px;line-height:1.5;min-height:20px;word-wrap:break-word;}
+.card.translation .card-text{color:var(--accent);font-size:18px;}
+.card.original .card-text{color:var(--text2);}
+.vad-indicator{display:flex;align-items:center;justify-content:center;gap:3px;height:30px;margin:4px 0;}
+.vad-bar{width:3px;height:6px;background:var(--border);border-radius:2px;transition:height 0.1s,background 0.1s;}
+.vad-bar.active{background:var(--accent);}
+.main-btn{width:120px;height:120px;border-radius:50%;border:3px solid var(--accent);
+  background:transparent;color:var(--text);font-size:14px;font-weight:700;
+  cursor:pointer;transition:all 0.25s;margin:8px auto;display:block;letter-spacing:1px;}
+.main-btn.active{background:var(--accent);color:#fff;}
+.main-btn:hover{box-shadow:0 0 24px rgba(124,106,255,0.4);}
+.speaker-selector{display:flex;align-items:center;gap:8px;padding:0 4px;margin-top:4px;}
+.speaker-selector label{font-size:13px;color:var(--text2);white-space:nowrap;flex-shrink:0;}
+.speaker-selector select{flex:1;min-width:0;background:var(--surface2);color:var(--text);
+  border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;outline:none;cursor:pointer;}
+.speaker-selector select:focus{border-color:var(--accent);}
+.speaker-selector .spk-btn{background:none;border:1px solid var(--border);border-radius:8px;
+  color:var(--text2);font-size:15px;padding:6px 8px;cursor:pointer;flex-shrink:0;}
+.speaker-selector .spk-btn:hover{border-color:var(--accent);color:var(--accent);}
+.mic-selector{display:flex;align-items:center;gap:8px;padding:0 4px;margin-top:4px;}
+.mic-selector label{font-size:13px;color:var(--text2);white-space:nowrap;flex-shrink:0;}
+.mic-selector select{flex:1;min-width:0;background:var(--surface2);color:var(--text);
+  border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;outline:none;cursor:pointer;}
+.mic-selector .mic-btn{background:none;border:1px solid var(--border);border-radius:8px;
+  color:var(--text2);font-size:15px;padding:6px 8px;cursor:pointer;flex-shrink:0;}
+.mic-selector .mic-btn:hover{border-color:var(--accent);color:var(--accent);}
+.history{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;}
+.history-item{background:var(--surface2);border-radius:8px;padding:8px 10px;font-size:12px;}
+.history-time{color:var(--text2);font-size:11px;}
+.history-original{color:var(--text2);}
+.history-translation{color:var(--accent);margin-top:2px;}
+.divider{height:1px;background:var(--surface2);margin:2px 0;}
+.error-overlay{display:none;position:fixed;inset:0;background:rgba(9,8,15,0.92);
+  z-index:100;align-items:center;justify-content:center;flex-direction:column;
+  gap:16px;text-align:center;padding:24px;}
+.error-overlay.active{display:flex;}
+.error-overlay h2{font-size:22px;}
+.error-overlay p{color:var(--text2);font-size:14px;}
+.back-link{display:inline-flex;align-items:center;gap:6px;background:var(--accent);
+  color:#fff;text-decoration:none;font-size:14px;font-weight:600;
+  padding:10px 20px;border-radius:10px;margin-top:8px;}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">VOX · Duo</div>
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Підключення...</span>
+  </div>
+  <div class="mic-selector">
+    <label>🎤</label>
+    <select id="micSelect" onchange="onMicChange(this.value)"></select>
+    <button class="mic-btn" onclick="populateMic()">↺</button>
+  </div>
+  <div class="speaker-selector">
+    <label>🔊</label>
+    <select id="spkSelect" onchange="onSpkChange(this.value)"></select>
+    <button class="spk-btn" onclick="populateSpk()">↺</button>
+  </div>
+  <div class="vad-indicator" id="vadEl">
+    <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
+    <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
+    <div class="vad-bar"></div>
+  </div>
+  <button class="main-btn" id="mainBtn" onclick="toggle()" disabled>СТАРТ</button>
+  <div class="card original">
+    <div class="card-label">Оригінал</div>
+    <div class="card-text" id="origText">—</div>
+  </div>
+  <div class="card translation">
+    <div class="card-label">Переклад</div>
+    <div class="card-text" id="transText">—</div>
+  </div>
+  <div class="divider"></div>
+  <div class="card-label" style="padding:0 4px;">Історія</div>
+  <div class="history" id="histDiv"></div>
+</div>
+
+<div class="error-overlay" id="errorOverlay">
+  <h2>❌</h2>
+  <p id="errorMsg">Сесію завершено</p>
+  <a href="/" class="back-link">← VOX</a>
+</div>
+
+<script>
+const pathParts = location.pathname.split('/');
+const duoId = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
+
+let ws = null;
+let mic = null;
+let micPaused = false;
+let listening = false;
+let langB = 'en';
+let selectedMicId = localStorage.getItem('vox_guest_mic_id') || '';
+let selectedSpkId = localStorage.getItem('vox_speaker_id') || '';
+
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const mainBtn = document.getElementById('mainBtn');
+const origText = document.getElementById('origText');
+const transText = document.getElementById('transText');
+const histDiv = document.getElementById('histDiv');
+const vadBars = document.querySelectorAll('.vad-bar');
+
+// Audio queue
+const audioQueue = [];
+let isPlaying = false;
+const _audioPlayer = new Audio();
+
+_audioPlayer.onended = () => {
+  isPlaying = false;
+  processQueue();
+  if (micPaused && listening) {
+    micPaused = false;
+    startMic().then(m => { mic = m; });
+  }
+};
+_audioPlayer.onerror = () => { isPlaying = false; processQueue(); };
+
+function processQueue() {
+  if (!audioQueue.length) { isPlaying = false; return; }
+  isPlaying = true;
+  const mp3 = audioQueue.shift();
+  // Pause mic during TTS
+  if (mic && !micPaused) {
+    mic.stop(); mic = null; micPaused = true;
+  }
+  const blob = new Blob([mp3], {type:'audio/mpeg'});
+  const url = URL.createObjectURL(blob);
+  _audioPlayer.src = url;
+  _applySinkId().finally(() => _audioPlayer.play().catch(() => { isPlaying = false; processQueue(); }));
+}
+
+async function _applySinkId() {
+  if (selectedSpkId && _audioPlayer.setSinkId) {
+    try { await _audioPlayer.setSinkId(selectedSpkId); } catch(_) {}
+  }
+}
+
+// Init
+(async () => {
+  try {
+    const info = await fetch(`/api/duo/${duoId}/info`).then(r => r.json());
+    langB = info.lang_b;
+  } catch(e) {
+    showError('Сесію не знайдено');
+    return;
+  }
+  await populateMic();
+  await populateSpk();
+  connectWS();
+})();
+
+function connectWS() {
+  const p = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${p}//${location.host}/ws/duo/${duoId}/guest`);
+  ws.binaryType = 'arraybuffer';
+
+  ws.onopen = () => {
+    statusDot.className = 'status-dot connected';
+    statusText.textContent = 'Готово — говоріть!';
+    mainBtn.disabled = false;
+  };
+  ws.onclose = () => {
+    statusDot.className = 'status-dot';
+    statusText.textContent = 'Відключено';
+    mainBtn.disabled = true;
+  };
+  ws.onerror = () => { statusText.textContent = 'Помилка з\'єднання'; };
+  ws.onmessage = e => {
+    if (e.data instanceof ArrayBuffer) {
+      const prefix = new TextDecoder().decode(new Uint8Array(e.data, 0, 6));
+      if (prefix === 'AUDIO:') {
+        audioQueue.push(e.data.slice(6));
+        if (!isPlaying) processQueue();
+      }
+      return;
+    }
+    const m = JSON.parse(e.data);
+    if (m.type === 'transcript') {
+      origText.textContent = m.is_final ? (m.text || '—') : '🎤 ' + m.text;
+    } else if (m.type === 'translation') {
+      transText.textContent = m.text || '—';
+      addHistory(origText.textContent, m.text);
+    } else if (m.type === 'host_left') {
+      showError('Хост завершив сесію');
+    } else if (m.type === 'session_ended') {
+      showError('Баланс вичерпано');
+    }
+  };
+  window.addEventListener('online', () => {
+    if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
+  });
+}
+
+async function toggle() {
+  if (listening) {
+    listening = false;
+    mainBtn.textContent = 'СТАРТ';
+    mainBtn.classList.remove('active');
+    mic?.stop(); mic = null; micPaused = false;
+    statusText.textContent = 'Готово — говоріть!';
+  } else {
+    listening = true;
+    mainBtn.textContent = 'СТОП';
+    mainBtn.classList.add('active');
+    statusText.textContent = '🎤 Слухаю...';
+    try { mic = await startMic(); } catch(e) { console.error(e); }
+  }
+}
+
+async function startMic() {
+  const constraints = {sampleRate:16000,channelCount:1,echoCancellation:false,noiseSuppression:false,autoGainControl:false};
+  if (selectedMicId) constraints.deviceId = {exact: selectedMicId};
+  let st;
+  try { st = await navigator.mediaDevices.getUserMedia({audio: constraints}); }
+  catch(e) {
+    if (selectedMicId) { delete constraints.deviceId; st = await navigator.mediaDevices.getUserMedia({audio:constraints}); }
+    else throw e;
+  }
+  const cx = new AudioContext({sampleRate:16000});
+  const code = `class VoxDG extends AudioWorkletProcessor{constructor(){super();this.b=[];}process(i){const c=i[0]?.[0];if(!c)return true;this.b.push(...c);while(this.b.length>=1024){const ch=new Float32Array(this.b.splice(0,1024));this.port.postMessage(ch.buffer,[ch.buffer]);}return true;}}registerProcessor('VoxDG',VoxDG);`;
+  const bl = new Blob([code],{type:'application/javascript'});
+  const u = URL.createObjectURL(bl);
+  await cx.audioWorklet.addModule(u); URL.revokeObjectURL(u);
+  const src = cx.createMediaStreamSource(st);
+  const nd = new AudioWorkletNode(cx,'VoxDG');
+  nd.port.onmessage = ev => {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(ev.data);
+    animateVAD(new Float32Array(ev.data));
+  };
+  src.connect(nd);
+  return {stop(){try{nd.disconnect();}catch(_){}try{src.disconnect();}catch(_){}try{cx.close();}catch(_){}st.getTracks().forEach(t=>t.stop());}};
+}
+
+function animateVAD(chunk) {
+  let s=0; for(let i=0;i<chunk.length;i++) s+=chunk[i]*chunk[i];
+  const lv = Math.min(Math.sqrt(s/chunk.length)*10,1);
+  vadBars.forEach(b=>{b.style.height=(4+Math.random()*lv*20)+'px';b.classList.toggle('active',lv>0.02);});
+}
+
+function addHistory(orig, trans) {
+  const time = new Date().toLocaleTimeString('uk-UA',{hour:'2-digit',minute:'2-digit'});
+  const it = document.createElement('div'); it.className = 'history-item';
+  it.innerHTML = `<div class="history-time">${time}</div><div class="history-original">${escHtml(orig)}</div><div class="history-translation">${escHtml(trans)}</div>`;
+  histDiv.insertBefore(it, histDiv.firstChild);
+  while(histDiv.children.length > 20) histDiv.removeChild(histDiv.lastChild);
+}
+
+function escHtml(t) { const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
+
+function showError(msg) {
+  document.getElementById('errorMsg').textContent = msg;
+  document.getElementById('errorOverlay').classList.add('active');
+}
+
+function onMicChange(id) { selectedMicId = id||''; localStorage.setItem('vox_guest_mic_id', selectedMicId); }
+function onSpkChange(id) { selectedSpkId = id||''; localStorage.setItem('vox_speaker_id', selectedSpkId); }
+
+async function populateMic() {
+  try {
+    const tmp = await navigator.mediaDevices.getUserMedia({audio:true}).catch(()=>null);
+    if(tmp) tmp.getTracks().forEach(t=>t.stop());
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const mics = devs.filter(d=>d.kind==='audioinput');
+    const sel = document.getElementById('micSelect');
+    sel.innerHTML = `<option value="">За замовчуванням</option>`;
+    mics.forEach((d,i)=>{const o=document.createElement('option');o.value=d.deviceId;o.textContent=d.label||`Мікрофон ${i+1}`;o.selected=d.deviceId===selectedMicId;sel.appendChild(o);});
+  } catch(_){}
+}
+
+async function populateSpk() {
+  const sel = document.getElementById('spkSelect');
+  if (!HTMLMediaElement.prototype.setSinkId) { sel.parentElement.style.display='none'; return; }
+  try {
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const outs = devs.filter(d=>d.kind==='audiooutput');
+    sel.innerHTML = `<option value="">За замовчуванням</option>`;
+    outs.forEach((d,i)=>{const o=document.createElement('option');o.value=d.deviceId;o.textContent=d.label||`Вивід ${i+1}`;o.selected=d.deviceId===selectedSpkId;sel.appendChild(o);});
+  } catch(_){}
+}
+
+// Unlock audio on first tap
+document.addEventListener('click',()=>{
+  _audioPlayer.src='data:audio/mpeg;base64,/+MYxAAAAANIAAAAAExBTUUzLjk4LjIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+  _audioPlayer.play().catch(()=>{});
+},{once:true});
+</script>
+</body>
+</html>

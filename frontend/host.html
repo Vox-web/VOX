@@ -751,6 +751,13 @@
                     <p class="i18n" id="menuRoomDesc">Мультимовна кімната для груп</p>
                 </div>
             </div>
+            <div class="menu-option" onclick="showScreen('screenDuoSetup')">
+                <div class="menu-icon">🤝</div>
+                <div>
+                    <h3 class="i18n" id="menuDuoTitle">Duo</h3>
+                    <p class="i18n" id="menuDuoDesc">Двомовний діалог для двох</p>
+                </div>
+            </div>
             <button class="howto-toggle" onclick="toggleHowTo()">
                 <span class="i18n" id="howtoToggle">Як користуватися?</span>
                 <span class="arrow">▼</span>
@@ -853,6 +860,124 @@
                 <button class="room-share-btn i18n" id="soloDownloadPdfBtn" type="button" onclick="downloadHistoryPdf('solo')">⬇ PDF</button>
             </div>
             <div class="history" id="soloHistory"></div>
+        </div>
+
+        <!-- SCREEN: DUO SETUP -->
+        <div class="screen" id="screenDuoSetup">
+            <div class="card">
+                <div class="card-label i18n" id="duoSetupTitle">Налаштування Duo</div>
+                <div class="lang-row">
+                    <label class="i18n" id="duoLangALabel">Мова A:</label>
+                    <select id="duoLangASelect">
+                        <option value="uk">🇺🇦 Українська</option>
+                        <option value="ru">🇷🇺 Русский</option>
+                        <option value="en" selected>🇬🇧 English</option>
+                        <option value="de">🇩🇪 Deutsch</option>
+                        <option value="pl">🇵🇱 Polski</option>
+                        <option value="fr">🇫🇷 Français</option>
+                        <option value="zh">🇨🇳 中文</option>
+                        <option value="es">🇪🇸 Español</option>
+                        <option value="it">🇮🇹 Italiano</option>
+                        <option value="pt">🇧🇷 Português</option>
+                        <option value="ja">🇯🇵 日本語</option>
+                        <option value="ko">🇰🇷 한국어</option>
+                        <option value="ar">🇸🇦 العربية</option>
+                        <option value="tr">🇹🇷 Türkçe</option>
+                        <option value="hi">🇮🇳 हिन्दी</option>
+                    </select>
+                </div>
+                <div class="lang-row">
+                    <label class="i18n" id="duoLangBLabel">Мова B:</label>
+                    <select id="duoLangBSelect">
+                        <option value="uk">🇺🇦 Українська</option>
+                        <option value="ru" selected>🇷🇺 Русский</option>
+                        <option value="en">🇬🇧 English</option>
+                        <option value="de">🇩🇪 Deutsch</option>
+                        <option value="pl">🇵🇱 Polski</option>
+                        <option value="fr">🇫🇷 Français</option>
+                        <option value="zh">🇨🇳 中文</option>
+                        <option value="es">🇪🇸 Español</option>
+                        <option value="it">🇮🇹 Italiano</option>
+                        <option value="pt">🇧🇷 Português</option>
+                        <option value="ja">🇯🇵 日本語</option>
+                        <option value="ko">🇰🇷 한국어</option>
+                        <option value="ar">🇸🇦 العربية</option>
+                        <option value="tr">🇹🇷 Türkçe</option>
+                        <option value="hi">🇮🇳 हिन्दी</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="startDuoLocal()" id="btnDuoLocal" style="margin-top:8px;">📱 На одному пристрої</button>
+                <button class="btn btn-ghost" onclick="startDuoRemote()" id="btnDuoRemote" style="margin-top:8px;">📡 Дистанційно (QR)</button>
+            </div>
+        </div>
+
+        <!-- SCREEN: DUO ONE-DEVICE -->
+        <div class="screen" id="screenDuo">
+            <div class="status-bar">
+                <div class="status-dot" id="duoStatusDot"></div>
+                <span id="duoStatusText">—</span>
+            </div>
+            <div class="vad-indicator" id="duoVad">
+                <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
+                <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
+                <div class="vad-bar"></div>
+            </div>
+            <button class="solo-btn i18n" id="duoBtn" onclick="duoToggle()">СТАРТ</button>
+            <div class="card original">
+                <div class="card-label i18n" id="duoLabelOrig">Оригінал</div>
+                <div class="card-text" id="duoOriginal">—</div>
+            </div>
+            <div class="card translation">
+                <div class="card-label i18n" id="duoLabelTrans">Переклад</div>
+                <div class="card-text" id="duoTranslation">—</div>
+            </div>
+            <div class="divider"></div>
+            <div class="card-label i18n" style="padding:0 4px;" id="duoLabelHist">Історія</div>
+            <div class="history" id="duoHistory"></div>
+        </div>
+
+        <!-- SCREEN: DUO REMOTE (HOST SIDE) -->
+        <div class="screen" id="screenDuoRemote">
+            <div class="status-bar">
+                <div class="status-dot" id="duoRemoteStatusDot"></div>
+                <span id="duoRemoteStatusText">—</span>
+            </div>
+            <div class="card qr-section">
+                <div class="card-label i18n" id="duoQrLabel">Покажіть QR партнеру</div>
+                <img id="duoQrImg" src="" alt="QR" style="width:160px;height:160px;margin:8px auto;display:block;">
+                <div class="room-code" id="duoCode"></div>
+                <div id="duoGuestStatus" style="font-size:12px;color:var(--text2);text-align:center;margin-top:4px;">⏳ Очікуємо партнера...</div>
+            </div>
+            <!-- Mic/speaker selector for remote -->
+            <div class="mic-selector" id="duoRemoteMicRow">
+                <label id="duoRemoteMicLabel">🎤</label>
+                <select id="duoRemoteMicSelect" onchange="onMicDeviceChange(this.value)"></select>
+                <button class="mic-refresh-btn" onclick="populateMicDevices()">↺</button>
+            </div>
+            <div class="speaker-selector" id="duoRemoteSpkRow">
+                <label id="duoRemoteSpkLabel">🔊</label>
+                <select id="duoRemoteSpkSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
+                <button class="spk-refresh-btn" onclick="populateSpeakerDevices()">↺</button>
+            </div>
+            <div class="speaker-no-support" id="duoRemoteSpkNoSup"></div>
+            <div class="vad-indicator" id="duoRemoteVad">
+                <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
+                <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
+                <div class="vad-bar"></div>
+            </div>
+            <button class="solo-btn i18n" id="duoRemoteBtn" onclick="duoRemoteToggle()" disabled>СТАРТ</button>
+            <div class="card original">
+                <div class="card-label i18n" id="duoRemoteLabelOrig">Оригінал</div>
+                <div class="card-text" id="duoRemoteOriginal">—</div>
+            </div>
+            <div class="card translation">
+                <div class="card-label i18n" id="duoRemoteLabelTrans">Переклад</div>
+                <div class="card-text" id="duoRemoteTranslation">—</div>
+            </div>
+            <div class="divider"></div>
+            <div class="card-label i18n" style="padding:0 4px;" id="duoRemoteLabelHist">Історія</div>
+            <div class="history" id="duoRemoteHistory"></div>
+            <button class="btn btn-danger i18n" onclick="closeDuoRemote()" id="btnCloseDuo" style="margin-top:6px;">Закрити сесію</button>
         </div>
 
         <!-- SCREEN: ROOM SETUP -->
@@ -1011,6 +1136,16 @@
             micLabel: '🎤 Мікрофон:', micDefault: 'За замовчуванням', micRefreshTitle: 'Оновити список',
             micHint: '💡 «За замовчуванням» — браузер вибирає мікрофон сам. Якщо підключена гарнітура і хочете записувати зовнішній звук — виберіть «За замовчуванням» і вимкніть мікрофон гарнітури фізично. Вбудований мікрофон телефону краще чує дальні джерела звуку.',
             ttsOn: 'Озвучка увімкнена', ttsOff: 'Озвучка вимкнена',
+            menuDuoTitle: 'Duo', menuDuoDesc: 'Двомовний діалог для двох',
+            duoSetupTitle: 'Налаштування Duo', duoLangALabel: 'Мова A:', duoLangBLabel: 'Мова B:',
+            btnDuoLocal: '📱 На одному пристрої', btnDuoRemote: '📡 Дистанційно (QR)',
+            duoLabelOrig: 'Оригінал', duoLabelTrans: 'Переклад', duoLabelHist: 'Історія',
+            duoBtnStart: 'СТАРТ', duoBtnStop: 'СТОП',
+            duoQrLabel: 'Покажіть QR партнеру', duoGuestWaiting: '⏳ Очікуємо партнера...',
+            duoGuestConnected: '✅ Партнер підключився', duoGuestLeft: '⚠️ Партнер відключився',
+            btnCloseDuo: 'Закрити сесію',
+            duoStatusListening: '🎤 Слухаю...', duoStatusConnecting: 'Підключення...',
+            duoStatusReady: 'Готово — говоріть!',
         },
         en: {
             subtitle: 'Real-time AI Translation',
@@ -1056,6 +1191,16 @@
             micLabel: '🎤 Microphone:', micDefault: 'Default', micRefreshTitle: 'Refresh list',
             micHint: '💡 "Default" lets the browser pick the microphone automatically. If you wear headphones and want to capture external sound — choose "Default" and physically disable the headset mic. The phone\'s built-in mic generally picks up distant sound sources better.',
             ttsOn: 'Audio on', ttsOff: 'Audio off',
+            menuDuoTitle: 'Duo', menuDuoDesc: 'Two-language conversation for two',
+            duoSetupTitle: 'Duo Setup', duoLangALabel: 'Language A:', duoLangBLabel: 'Language B:',
+            btnDuoLocal: '📱 One device', btnDuoRemote: '📡 Remote (QR)',
+            duoLabelOrig: 'Original', duoLabelTrans: 'Translation', duoLabelHist: 'History',
+            duoBtnStart: 'START', duoBtnStop: 'STOP',
+            duoQrLabel: 'Show QR to your partner', duoGuestWaiting: '⏳ Waiting for partner...',
+            duoGuestConnected: '✅ Partner connected', duoGuestLeft: '⚠️ Partner disconnected',
+            btnCloseDuo: 'Close session',
+            duoStatusListening: '🎤 Listening...', duoStatusConnecting: 'Connecting...',
+            duoStatusReady: 'Ready — speak!',
         },
         de: {
             subtitle: 'KI-Übersetzung in Echtzeit',
@@ -1101,6 +1246,16 @@
             micLabel: '🎤 Mikrofon:', micDefault: 'Standard', micRefreshTitle: 'Liste aktualisieren',
             micHint: '💡 „Standard" lässt den Browser das Mikrofon automatisch wählen. Wenn Sie Kopfhörer tragen und externen Ton aufnehmen möchten — wählen Sie „Standard" und deaktivieren Sie das Headset-Mikrofon physisch. Das eingebaute Telefonmikrofon erfasst entfernte Tonquellen in der Regel besser.',
             ttsOn: 'Ton an', ttsOff: 'Ton aus',
+            menuDuoTitle: 'Duo', menuDuoDesc: 'Zweisprachiger Dialog für zwei Personen',
+            duoSetupTitle: 'Duo-Einstellungen', duoLangALabel: 'Sprache A:', duoLangBLabel: 'Sprache B:',
+            btnDuoLocal: '📱 Ein Gerät', btnDuoRemote: '📡 Fernverbindung (QR)',
+            duoLabelOrig: 'Original', duoLabelTrans: 'Übersetzung', duoLabelHist: 'Verlauf',
+            duoBtnStart: 'START', duoBtnStop: 'STOPP',
+            duoQrLabel: 'QR-Code dem Partner zeigen', duoGuestWaiting: '⏳ Warte auf Partner...',
+            duoGuestConnected: '✅ Partner verbunden', duoGuestLeft: '⚠️ Partner getrennt',
+            btnCloseDuo: 'Sitzung beenden',
+            duoStatusListening: '🎤 Höre zu...', duoStatusConnecting: 'Verbinde...',
+            duoStatusReady: 'Bereit — sprechen Sie!',
         },
     };
 
@@ -1204,6 +1359,15 @@
             if (roomSpkSel && roomSpkSel.options.length > 0 && roomSpkSel.options[0].value === '') roomSpkSel.options[0].textContent = t('speakerDefault');
             if (roomSpkNoSup) roomSpkNoSup.textContent = t('speakerNoSupport');
             _updateTtsBtn();
+            // Duo i18n
+            const _di = ['menuDuoTitle','menuDuoDesc','duoSetupTitle','duoLangALabel','duoLangBLabel',
+                'btnDuoLocal','btnDuoRemote','duoLabelOrig','duoLabelTrans','duoLabelHist',
+                'duoQrLabel','btnCloseDuo','duoRemoteLabelOrig','duoRemoteLabelTrans','duoRemoteLabelHist'];
+            _di.forEach(id => { const el = document.getElementById(id); if(el) el.textContent = t(id); });
+            const duoBtn = document.getElementById('duoBtn');
+            if (duoBtn) duoBtn.textContent = _duoListening ? t('duoBtnStop') : t('duoBtnStart');
+            const duoRemoteBtn = document.getElementById('duoRemoteBtn');
+            if (duoRemoteBtn && !duoRemoteBtn.disabled) duoRemoteBtn.textContent = _duoRemoteListening ? t('duoBtnStop') : t('duoBtnStart');
             _updateHybridBtn(_hybridMode ? !!_selectedMicId : false);
         }
         if (animate) {
@@ -1250,6 +1414,8 @@
 
     function goBack() {
         if (curScreen === 'screenSolo') soloStop();
+        if (curScreen === 'screenDuo') duoStop();
+        if (curScreen === 'screenDuoRemote') closeDuoRemote();
         const prev = navStack.pop() || 'screenMenu';
         document.getElementById(curScreen).classList.remove('active');
         document.getElementById(prev).classList.add('active');
@@ -1750,6 +1916,202 @@
 
     document.getElementById('soloLangSelect').addEventListener('change', syncSoloConfig);
     document.getElementById('soloSrcLangSelect').addEventListener('change', syncSoloConfig);
+
+    // =====================================================================
+    // DUO
+    // =====================================================================
+    let _duoListening = false, _duoWs = null, _duoMic = null;
+    let _duoRemoteListening = false, _duoRemoteWs = null, _duoRemoteMic = null, _duoId = null;
+    let _duoAudioPlaying = false;
+    const _duoVadEl = document.getElementById('duoVad');
+    const _duoRemoteVadEl = document.getElementById('duoRemoteVad');
+
+    // ── Audio playback for Duo (reuses _audioMsg / _pQ infrastructure) ──
+    // One-device: mic pauses during TTS via _duoMicPaused flag
+    let _duoMicPaused = false;
+
+    function _duoPlayAudio(arrayBuffer) {
+        // Pause mic while playing
+        if (_duoMic && !_duoMicPaused) {
+            _duoMic.stop(); _duoMic = null; _duoMicPaused = true;
+        }
+        _playA(arrayBuffer.slice(6)); // reuse existing queue
+    }
+
+    // When TTS queue ends, resume duo mic
+    const _origNotifyTtsDone = _notifyTtsDone;
+    function _notifyTtsDone() {
+        _origNotifyTtsDone?.();
+        if (_duoMicPaused && _duoListening) {
+            _duoMicPaused = false;
+            _startDuoMic('VoxDL', _duoWs).then(mic => { _duoMic = mic; }).catch(()=>{});
+        }
+        if (_duoMicPaused && _duoRemoteListening) {
+            _duoMicPaused = false;
+            _startDuoMic('VoxDR', _duoRemoteWs).then(mic => { _duoRemoteMic = mic; }).catch(()=>{});
+        }
+    }
+
+    async function _startDuoMic(name, ws) {
+        const mic = await _mic(name, buf => {
+            if (ws?.readyState === WebSocket.OPEN) ws.send(buf);
+            if (name === 'VoxDL') _vad(_duoVadEl, new Float32Array(buf));
+            else _vad(_duoRemoteVadEl, new Float32Array(buf));
+        });
+        return mic;
+    }
+
+    // ── One-device Duo ──
+    function startDuoLocal() {
+        const langA = document.getElementById('duoLangASelect').value;
+        const langB = document.getElementById('duoLangBSelect').value;
+        showScreen('screenDuo');
+        document.getElementById('duoStatusDot').className = 'status-dot';
+        document.getElementById('duoStatusText').textContent = t('duoStatusConnecting');
+
+        const p = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        _duoWs = new WebSocket(`${p}//${location.host}/ws/duo`);
+        _duoWs.binaryType = 'arraybuffer';
+
+        _duoWs.onopen = () => {
+            const _tok = localStorage.getItem('vox_token') || '';
+            _duoWs.send(JSON.stringify({type: 'auth', token: _tok}));
+            _duoWs.send(JSON.stringify({type: 'config', lang_a: langA, lang_b: langB, tts_enabled: _ttsEnabled}));
+            document.getElementById('duoStatusDot').className = 'status-dot connected';
+            document.getElementById('duoStatusText').textContent = t('duoStatusReady');
+        };
+        _duoWs.onclose = () => {
+            document.getElementById('duoStatusDot').className = 'status-dot';
+            document.getElementById('duoStatusText').textContent = t('soloStatusDisconnected');
+        };
+        _duoWs.onerror = () => {
+            document.getElementById('duoStatusText').textContent = t('soloStatusError');
+        };
+        _duoWs.onmessage = e => {
+            if (e.data instanceof ArrayBuffer) {
+                _duoPlayAudio(e.data); return;
+            }
+            const m = JSON.parse(e.data);
+            _handleBillingWsMsg(m);
+            if (m.type === 'transcript') {
+                document.getElementById('duoOriginal').textContent =
+                    m.is_final ? (m.text || '—') : '🎤 ' + m.text;
+            } else if (m.type === 'translation') {
+                document.getElementById('duoTranslation').textContent = m.text || '—';
+                _hist(document.getElementById('duoHistory'), document.getElementById('duoOriginal').textContent, m.text);
+            }
+        };
+    }
+
+    async function duoToggle() {
+        if (_duoListening) {
+            _duoListening = false;
+            document.getElementById('duoBtn').textContent = t('duoBtnStart');
+            document.getElementById('duoStatusText').textContent = t('soloStatusStopped');
+            _duoMic?.stop(); _duoMic = null; _duoMicPaused = false;
+        } else {
+            _duoListening = true;
+            document.getElementById('duoBtn').textContent = t('duoBtnStop');
+            document.getElementById('duoStatusText').textContent = t('duoStatusListening');
+            try {
+                _duoMic = await _startDuoMic('VoxDL', _duoWs);
+            } catch(e) { console.error('Duo mic err:', e); }
+        }
+    }
+
+    function duoStop() {
+        _duoListening = false; _duoRemoteListening = false;
+        _duoMic?.stop(); _duoMic = null;
+        _duoWs?.close(); _duoWs = null;
+        _duoMicPaused = false;
+    }
+
+    // ── Remote Duo ──
+    async function startDuoRemote() {
+        const langA = document.getElementById('duoLangASelect').value;
+        const langB = document.getElementById('duoLangBSelect').value;
+        const btn = document.getElementById('btnDuoRemote');
+        btn.disabled = true; btn.textContent = '...';
+        try {
+            const r = await fetch('/duo/create', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({lang_a: langA, lang_b: langB})
+            });
+            const d = await r.json();
+            _duoId = d.duo_id;
+            showScreen('screenDuoRemote');
+            if (d.qr_code) document.getElementById('duoQrImg').src = d.qr_code;
+            document.getElementById('duoCode').textContent = d.duo_id;
+            document.getElementById('duoRemoteBtn').disabled = true;
+            document.getElementById('duoRemoteBtn').textContent = t('duoBtnStart');
+            document.getElementById('duoGuestStatus').textContent = t('duoGuestWaiting');
+            populateMicDevices(); populateSpeakerDevices();
+            _connectDuoRemoteHost(langA, langB);
+        } catch(e) { console.error('Create duo err:', e); }
+        finally { btn.disabled = false; btn.textContent = t('btnDuoRemote'); }
+    }
+
+    function _connectDuoRemoteHost(langA, langB) {
+        const p = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        _duoRemoteWs = new WebSocket(`${p}//${location.host}/ws/duo/${_duoId}/host`);
+        _duoRemoteWs.binaryType = 'arraybuffer';
+        _duoRemoteWs.onopen = () => {
+            const _tok = localStorage.getItem('vox_token') || '';
+            _duoRemoteWs.send(JSON.stringify({type: 'auth', token: _tok}));
+            document.getElementById('duoRemoteStatusDot').className = 'status-dot connected';
+            document.getElementById('duoRemoteStatusText').textContent = t('duoGuestWaiting');
+        };
+        _duoRemoteWs.onclose = () => {
+            document.getElementById('duoRemoteStatusDot').className = 'status-dot';
+        };
+        _duoRemoteWs.onmessage = e => {
+            if (e.data instanceof ArrayBuffer) {
+                _audioMsg(e.data); return; // reuse existing audio queue
+            }
+            const m = JSON.parse(e.data);
+            _handleBillingWsMsg(m);
+            if (m.type === 'guest_connected') {
+                document.getElementById('duoGuestStatus').textContent = t('duoGuestConnected');
+                document.getElementById('duoRemoteBtn').disabled = false;
+                document.getElementById('duoRemoteStatusText').textContent = t('duoStatusReady');
+            } else if (m.type === 'guest_left') {
+                document.getElementById('duoGuestStatus').textContent = t('duoGuestLeft');
+                document.getElementById('duoRemoteBtn').disabled = true;
+                _duoRemoteListening = false; _duoRemoteMic?.stop(); _duoRemoteMic = null;
+            } else if (m.type === 'transcript') {
+                document.getElementById('duoRemoteOriginal').textContent =
+                    m.is_final ? (m.text || '—') : '🎤 ' + m.text;
+            } else if (m.type === 'translation') {
+                document.getElementById('duoRemoteTranslation').textContent = m.text || '—';
+                _hist(document.getElementById('duoRemoteHistory'),
+                    document.getElementById('duoRemoteOriginal').textContent, m.text);
+            }
+        };
+    }
+
+    async function duoRemoteToggle() {
+        if (_duoRemoteListening) {
+            _duoRemoteListening = false;
+            document.getElementById('duoRemoteBtn').textContent = t('duoBtnStart');
+            document.getElementById('duoRemoteStatusText').textContent = t('duoStatusReady');
+            _duoRemoteMic?.stop(); _duoRemoteMic = null; _duoMicPaused = false;
+        } else {
+            _duoRemoteListening = true;
+            document.getElementById('duoRemoteBtn').textContent = t('duoBtnStop');
+            document.getElementById('duoRemoteStatusText').textContent = t('duoStatusListening');
+            try {
+                _duoRemoteMic = await _startDuoMic('VoxDR', _duoRemoteWs);
+            } catch(e) { console.error('Duo remote mic err:', e); }
+        }
+    }
+
+    function closeDuoRemote() {
+        _duoRemoteListening = false;
+        _duoRemoteMic?.stop(); _duoRemoteMic = null;
+        _duoRemoteWs?.close(); _duoRemoteWs = null;
+        _duoId = null; _duoMicPaused = false;
+        goBack();
+    }
 
     // =====================================================================
     // ROOM
