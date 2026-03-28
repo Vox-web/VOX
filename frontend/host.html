@@ -906,7 +906,7 @@
                         <option value="hi">🇮🇳 हिन्दी</option>
                     </select>
                 </div>
-                <button class="btn btn-primary" onclick="startDuoLocal()" id="btnDuoLocal" style="margin-top:8px;">📱 На одному пристрої</button>
+                <button class="btn btn-ghost" onclick="startDuoLocal()" id="btnDuoLocal" style="margin-top:8px;">📱 На одному пристрої</button>
                 <button class="btn btn-ghost" onclick="startDuoRemote()" id="btnDuoRemote" style="margin-top:8px;">📡 Дистанційно (QR)</button>
             </div>
         </div>
@@ -2110,7 +2110,11 @@
         _duoRemoteMic?.stop(); _duoRemoteMic = null;
         _duoRemoteWs?.close(); _duoRemoteWs = null;
         _duoId = null; _duoMicPaused = false;
-        goBack();
+        const prev = navStack.pop() || 'screenMenu';
+        document.getElementById(curScreen).classList.remove('active');
+        document.getElementById(prev).classList.add('active');
+        curScreen = prev;
+        document.getElementById('backBtn').classList.toggle('visible', curScreen !== 'screenMenu');
     }
 
     // =====================================================================
@@ -2548,6 +2552,10 @@
                 roomRow.style.display = '';
                 roomNoSup.style.display = 'none';
                 roomSel.innerHTML = sel.innerHTML;
+                const duoSpkRow = document.getElementById('duoRemoteSpkRow');
+                const duoSpkSel = document.getElementById('duoRemoteSpkSelect');
+                const duoSpkNoSup = document.getElementById('duoRemoteSpkNoSup');
+                if (duoSpkRow && duoSpkSel) { duoSpkRow.style.display = ''; if(duoSpkNoSup) duoSpkNoSup.style.display='none'; duoSpkSel.innerHTML = sel.innerHTML; }
             }
         } catch(e) {
             console.warn('populateSpeakerDevices failed:', e);
@@ -2560,10 +2568,10 @@
 
         // Если setSinkId не поддерживается — скрываем оба селектора
         if (!_speakerSupported()) {
-            ['speakerSelectorRow','roomSpeakerSelectorRow'].forEach(id => {
+             ['speakerSelectorRow','roomSpeakerSelectorRow','duoRemoteSpkRow'].forEach(id => {
                 const el = document.getElementById(id); if (el) el.style.display = 'none';
             });
-            ['speakerNoSupport','roomSpeakerNoSupport'].forEach(id => {
+            ['speakerNoSupport','roomSpeakerNoSupport','duoRemoteSpkNoSup'].forEach(id => {
                 const el = document.getElementById(id); if (el) { el.textContent = t('speakerNoSupport'); el.style.display = 'block'; }
             });
         }
@@ -2626,6 +2634,8 @@
             const roomMicLbl = document.getElementById('roomMicSelectorLabel');
             if (roomMicSel) roomMicSel.innerHTML = sel.innerHTML;
             if (roomMicLbl) roomMicLbl.textContent = t('micLabel');
+            const duoMicSel = document.getElementById('duoRemoteMicSelect');
+            if (duoMicSel) duoMicSel.innerHTML = sel.innerHTML;
         } catch(e) {
             console.warn('populateMicDevices failed:', e);
         }
