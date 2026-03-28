@@ -1955,7 +1955,14 @@
         }
         if (_duoMicPaused && _duoRemoteListening) {
             _duoMicPaused = false;
-            _startDuoMic('VoxDR', _duoRemoteWs).then(mic => { _duoRemoteMic = mic; }).catch(()=>{});
+            _startDuoMic('VoxDR', _duoRemoteWs)
+                .then(mic => {
+                    console.log('[DUO-REMOTE] mic resumed after TTS');
+                    _duoRemoteMic = mic;
+                })
+                .catch(err => {
+                    console.error('[DUO-REMOTE] mic resume failed after TTS', err);
+                });
         }
     }
 
