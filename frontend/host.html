@@ -1954,17 +1954,9 @@
     const _duoAEl = new Audio();
 
     function _duoResumeMic() {
-        if (!_duoMicPaused) return;
+        // Just unmute — mic stream stays alive the whole session.
+        // Never call getUserMedia again: repeated stop/start fails on mobile after 3-4 cycles.
         _duoMicPaused = false;
-        if (_duoListening && _duoWs) {
-            _startDuoMic('VoxDL', _duoWs)
-                .then(mic => { console.log('[DUO] mic resumed after TTS'); _duoMic = mic; })
-                .catch(err => console.error('[DUO] mic resume err', err));
-        } else if (_duoRemoteListening && _duoRemoteWs) {
-            _startDuoMic('VoxDR', _duoRemoteWs)
-                .then(mic => { console.log('[DUO-REMOTE] mic resumed after TTS'); _duoRemoteMic = mic; })
-                .catch(err => console.error('[DUO-REMOTE] mic resume err', err));
-        }
     }
 
     function _duoDrain() {
@@ -1990,15 +1982,14 @@
     _duoAEl.onerror = () => { _duoABusy = false; _duoDrain(); };
 
     function _duoPlayAudio(arrayBuffer) {
-        if (_duoMic && !_duoMicPaused) {
-            _duoMic.stop(); _duoMic = null; _duoMicPaused = true;
-        }
+        _duoMicPaused = true;  // mute (don't stop — repeated getUserMedia fails on mobile)
         _duoAQ.push(arrayBuffer.slice(6));
         _duoDrain();
     }
 
     async function _startDuoMic(name, ws) {
         const mic = await _mic(name, buf => {
+            if (_duoMicPaused) return;  // muted during TTS — don't send, don't stop
             if (ws?.readyState === WebSocket.OPEN) ws.send(buf);
             if (name === 'VoxDL') _vad(_duoVadEl, new Float32Array(buf));
             else _vad(_duoRemoteVadEl, new Float32Array(buf));
@@ -2010,9 +2001,6 @@
     function startDuoLocal() {
         const langA = document.getElementById('duoLangASelect').value;
         const langB = document.getElementById('duoLangBSelect').value;
-        // Prime audio element on user gesture — required for mobile autoplay policy
-        _duoAEl.src = 'data:audio/mpeg;base64,/+MYxAAAAANIAAAAAExBTUUzLjk4LjIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
-        _duoAEl.play().catch(() => {});
         showScreen('screenDuo');
         document.getElementById('duoStatusDot').className = 'status-dot';
         document.getElementById('duoStatusText').textContent = t('duoStatusConnecting');
@@ -2082,9 +2070,6 @@
     async function startDuoRemote() {
         const langA = document.getElementById('duoLangASelect').value;
         const langB = document.getElementById('duoLangBSelect').value;
-        // Prime audio element on user gesture — required for mobile autoplay policy
-        _duoAEl.src = 'data:audio/mpeg;base64,/+MYxAAAAANIAAAAAExBTUUzLjk4LjIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
-        _duoAEl.play().catch(() => {});
         const btn = document.getElementById('btnDuoRemote');
         btn.disabled = true; btn.textContent = '...';
         try {
