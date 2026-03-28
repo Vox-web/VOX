@@ -515,7 +515,7 @@ async def get_duo_info(duo_id: str):
 # ===========================================================================
 # Solo TTS буфер — накапливаем переводы, озвучиваем пакетами каждые N сек
 # ===========================================================================
-TTS_BUFFER_INTERVAL = 6  # секунд
+TTS_BUFFER_INTERVAL = 5  # секунд
 
 async def _tts_buffer_flush(buffer: list, target_lang: str, ws: WebSocket):
     if not buffer:
@@ -970,6 +970,7 @@ async def websocket_solo(ws: WebSocket):
     billing_task = asyncio.create_task(billing_tick())
 
     _tts_buffer: list = []
+    _tts_buffer_time: list = [0.0]  # время первого элемента в буфере
     tts_ticker_task = asyncio.create_task(
         _tts_buffer_ticker(
             _tts_buffer,
@@ -1011,7 +1012,13 @@ async def websocket_solo(ws: WebSocket):
                             "lang_to": target_lang,
                         })
                         if session_tts_enabled:
+                            if not _tts_buffer:
+                                _tts_buffer_time[0] = asyncio.get_event_loop().time()
                             _tts_buffer.append(translated)
+                            # Флаш если буфер копится ≥5 сек и пришёл speech_final
+                            if result.is_final and (asyncio.get_event_loop().time() - _tts_buffer_time[0]) >= TTS_BUFFER_INTERVAL:
+                                await _tts_buffer_flush(_tts_buffer, session_config["target_lang"], ws)
+                                _tts_buffer_time[0] = 0.0
                     else:
                         # Язык источника == язык вывода:
                         # корректируем ASR-ошибки через GPT (без перевода)
@@ -1026,7 +1033,12 @@ async def websocket_solo(ws: WebSocket):
                             "note": "asr_corrected",
                         })
                         if session_tts_enabled:
+                            if not _tts_buffer:
+                                _tts_buffer_time[0] = asyncio.get_event_loop().time()
                             _tts_buffer.append(corrected)
+                            if result.is_final and (asyncio.get_event_loop().time() - _tts_buffer_time[0]) >= TTS_BUFFER_INTERVAL:
+                                await _tts_buffer_flush(_tts_buffer, session_config["target_lang"], ws)
+                                _tts_buffer_time[0] = 0.0
                     logger.info(f"📝 [{source_lang}→{target_lang}] {result.text[:60]}")
             except Exception as e:
                 if "disconnect" in str(e).lower():
