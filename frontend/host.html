@@ -1944,7 +1944,14 @@
         _origNotifyTtsDone?.();
         if (_duoMicPaused && _duoListening) {
             _duoMicPaused = false;
-            _startDuoMic('VoxDL', _duoWs).then(mic => { _duoMic = mic; }).catch(()=>{});
+            _startDuoMic('VoxDL', _duoWs)
+                .then(mic => {
+                    console.log('[DUO] mic resumed after TTS');
+                    _duoMic = mic;
+                })
+                .catch(err => {
+                    console.error('[DUO] mic resume failed after TTS', err);
+                });
         }
         if (_duoMicPaused && _duoRemoteListening) {
             _duoMicPaused = false;

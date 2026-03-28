@@ -67,6 +67,7 @@ class DeepgramTranscriber:
 
         self._ws: Optional[websockets.WebSocketClientProtocol] = None
         self._receive_task: Optional[asyncio.Task] = None
+        self._keepalive_task: Optional[asyncio.Task] = None
         self._language: Optional[str] = None
         self._finals_buffer: list[str] = []
         self._flush_task: Optional[asyncio.Task] = None  # таймер авто-flush
@@ -148,6 +149,22 @@ class DeepgramTranscriber:
                 ))
         except asyncio.CancelledError:
             pass
+        
+    async def _keepalive_loop(self, interval: float = 4.0):
+        """
+        Периодически шлёт Deepgram KeepAlive, чтобы сессия не закрывалась во время тишины.
+        Важно: отправляем JSON-строку, то есть text websocket frame.
+        """
+        try:
+            while True:
+                await asyncio.sleep(interval)
+                if self.is_active:
+                    await self._ws.send(json.dumps({"type": "KeepAlive"}))
+                    logger.info("🧭 [DG TRACE] sent KeepAlive")
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.warning(f"⚠️ Deepgram KeepAlive error: {e}")    
 
     async def start(
         self,
@@ -220,6 +237,7 @@ class DeepgramTranscriber:
                     close_timeout=5,
                 )
                 self._receive_task = asyncio.create_task(self._receive_loop())
+                self._keepalive_task = asyncio.create_task(self._keepalive_loop())
                 logger.info(f"🎤 Deepgram сессия открыта (язык: {language or 'auto'})")
                 logger.info(f"🧭 [DG TRACE] session_start lang={language or 'auto'} input_sr={self._input_sample_rate} target_sr={SAMPLE_RATE}")
                 return  # Успех — выходим
@@ -341,6 +359,14 @@ class DeepgramTranscriber:
             except (asyncio.CancelledError, Exception):
                 pass
             self._receive_task = None
+
+        if self._keepalive_task:
+            self._keepalive_task.cancel()
+            try:
+                await self._keepalive_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            self._keepalive_task = None    
 
         if self._ws and not self._ws.closed:
             try:
