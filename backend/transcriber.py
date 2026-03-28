@@ -185,6 +185,8 @@ class DeepgramTranscriber:
         self._debug_audio_chunks_seen = 0
 
         # Параметры Deepgram
+        selected_model = model or ("nova-3" if language == "multi" else "nova-2")
+
         params = [
             f"model={selected_model}",
             "interim_results=true",
