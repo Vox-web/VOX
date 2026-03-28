@@ -591,7 +591,7 @@ async def websocket_duo(ws: WebSocket):
     lang_a = "uk"
     lang_b = "en"
     session_tts_enabled = True
-    _last_duo_lang = [lang_a]  # отслеживаем последний известный язык
+    _cur_src = ["uk"]  # текущий язык говорящего: lang_a -> lang_b -> lang_a
 
     try:
         first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
@@ -604,6 +604,7 @@ async def websocket_duo(ws: WebSocket):
                 lang_a = first.get("lang_a", "uk")
                 lang_b = first.get("lang_b", "en")
                 session_tts_enabled = bool(first.get("tts_enabled", True))
+                _cur_src[0] = lang_a
     except (asyncio.TimeoutError, Exception):
         pass
 
@@ -618,7 +619,8 @@ async def websocket_duo(ws: WebSocket):
                 new_balance = _deduct(_user_id, "duo", 0)
                 if new_balance <= 0:
                     await ws.send_json({"type": "session_ended", "reason": "no_balance"})
-                    await ws.close(); return
+                    await ws.close()
+                    return
             except asyncio.CancelledError:
                 return
             except Exception as e:
@@ -626,9 +628,15 @@ async def websocket_duo(ws: WebSocket):
 
     billing_task = asyncio.create_task(billing_tick())
 
-    # Deepgram с автодетекцией (language=multi)
     dg = DeepgramTranscriber()
-    await dg.start(language=None)
+    await dg.start(language=_cur_src[0])
+
+    async def _restart_duo_transcriber():
+        try:
+            await dg.stop()
+        except Exception:
+            pass
+        await dg.start(language=_cur_src[0])
 
     async def handle_results():
         while True:
@@ -636,6 +644,7 @@ async def websocket_duo(ws: WebSocket):
                 result = await dg.results.get()
             except asyncio.CancelledError:
                 break
+
             try:
                 await ws.send_json({
                     "type": "transcript",
@@ -644,63 +653,84 @@ async def websocket_duo(ws: WebSocket):
                     "language": result.language,
                     "confidence": result.confidence,
                 })
+
                 if result.is_final and result.text.strip():
-                    if result.is_final and len(result.text.strip()) > 2:
-                        detected = (result.language or "").split("-")[0]
-                        if detected not in ('', 'unknown', 'multi'):
-                            _last_duo_lang[0] = detected
-                        effective = _last_duo_lang[0]
-                        if effective == lang_b:
-                            src, tgt = lang_b, lang_a
-                        else:
-                            src, tgt = lang_a, lang_b
+                    src = _cur_src[0]
+                    tgt = lang_b if src == lang_a else lang_a
+
                     translated = await asyncio.to_thread(
                         translator.translate, result.text, src, tgt
                     )
+
                     await ws.send_json({
                         "type": "translation",
                         "text": translated,
                         "lang_from": src,
                         "lang_to": tgt,
                     })
+
                     if session_tts_enabled:
                         audio_bytes = await asyncio.to_thread(
                             tts_engine.synthesize, translated, tgt
                         )
                         if audio_bytes:
                             await ws.send_bytes(b"AUDIO:" + audio_bytes)
+
                     logger.info(f"🤝 Duo [{src}→{tgt}] {result.text[:50]}")
+
+                    _cur_src[0] = tgt
+                    await _restart_duo_transcriber()
+
             except Exception as e:
                 if "disconnect" in str(e).lower():
                     break
-                logger.error(f"Duo one-device error: {e}"); break
+                logger.error(f"Duo one-device error: {e}")
+                break
 
     result_task = asyncio.create_task(handle_results())
 
     try:
         while True:
             message = await ws.receive()
+
             if message.get("type") == "websocket.disconnect":
                 break
+
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
-                    await dg.start(language=None)
+                    await dg.start(language=_cur_src[0])
                 await dg.send_audio(message["bytes"])
+
             elif "text" in message and message["text"]:
                 try:
                     msg = json.loads(message["text"])
-                    if msg.get("type") == "config":
+                    msg_type = msg.get("type")
+
+                    if msg_type == "auth" and not _user_id:
+                        _user = get_user_by_token(msg.get("token", ""))
+                        _user_id = _user["id"] if _user else None
+
+                    elif msg_type == "config":
                         lang_a = msg.get("lang_a", lang_a)
                         lang_b = msg.get("lang_b", lang_b)
                         session_tts_enabled = bool(msg.get("tts_enabled", session_tts_enabled))
+                        _cur_src[0] = lang_a
+                        if dg.is_active:
+                            await _restart_duo_transcriber()
+
+                    elif msg_type == "ping":
+                        pass
+
                 except json.JSONDecodeError:
                     pass
+
     except WebSocketDisconnect:
         logger.info("🔌 Duo one-device відключено")
     except Exception as e:
         logger.error(f"❌ Duo one-device error: {e}", exc_info=True)
     finally:
-        result_task.cancel(); billing_task.cancel()
+        result_task.cancel()
+        billing_task.cancel()
         try:
             await result_task
         except (asyncio.CancelledError, Exception):
@@ -833,10 +863,12 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
     session = _duo_sessions.get(duo_id)
     if not session:
         await ws.send_json({"type": "error", "message": "Duo session not found"})
-        await ws.close(); return
+        await ws.close()
+        return
 
     session.guest_ws = ws
     await ws.send_json({"type": "duo_ready", "lang_a": session.lang_a, "lang_b": session.lang_b})
+
     if session.host_ws:
         try:
             await session.host_ws.send_json({"type": "guest_connected"})
@@ -852,47 +884,65 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
                 result = await dg.results.get()
             except asyncio.CancelledError:
                 break
+
             try:
                 await ws.send_json({
-                    "type": "transcript", "text": result.text,
-                    "is_final": result.is_final, "language": result.language,
+                    "type": "transcript",
+                    "text": result.text,
+                    "is_final": result.is_final,
+                    "language": result.language,
                     "confidence": result.confidence,
                 })
+
                 if result.is_final and result.text.strip():
                     translated = await asyncio.to_thread(
                         translator.translate, result.text, session.lang_b, session.lang_a
                     )
+
                     await ws.send_json({
-                        "type": "translation", "text": translated,
-                        "lang_from": session.lang_b, "lang_to": session.lang_a,
+                        "type": "translation",
+                        "text": translated,
+                        "lang_from": session.lang_b,
+                        "lang_to": session.lang_a,
                     })
+
                     if session.host_ws:
                         try:
                             await session.host_ws.send_json({
-                                "type": "translation", "text": translated,
-                                "lang_from": session.lang_b, "lang_to": session.lang_a,
+                                "type": "translation",
+                                "text": translated,
+                                "lang_from": session.lang_b,
+                                "lang_to": session.lang_a,
                             })
+
                             audio = await asyncio.to_thread(
                                 tts_engine.synthesize, translated, session.lang_a
                             )
-                            if audio: await session.host_ws.send_bytes(b"AUDIO:" + audio)
-                        except Exception: pass
+                            if audio:
+                                await session.host_ws.send_bytes(b"AUDIO:" + audio)
+                        except Exception:
+                            pass
+
             except Exception as e:
                 if "disconnect" in str(e).lower():
                     break
-                logger.error(f"Duo guest result error: {e}"); break
+                logger.error(f"Duo guest result error: {e}")
+                break
 
     result_task = asyncio.create_task(handle_results())
 
     try:
         while True:
             message = await ws.receive()
+
             if message.get("type") == "websocket.disconnect":
                 break
+
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
                     await dg.start(language=session.lang_b)
                 await dg.send_audio(message["bytes"])
+
             elif "text" in message and message["text"]:
                 try:
                     msg = json.loads(message["text"])
@@ -900,6 +950,7 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
                         pass
                 except json.JSONDecodeError:
                     pass
+
     except WebSocketDisconnect:
         logger.info(f"🔌 Duo guest відключився {duo_id}")
     finally:
@@ -966,7 +1017,7 @@ async def websocket_solo(ws: WebSocket):
                     return
                 elif new_balance <= 0.10:
                     from vox_db import get_finance_settings as _gfs
-                    _ppm = (_gfs().get(user_id) or {}).get("price_per_min", 0.05)
+                    _ppm = (_gfs().get(_user_id) or {}).get("price_per_min", 0.05)
                     minutes_left = max(1, round(new_balance / _ppm))
                     await ws.send_json({"type": "balance_warning", "minutes_left": minutes_left})
             except asyncio.CancelledError:
@@ -1151,7 +1202,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                     return
                 elif new_balance <= 0.10:
                     from vox_db import get_finance_settings as _gfs
-                    _ppm = (_gfs().get(user_id) or {}).get("price_per_min", 0.05)
+                    _ppm = (_gfs().get(_user_id) or {}).get("price_per_min", 0.05)
                     minutes_left = max(1, round(new_balance / (_ppm * max(1, guest_count))))
                     await ws.send_json({"type": "balance_warning", "minutes_left": minutes_left})
             except asyncio.CancelledError:
