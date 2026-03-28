@@ -1458,6 +1458,19 @@
     function _playA(mp3) { aQ.push(mp3); if (!aPlaying) _pQ(); }
     function _notifyTtsDone() {
         if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(JSON.stringify({type:'tts_done'}));
+        // Duo: resume mic after TTS queue drains
+        if (_duoMicPaused) {
+            _duoMicPaused = false;
+            if (_duoListening && _duoWs) {
+                _startDuoMic('VoxDL', _duoWs)
+                    .then(mic => { console.log('[DUO] mic resumed after TTS'); _duoMic = mic; })
+                    .catch(err => console.error('[DUO] mic resume failed after TTS', err));
+            } else if (_duoRemoteListening && _duoRemoteWs) {
+                _startDuoMic('VoxDR', _duoRemoteWs)
+                    .then(mic => { console.log('[DUO-REMOTE] mic resumed after TTS'); _duoRemoteMic = mic; })
+                    .catch(err => console.error('[DUO-REMOTE] mic resume failed after TTS', err));
+            }
+        }
     }
     function _pQ() {
         if (!aQ.length) { aPlaying=false; _curAudio=null; _curAudioUrl=null; _notifyTtsDone(); return; }
@@ -1938,34 +1951,7 @@
         _playA(arrayBuffer.slice(6)); // reuse existing queue
     }
 
-    // When TTS queue ends, resume duo mic
-    const _origNotifyTtsDone = _notifyTtsDone;
-    function _notifyTtsDone() {
-        _origNotifyTtsDone?.();
-        if (_duoMicPaused && _duoListening) {
-            _startDuoMic('VoxDL', _duoWs)
-                .then(mic => {
-                    _duoMic = mic;
-                    _duoMicPaused = false;
-                    console.log('[DUO] mic resumed after TTS');
-                })
-                .catch(err => {
-                    console.error('[DUO] mic resume failed after TTS', err);
-                    _duoMicPaused = true;
-                });
-        }
-        if (_duoMicPaused && _duoRemoteListening) {
-            _duoMicPaused = false;
-            _startDuoMic('VoxDR', _duoRemoteWs)
-                .then(mic => {
-                    console.log('[DUO-REMOTE] mic resumed after TTS');
-                    _duoRemoteMic = mic;
-                })
-                .catch(err => {
-                    console.error('[DUO-REMOTE] mic resume failed after TTS', err);
-                });
-        }
-    }
+    // Duo mic resume logic is now handled inside the single _notifyTtsDone() defined above.
 
     async function _startDuoMic(name, ws) {
         const mic = await _mic(name, buf => {
