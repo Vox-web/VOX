@@ -1975,8 +1975,8 @@
 
         _duoWs.onopen = () => {
             const _tok = localStorage.getItem('vox_token') || '';
-            _duoWs.send(JSON.stringify({type: 'auth', token: _tok}));
             _duoWs.send(JSON.stringify({type: 'config', lang_a: langA, lang_b: langB, tts_enabled: _ttsEnabled}));
+            _duoWs.send(JSON.stringify({type: 'auth', token: _tok}));
             document.getElementById('duoStatusDot').className = 'status-dot connected';
             document.getElementById('duoStatusText').textContent = t('duoStatusReady');
         };

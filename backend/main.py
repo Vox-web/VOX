@@ -593,16 +593,22 @@ async def websocket_duo(ws: WebSocket):
     session_tts_enabled = True
 
     try:
-        first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
-        if first_raw.get("text"):
-            first = json.loads(first_raw["text"])
-            if first.get("type") == "auth":
-                _user = get_user_by_token(first.get("token", ""))
+        for _ in range(2):
+            raw = await asyncio.wait_for(ws.receive(), timeout=1.0)
+            if not raw.get("text"):
+                continue
+
+            msg = json.loads(raw["text"])
+            msg_type = msg.get("type")
+
+            if msg_type == "auth":
+                _user = get_user_by_token(msg.get("token", ""))
                 _user_id = _user["id"] if _user else None
-            elif first.get("type") == "config":
-                lang_a = first.get("lang_a", "uk")
-                lang_b = first.get("lang_b", "en")
-                session_tts_enabled = bool(first.get("tts_enabled", True))
+
+            elif msg_type == "config":
+                lang_a = msg.get("lang_a", lang_a)
+                lang_b = msg.get("lang_b", lang_b)
+                session_tts_enabled = bool(msg.get("tts_enabled", session_tts_enabled))
     except (asyncio.TimeoutError, Exception):
         pass
 
