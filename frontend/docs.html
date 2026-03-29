@@ -146,6 +146,15 @@
     }
     .callout-accent{background:var(--accent-dim);border-color:rgba(124,106,255,.22)}
     .callout-warn{background:rgba(240,192,80,.08);border-color:rgba(240,192,80,.18)}
+    .callout-wip{background:rgba(255,95,126,.07);border-color:rgba(255,95,126,.22);border-left:4px solid var(--red)}
+    .callout-wip strong{color:#ff9db1}
+    .badge-new{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#2dd4a0;padding:3px 10px;border-radius:999px;background:rgba(45,212,160,.1);border:1px solid rgba(45,212,160,.2);vertical-align:middle;margin-left:8px}
+    .mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+    .mode-card{padding:18px;border-radius:16px;background:rgba(255,255,255,.025);border:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+    .mode-card-icon{font-size:28px}
+    .mode-card h3{margin:0;font-size:17px;font-family:'Syne',sans-serif}
+    .mode-card p{margin:0;font-size:14px;color:var(--text2)}
+    @media(max-width:720px){.mode-grid{grid-template-columns:1fr}}
     .steps{display:grid;gap:14px;margin-top:18px}
     .step{padding:16px 18px;border-radius:16px;background:rgba(255,255,255,.025);border:1px solid var(--border)}
     .step-num{
@@ -228,7 +237,7 @@
       <p>Ця сторінка написана для звичайного користувача. Тут коротко й зрозуміло пояснено, як почати роботу, коли обирати Solo або Room, як списується баланс, які дані обробляються та як зв’язатися з підтримкою.</p>
       <div class="meta"><span class="meta-chip">Оновлено: 09.03.2026</span><span class="meta-chip">15 мов</span><span class="meta-chip">Pay-as-you-go · $0.05/хв</span></div>
     </section>
-    <nav class="article-nav panel"><a href="#uk-start">Швидкий старт</a><a href="#uk-solo">Режим Solo</a><a href="#uk-room">Режим Room</a><a href="#uk-billing">Баланс і оплата</a><a href="#uk-privacy">Конфіденційність</a><a href="#uk-contact">Контакти</a></nav>
+    <nav class="article-nav panel"><a href="#uk-start">Швидкий старт</a><a href="#uk-solo">Режим Solo</a><a href="#uk-room">Режим Room</a><a href="#uk-duo">Режим Duo ✨</a><a href="#uk-billing">Баланс і оплата</a><a href="#uk-privacy">Конфіденційність</a><a href="#uk-contact">Контакти</a></nav>
     <section class="section panel" id="uk-start"><h2>1. Швидкий старт</h2>
 <p>VOX працює просто в браузері. Для початку достатньо смартфона або ноутбука, стабільного інтернету, дозволу на мікрофон і бажано навушників. Після реєстрації підтвердьте email: у вашому поточному флоу це відкриває бонус <strong>$3 на баланс</strong>, щоб можна було протестувати сервіс без поповнення.</p>
 <p>Далі вам потрібно лише вибрати сценарій: <strong>Solo</strong> для особистого перекладу один-на-один або <strong>Room</strong> для багатомовної кімнати, де є хост і гості.</p>
@@ -259,7 +268,20 @@
   <li><strong>Після завершення події хост зупиняє кімнату.</strong> Саме це коректно завершує активну сесію.</li>
 </ol>
 <div class="callout callout-warn"><strong>Важливо:</strong> для стабільної роботи в Room краще, щоб активний спікер говорив з одного основного мікрофона, а слухачі користувалися навушниками. Це зменшує шум і відлуння. Якщо використовуєте навушники з мікрофоном — заздалегідь вимкніть їхній мікрофон і переключіться на вбудований мікрофон смартфона: у дешевих навушниках мікрофон часто дає низьку якість або погану обробку звуку, що погіршує точність розпізнавання.</div>
-</section><section class="section panel" id="uk-billing"><h2>4. Баланс, тарифікація та email-верифікація</h2>
+</section><section class="section panel" id="uk-duo"><h2>4. Режим Duo <span class="badge-new">✨ Новий</span></h2>
+<p><strong>Duo</strong> — це режим живого двостороннього діалогу між двома людьми, які говорять різними мовами. Один говорить — інший одразу чує переклад. Потім відповідає — і переклад летить у зворотньому напрямку. Не потрібна кімната, не потрібні гості. Просто двоє людей і один або два смартфони.</p>
+<div class="mode-grid">
+  <div class="mode-card"><div class="mode-card-icon">📱</div><h3>На одному пристрої</h3><p>Один телефон між двома людьми. Перший говорить — другий чує переклад у навушниках і відповідає. Підходить для зустрічей, медичних прийомів, ділових переговорів.</p></div>
+  <div class="mode-card"><div class="mode-card-icon">📡</div><h3>Дистанційно (QR)</h3><p>Хост відкриває сесію і показує QR-код. Партнер сканує зі свого телефону. Кожен говорить у свій мікрофон — переклад надходить на пристрій співрозмовника.</p></div>
+</div>
+<div class="steps" style="margin-top:18px">
+  <div class="step"><div class="step-num">1</div><h3>Відкрийте головне меню → оберіть «Duo»</h3><p>Виберіть мову A (ваша мова) і мову B (мова партнера). Наприклад: Українська ↔ Англійська.</p></div>
+  <div class="step"><div class="step-num">2</div><h3>Оберіть формат: один пристрій або QR</h3><p>Для одного пристрою — натисніть «На одному пристрої». Для двох — «Дистанційно», покажіть QR партнеру.</p></div>
+  <div class="step"><div class="step-num">3</div><h3>Натисніть СТАРТ і говоріть</h3><p>Говоріть природно. VOX автоматично розпізнає, хто якою мовою говорить, і озвучує переклад для іншої сторони.</p></div>
+</div>
+<div class="callout callout-wip"><strong>🚧 Режим в активній розробці.</strong> Ми вже запустили Duo і активно його вдосконалюємо. Зараз можливі поодинокі збої у розпізнаванні мови або паузи між репліками — особливо на мобільних пристроях. Ми знаємо про це і вже працюємо над виправленнями. Оновлення очікується найближчим часом.</div>
+<div class="callout callout-warn"><strong>Важливо:</strong> Duo підтримує фіксований набір мовних пар (EN, RU, DE, FR, ES, IT, PT, HI, JA, NL та ін.). Режим автодетекції доступний лише для цих мов — це обмеження на стороні провайдера розпізнавання.</div>
+</section><section class="section panel" id="uk-billing"><h2>5. Баланс, тарифікація та email-верифікація</h2>
 <p>VOX у вашій поточній логіці працює за моделлю <strong>pay-as-you-go</strong>: ви не платите за підписку, а поповнюєте баланс і витрачаєте кошти лише під час фактичного використання сервісу. Для Solo в документації вже закладено орієнтир <strong>$0.05 за хвилину</strong>. Якщо у вас є окремі тарифи для Room, їх варто показувати в кабінеті хоста або в майбутньому білінг-блоці.</p>
 <p>Після реєстрації й підтвердження email користувач отримує <strong>$3 бонусу</strong>. Цього достатньо, щоб протестувати якість перекладу, перевірити затримку та зрозуміти, як поводиться сервіс у реальній розмові.</p>
 <p>Поповнення відбувається через Stripe. Дані банківської картки не мають проходити через ваш власний фронтенд або зберігатися на вашому сервері у відкритому вигляді: платіжна форма повинна бути віддана платіжним провайдером або токенізована на його стороні.</p>
@@ -268,13 +290,13 @@
   <div class="faq-item"><h3>Що робити, якщо баланс закінчується?</h3><p>Поповнити рахунок заздалегідь. Якщо у вас реалізоване попередження про низький баланс, його варто залишити — це корисно для безперервних сесій.</p></div>
   <div class="faq-item"><h3>Чому важлива верифікація email?</h3><p>Вона підтверджує власника акаунта, дозволяє відновлювати доступ і слугує адресою для сервісних повідомлень, квитанцій та звернень у підтримку.</p></div>
 </div>
-</section><section class="section panel" id="uk-privacy"><h2>5. Коротко про конфіденційність</h2>
+</section><section class="section panel" id="uk-privacy"><h2>6. Коротко про конфіденційність</h2>
 <p>На цій сторінці ми залишаємо лише практичний <strong>privacy summary</strong>, а повний юридичний текст винесено в окрему сторінку. Для сервісу реального часу це набагато зручніше: користувач швидко розуміє основне, а повний compliance-текст доступний окремо.</p>
 <p>Для роботи VOX можуть оброблятися такі категорії даних: дані акаунта та верифікації email, технічні журнали доступу, платіжні події, звернення у підтримку, а також аудіо й текст, які потрібні для транскрипції, перекладу та озвучення відповіді. Обробляти слід лише ті дані, які справді потрібні для надання послуги, і не зберігати їх довше, ніж це обґрунтовано метою сервісу.</p>
 <p>Користувачам не слід без потреби озвучувати або вводити <strong>чутливі дані</strong> — наприклад медичну інформацію, політичні погляди, релігійні переконання, біометричні дані або дані про дітей. Якщо такі дані неминучі, організація, що використовує VOX, повинна мати окрему законну підставу та чітко визначені правила доступу.</p>
 <p>Права користувача включають доступ до власних даних, виправлення, видалення, обмеження, заперечення та перенесення там, де це застосовно. Для повної інформації перейдіть на сторінку <a href="/privacy">Privacy Policy</a>.</p>
 <div class="callout callout-accent"><strong>Контакт з питань приватності:</strong> <a href="#" onclick="var u='avotiyaaa';var d='gmail.com';window.location='mailto:'+u+'@'+d;return false;">avotiyaaa&#64;gmail.com</a></div>
-</section><section class="section panel" id="uk-contact"><h2>6. Контакти</h2>
+</section><section class="section panel" id="uk-contact"><h2>7. Контакти</h2>
 <p>Якщо у вас виникла проблема — напишіть нам напряму на електронну пошту.</p>
 <div class="contact-card" style="text-align:center;padding:32px 24px">
   <div style="font-size:36px;margin-bottom:16px">🚧</div>
@@ -298,7 +320,7 @@
       <p>This page is written for real users. It explains what to click, when to use Solo or Room, how billing works, what data is processed, and how to contact support.</p>
       <div class="meta"><span class="meta-chip">Updated: 09 Mar 2026</span><span class="meta-chip">15 languages</span><span class="meta-chip">Pay-as-you-go · $0.05/min</span></div>
     </section>
-    <nav class="article-nav panel"><a href="#en-start">Quick start</a><a href="#en-solo">Solo mode</a><a href="#en-room">Room mode</a><a href="#en-billing">Billing</a><a href="#en-privacy">Privacy</a><a href="#en-contact">Contact</a></nav>
+    <nav class="article-nav panel"><a href="#en-start">Quick start</a><a href="#en-solo">Solo mode</a><a href="#en-room">Room mode</a><a href="#en-duo">Duo mode ✨</a><a href="#en-billing">Billing</a><a href="#en-privacy">Privacy</a><a href="#en-contact">Contact</a></nav>
     <section class="section panel" id="en-start"><h2>1. Quick start</h2>
 <p>VOX works directly in the browser. To begin, you only need a phone or laptop, stable internet, microphone access, and ideally headphones. After registration, verify your email address: in your current flow this unlocks a <strong>$3 balance bonus</strong>, so users can test the service before topping up.</p>
 <p>Then choose the scenario that fits your use case: <strong>Solo</strong> for personal real-time translation, or <strong>Room</strong> for a multilingual session with one host and multiple guests.</p>
@@ -329,7 +351,20 @@
   <li><strong>The host closes the room after the session.</strong> This is the proper end of the active translation session.</li>
 </ol>
 <div class="callout callout-warn"><strong>Important:</strong> Room is most stable when the active speaker uses one primary microphone and listeners use headphones. This reduces noise and echo. If you are using headphones with a built-in microphone, disable the headphone mic beforehand and switch to the phone's built-in microphone instead — cheap headphones often have poor-quality mics or substandard audio processing, which can significantly reduce transcription accuracy.</div>
-</section><section class="section panel" id="en-billing"><h2>4. Balance, billing, and email verification</h2>
+</section><section class="section panel" id="en-duo"><h2>4. Duo mode <span class="badge-new">✨ New</span></h2>
+<p><strong>Duo</strong> is a live two-way dialogue mode for two people speaking different languages. One person speaks — the other instantly hears the translation. Then they reply — and the translation flows back. No room setup needed, no guest links. Just two people and one or two phones.</p>
+<div class="mode-grid">
+  <div class="mode-card"><div class="mode-card-icon">📱</div><h3>One device</h3><p>One phone shared between two people. The first speaks — the second hears the translation in headphones and responds. Great for medical appointments, business negotiations, and quick conversations.</p></div>
+  <div class="mode-card"><div class="mode-card-icon">📡</div><h3>Remote (QR)</h3><p>The host opens a session and shows a QR code. The partner scans it on their own phone. Each speaks into their own mic — translation arrives on the other person's device.</p></div>
+</div>
+<div class="steps" style="margin-top:18px">
+  <div class="step"><div class="step-num">1</div><h3>Open the main menu → select «Duo»</h3><p>Choose language A (your language) and language B (your partner's language). For example: English ↔ Russian.</p></div>
+  <div class="step"><div class="step-num">2</div><h3>Choose format: one device or QR</h3><p>For a single device tap «One device». For two devices tap «Remote» and show the QR code to your partner.</p></div>
+  <div class="step"><div class="step-num">3</div><h3>Tap START and speak naturally</h3><p>VOX automatically detects which language is spoken and plays the translation for the other side.</p></div>
+</div>
+<div class="callout callout-wip"><strong>🚧 Active development.</strong> Duo is live and we are actively improving it. Occasional hiccups in language detection or short pauses between exchanges are possible — especially on mobile. We are aware of this and fixes are on the way. An update is coming soon.</div>
+<div class="callout callout-warn"><strong>Important:</strong> Duo supports a fixed set of language pairs (EN, RU, DE, FR, ES, IT, PT, HI, JA, NL and more). Auto-detection is only available for these languages — this is a limitation on the speech recognition provider's side.</div>
+</section><section class="section panel" id="en-billing"><h2>5. Balance, billing, and email verification</h2>
 <p>In your current logic, VOX follows a <strong>pay-as-you-go</strong> model: users do not need a subscription and only pay for actual usage. The existing documentation already indicates <strong>$0.05 per minute</strong> for Solo. If Room is billed differently, the Room pricing should be shown clearly in the host area or billing settings.</p>
 <p>After registration and email verification, the user receives a <strong>$3 bonus</strong>. That gives enough credit to test the service, compare quality, and understand the delay before adding funds.</p>
 <p>Topping up is handled through Stripe. Card details should not be collected or stored directly by your own frontend in raw form; the payment flow should stay inside the payment provider’s secure environment or tokenized checkout.</p>
@@ -338,13 +373,13 @@
   <div class="faq-item"><h3>What should users do when the balance is low?</h3><p>Top up in advance. A low-balance warning is a good idea and should remain in the interface for uninterrupted sessions.</p></div>
   <div class="faq-item"><h3>Why is email verification important?</h3><p>It confirms account ownership and gives you a reliable address for receipts, account recovery, service notices, and support replies.</p></div>
 </div>
-</section><section class="section panel" id="en-privacy"><h2>5. Privacy summary</h2>
+</section><section class="section panel" id="en-privacy"><h2>6. Privacy summary</h2>
 <p>This page contains only a practical <strong>privacy summary</strong>, while the full legal text is on a separate page. That makes the user guide easier to read and keeps the formal compliance details where they belong.</p>
 <p>To provide the service, VOX may process account and email-verification data, technical access logs, payment events, support messages, and the live audio/text necessary for transcription, translation, and speech output. Only the data needed to deliver the service should be processed, and it should not be kept longer than justified by the service purpose.</p>
 <p>Users should avoid entering or speaking <strong>sensitive data</strong> unless there is a real operational need and a valid legal basis. This includes health data, political opinions, religious beliefs, biometric information, or children’s data. If such data is involved, the organisation using VOX must apply stricter access controls and a clear compliance framework.</p>
 <p>Users may request access, correction, deletion, restriction, objection, and portability where applicable. The full details are available on the separate <a href="/privacy">Privacy Policy</a> page.</p>
 <div class="callout callout-accent"><strong>Privacy contact:</strong> <a href="#" onclick="var u='avotiyaaa';var d='gmail.com';window.location='mailto:'+u+'@'+d;return false;">avotiyaaa&#64;gmail.com</a></div>
-</section><section class="section panel" id="en-contact"><h2>6. Contact</h2>
+</section><section class="section panel" id="en-contact"><h2>7. Contact</h2>
 <p>If you have a problem with access, billing, microphone, translation quality, or privacy — reach out to us directly.</p>
 <div class="contact-card" style="text-align:center;padding:32px 24px">
   <div style="font-size:36px;margin-bottom:16px">🚧</div>
@@ -368,7 +403,7 @@
       <p>Diese Seite ist für normale Nutzer geschrieben. Sie erklärt klar, was geklickt werden muss, wann Solo oder Room sinnvoll ist, wie die Abrechnung funktioniert, welche Daten verarbeitet werden und wie man den Support erreicht.</p>
       <div class="meta"><span class="meta-chip">Aktualisiert: 09.03.2026</span><span class="meta-chip">15 Sprachen</span><span class="meta-chip">Pay-as-you-go · 0,05 $/Min.</span></div>
     </section>
-    <nav class="article-nav panel"><a href="#de-start">Schnellstart</a><a href="#de-solo">Solo-Modus</a><a href="#de-room">Room-Modus</a><a href="#de-billing">Abrechnung</a><a href="#de-privacy">Datenschutz</a><a href="#de-contact">Kontakt</a></nav>
+    <nav class="article-nav panel"><a href="#de-start">Schnellstart</a><a href="#de-solo">Solo-Modus</a><a href="#de-room">Room-Modus</a><a href="#de-duo">Duo-Modus ✨</a><a href="#de-billing">Abrechnung</a><a href="#de-privacy">Datenschutz</a><a href="#de-contact">Kontakt</a></nav>
     <section class="section panel" id="de-start"><h2>1. Schnellstart</h2>
 <p>VOX funktioniert direkt im Browser. Für den Start genügen ein Smartphone oder Laptop, eine stabile Internetverbindung, Mikrofonzugriff und idealerweise Kopfhörer. Nach der Registrierung sollte die E-Mail-Adresse bestätigt werden: im aktuellen Ablauf wird dadurch ein <strong>Bonus von 3 $</strong> auf dem Guthaben freigeschaltet, damit der Dienst vor dem Aufladen getestet werden kann.</p>
 <p>Danach wählen Sie nur noch das passende Szenario: <strong>Solo</strong> für persönliche Echtzeitübersetzung oder <strong>Room</strong> für eine mehrsprachige Sitzung mit Host und mehreren Gästen.</p>
@@ -399,7 +434,20 @@
   <li><strong>Der Host schließt den Raum nach der Sitzung.</strong> So endet die aktive Übersetzungssitzung korrekt.</li>
 </ol>
 <div class="callout callout-warn"><strong>Wichtig:</strong> Room ist am stabilsten, wenn der aktive Sprecher ein Hauptmikrofon nutzt und die Zuhörer Kopfhörer tragen. Das reduziert Lärm und Echo. Wenn Sie Kopfhörer mit eingebautem Mikrofon verwenden, deaktivieren Sie das Kopfhörermikrofon vorab und wechseln Sie zum eingebauten Mikrofon des Smartphones — günstige Kopfhörer haben häufig minderwertige Mikrofone oder schlechte Audioverarbeitung, was die Erkennungsgenauigkeit erheblich verschlechtern kann.</div>
-</section><section class="section panel" id="de-billing"><h2>4. Guthaben, Abrechnung und E-Mail-Bestätigung</h2>
+</section><section class="section panel" id="de-duo"><h2>4. Duo-Modus <span class="badge-new">✨ Neu</span></h2>
+<p><strong>Duo</strong> ist ein Live-Dialogmodus für zwei Personen, die verschiedene Sprachen sprechen. Eine Person spricht — die andere hört sofort die Übersetzung. Dann antwortet sie — und die Übersetzung fließt zurück. Kein Raum nötig, keine Gäste-Links. Einfach zwei Menschen und ein oder zwei Smartphones.</p>
+<div class="mode-grid">
+  <div class="mode-card"><div class="mode-card-icon">📱</div><h3>Ein Gerät</h3><p>Ein Smartphone zwischen zwei Personen. Die erste spricht — die zweite hört die Übersetzung über Kopfhörer und antwortet. Ideal für Arzttermine, Geschäftsgespräche und kurze Unterhaltungen.</p></div>
+  <div class="mode-card"><div class="mode-card-icon">📡</div><h3>Fernbetrieb (QR)</h3><p>Der Host öffnet eine Sitzung und zeigt den QR-Code. Der Partner scannt ihn mit seinem eigenen Smartphone. Jeder spricht in sein Mikrofon — die Übersetzung erscheint beim Gesprächspartner.</p></div>
+</div>
+<div class="steps" style="margin-top:18px">
+  <div class="step"><div class="step-num">1</div><h3>Hauptmenü öffnen → «Duo» auswählen</h3><p>Sprache A (Ihre Sprache) und Sprache B (Sprache des Partners) festlegen. Zum Beispiel: Deutsch ↔ Russisch.</p></div>
+  <div class="step"><div class="step-num">2</div><h3>Format wählen: ein Gerät oder QR</h3><p>Für ein Gerät auf «Ein Gerät» tippen. Für zwei Geräte auf «Fernbetrieb» tippen und den QR-Code dem Partner zeigen.</p></div>
+  <div class="step"><div class="step-num">3</div><h3>START antippen und natürlich sprechen</h3><p>VOX erkennt automatisch, welche Sprache gesprochen wird, und gibt die Übersetzung für die andere Seite aus.</p></div>
+</div>
+<div class="callout callout-wip"><strong>🚧 In aktiver Entwicklung.</strong> Duo ist live und wird laufend verbessert. Gelegentliche Probleme bei der Spracherkennung oder kurze Pausen zwischen Gesprächsbeiträgen sind möglich — besonders auf Mobilgeräten. Wir sind uns dessen bewusst und arbeiten bereits an Korrekturen. Ein Update folgt in Kürze.</div>
+<div class="callout callout-warn"><strong>Wichtig:</strong> Duo unterstützt einen festen Satz von Sprachpaaren (EN, RU, DE, FR, ES, IT, PT, HI, JA, NL u. a.). Die automatische Erkennung ist nur für diese Sprachen verfügbar — dies ist eine Einschränkung des Spracherkennungsanbieters.</div>
+</section><section class="section panel" id="de-billing"><h2>5. Guthaben, Abrechnung und E-Mail-Bestätigung</h2>
 <p>In Ihrer aktuellen Logik nutzt VOX ein <strong>Pay-as-you-go</strong>-Modell: Nutzer brauchen kein Abo und zahlen nur für die tatsächliche Nutzung. In der bestehenden Dokumentation ist bereits <strong>0,05 $ pro Minute</strong> für Solo hinterlegt. Falls Room anders abgerechnet wird, sollte der Preis klar im Host-Bereich oder in den Abrechnungseinstellungen angezeigt werden.</p>
 <p>Nach Registrierung und E-Mail-Bestätigung erhält der Nutzer einen <strong>Bonus von 3 $</strong>. Das reicht aus, um Qualität, Verzögerung und Bedienung des Dienstes zu testen, bevor weiteres Guthaben hinzugefügt wird.</p>
 <p>Das Aufladen läuft über Stripe. Kartendaten sollten nicht roh über das eigene Frontend erfasst oder gespeichert werden; der Zahlungsvorgang sollte vollständig in der sicheren Umgebung des Zahlungsanbieters bzw. über tokenisierte Checkouts erfolgen.</p>
@@ -408,13 +456,13 @@
   <div class="faq-item"><h3>Was tun bei niedrigem Guthaben?</h3><p>Rechtzeitig aufladen. Eine Warnung bei niedrigem Guthaben ist sinnvoll und sollte für unterbrechungsfreie Sitzungen erhalten bleiben.</p></div>
   <div class="faq-item"><h3>Warum ist die E-Mail-Bestätigung wichtig?</h3><p>Sie bestätigt den Kontoinhaber und liefert eine verlässliche Adresse für Belege, Wiederherstellung, Servicemeldungen und Support-Antworten.</p></div>
 </div>
-</section><section class="section panel" id="de-privacy"><h2>5. Datenschutz in Kürze</h2>
+</section><section class="section panel" id="de-privacy"><h2>6. Datenschutz in Kürze</h2>
 <p>Auf dieser Seite bleibt nur eine praktische <strong>Kurzfassung zum Datenschutz</strong>; der vollständige rechtliche Text steht auf einer separaten Seite. So bleibt die Bedienungsanleitung lesbar und die formalen Compliance-Details sind trotzdem vollständig verfügbar.</p>
 <p>Für die Bereitstellung des Dienstes kann VOX Konto- und E-Mail-Bestätigungsdaten, technische Zugriffsprotokolle, Zahlungsereignisse, Support-Nachrichten sowie die Live-Audio- und Textdaten verarbeiten, die für Transkription, Übersetzung und Sprachausgabe erforderlich sind. Es sollten nur die Daten verarbeitet werden, die für die Leistung wirklich notwendig sind, und sie sollten nicht länger gespeichert werden als sachlich erforderlich.</p>
 <p>Nutzer sollten <strong>sensible Daten</strong> nicht ohne echten Bedarf eingeben oder aussprechen. Dazu gehören Gesundheitsdaten, politische Meinungen, religiöse Überzeugungen, biometrische Informationen oder Daten von Kindern. Wenn solche Daten betroffen sind, muss die Organisation, die VOX einsetzt, strengere Zugriffskontrollen und eine klare Rechtsgrundlage sicherstellen.</p>
 <p>Nutzer können, soweit anwendbar, Auskunft, Berichtigung, Löschung, Einschränkung, Widerspruch und Datenübertragbarkeit verlangen. Die vollständigen Informationen finden sich auf der separaten <a href="/privacy">Privacy Policy</a>-Seite.</p>
 <div class="callout callout-accent"><strong>Datenschutzkontakt:</strong> <a href="#" onclick="var u='avotiyaaa';var d='gmail.com';window.location='mailto:'+u+'@'+d;return false;">avotiyaaa&#64;gmail.com</a></div>
-</section><section class="section panel" id="de-contact"><h2>6. Kontakt</h2>
+</section><section class="section panel" id="de-contact"><h2>7. Kontakt</h2>
 <p>Wenn Sie ein Problem mit Zugang, Abrechnung, Mikrofon, Übersetzungsqualität oder Datenschutz haben — schreiben Sie uns direkt.</p>
 <div class="contact-card" style="text-align:center;padding:32px 24px">
   <div style="font-size:36px;margin-bottom:16px">🚧</div>
@@ -439,25 +487,28 @@
       ['uk-start', '1. Швидкий старт'],
       ['uk-solo', '2. Режим Solo'],
       ['uk-room', '3. Режим Room'],
-      ['uk-billing', '4. Баланс і оплата'],
-      ['uk-privacy', '5. Конфіденційність'],
-      ['uk-contact', '6. Контакти']
+      ['uk-duo', '4. Режим Duo ✨'],
+      ['uk-billing', '5. Баланс і оплата'],
+      ['uk-privacy', '6. Конфіденційність'],
+      ['uk-contact', '7. Контакти']
     ],
     en: [
       ['en-start', '1. Quick start'],
       ['en-solo', '2. Solo mode'],
       ['en-room', '3. Room mode'],
-      ['en-billing', '4. Billing'],
-      ['en-privacy', '5. Privacy'],
-      ['en-contact', '6. Contact']
+      ['en-duo', '4. Duo mode ✨'],
+      ['en-billing', '5. Billing'],
+      ['en-privacy', '6. Privacy'],
+      ['en-contact', '7. Contact']
     ],
     de: [
       ['de-start', '1. Schnellstart'],
       ['de-solo', '2. Solo-Modus'],
       ['de-room', '3. Room-Modus'],
-      ['de-billing', '4. Abrechnung'],
-      ['de-privacy', '5. Datenschutz'],
-      ['de-contact', '6. Kontakt']
+      ['de-duo', '4. Duo-Modus ✨'],
+      ['de-billing', '5. Abrechnung'],
+      ['de-privacy', '6. Datenschutz'],
+      ['de-contact', '7. Kontakt']
     ]
   };
 
