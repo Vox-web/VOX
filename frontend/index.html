@@ -885,14 +885,14 @@ footer{
   <div class="modal" style="max-width:380px">
     <button class="modal-close" onclick="closeModal('modalTopup')">✕</button>
     <h2 style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:6px"><span data-i18n="dash_topup_title">💳 Поповнити баланс</span></h2>
-    <p style="color:var(--text3);font-size:14px;margin-bottom:24px">Оберіть суму поповнення. Кошти одразу зараховуються на рахунок.</p>
+    <p style="color:var(--text3);font-size:14px;margin-bottom:24px" data-i18n="topup_sub">Оберіть суму поповнення. Кошти одразу зараховуються на рахунок.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px" id="topupGrid">
       <button onclick="doTopup(5)"  class="topup-amount-btn">$5<span>≈ 100 хв</span></button>
       <button onclick="doTopup(10)" class="topup-amount-btn topup-popular">$10<span>≈ 200 хв ⭐</span></button>
       <button onclick="doTopup(20)" class="topup-amount-btn">$20<span>≈ 400 хв</span></button>
       <button onclick="doTopup(50)" class="topup-amount-btn">$50<span>≈ 1000 хв</span></button>
     </div>
-    <p style="font-size:11px;color:var(--text3);text-align:center">🔒 Безпечна оплата через Stripe · Без підписки</p>
+    <p style="font-size:11px;color:var(--text3);text-align:center" data-i18n="topup_secure">🔒 Безпечна оплата через Stripe · Без підписки</p>
   </div>
 </div>
 
@@ -1047,6 +1047,7 @@ uk:{
   footer_contact:"Контакти",
   f_password2:"Повторіть пароль",
   hero_cta_host:"Перейти до VOX Host",
+  topup_sub:"Оберіть суму поповнення. Кошти одразу зараховуються на рахунок.", topup_secure:"🔒 Безпечна оплата через Stripe · Без підписки",
   
 },
 en:{
@@ -1100,6 +1101,7 @@ en:{
   footer_contact:"Contact",
   f_password2:"Repeat password",
   hero_cta_host:"Go to VOX Host",
+  topup_sub:"Choose a top-up amount. Funds are credited instantly.", topup_secure:"🔒 Secure payment via Stripe · No subscription",
   
 },
 de:{
@@ -1153,6 +1155,7 @@ de:{
   footer_contact:"Kontakt",
   f_password2:"Passwort wiederholen",
   hero_cta_host:"Zu VOX Host",
+  topup_sub:"Wählen Sie einen Betrag. Das Guthaben wird sofort gutgeschrieben.", topup_secure:"🔒 Sichere Zahlung über Stripe · Kein Abonnement",
   
 }};
 
