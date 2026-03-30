@@ -1213,9 +1213,9 @@ function updateNavForUser(){
     const span = heroBtn.querySelector('[data-i18n="hero_cta_start"]');
     if(span){
       span.removeAttribute('data-i18n');
-      span.textContent = currentLang==='en' ? '🎙 Go to VOX Host'
-                       : currentLang==='de' ? '🎙 Zu VOX Host'
-                       : '🎙 Перейти до VOX Host';
+      span.textContent = currentLang==='en' ? 'Go to VOX Host'
+                       : currentLang==='de' ? 'Zu VOX Host'
+                       : 'Перейти до VOX Host';
     }
     // Убрать иконку микрофона если была другая
     const icon = heroBtn.querySelector('span:not([data-i18n])');
