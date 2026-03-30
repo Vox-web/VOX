@@ -1207,6 +1207,19 @@ function updateNavForUser(){
   // Hide bonus CTA — user already registered
   const bonusBtn = document.getElementById('bonusCta');
   if(bonusBtn) bonusBtn.style.display='none';
+  // Поменять текст главной кнопки для авторизованных
+  const heroBtn = document.querySelector('#home .btn-primary[href="/host"]');
+  if(heroBtn){
+    const span = heroBtn.querySelector('[data-i18n="hero_cta_start"]');
+    if(span){
+      span.removeAttribute('data-i18n');
+      span.textContent = currentLang==='en' ? '🎙 Go to VOX Host'
+                       : currentLang==='de' ? '🎙 Zu VOX Host'
+                       : '🎙 Перейти до VOX Host';
+    }
+    // Убрать иконку микрофона если была другая
+    const icon = heroBtn.querySelector('span:not([data-i18n])');
+  }
   // CTA section: hide register btn, show authed message
   const ctaReg = document.getElementById('ctaRegisterBtn');
   const ctaMsg = document.getElementById('ctaAuthedMsg');
