@@ -225,6 +225,14 @@ class ReviewBody(BaseModel):
     guest_name: Optional[str] = None
     guest_email: Optional[str] = None
 
+class UpdateUserBody(BaseModel):
+    user_id: int
+    name: Optional[str] = None
+    email: Optional[str] = None
+    is_active: Optional[bool] = None
+    new_password: Optional[str] = None
+    new_balance: Optional[float] = None    
+
 ADMIN_LOGIN    = os.getenv("ADMIN_LOGIN", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "kozerog")
 
@@ -1870,6 +1878,69 @@ async def admin_get_users(authorization: Optional[str] = Header(None)):
             u.setdefault("balance", 0.0)
     return users
 
+@app.patch("/api/admin/users/{user_id}")
+async def admin_update_user(
+    user_id: int,
+    body: UpdateUserBody,
+    authorization: Optional[str] = Header(None)
+):
+    _check_admin(authorization)
+    from billing_db import DB_PATH
+    import hashlib
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    cur = con.cursor()
+    cur.execute("SELECT id FROM users WHERE id=?", (user_id,))
+    if not cur.fetchone():
+        con.close()
+        raise HTTPException(404, "Користувач не знайдений")
+    if body.name is not None:
+        cur.execute("UPDATE users SET name=? WHERE id=?", (body.name.strip(), user_id))
+    if body.email is not None:
+        cur.execute("SELECT id FROM users WHERE email=? AND id!=?", (body.email.strip(), user_id))
+        if cur.fetchone():
+            con.close()
+            raise HTTPException(400, "Цей email вже використовується іншим користувачем")
+        cur.execute("UPDATE users SET email=? WHERE id=?", (body.email.strip(), user_id))
+    if body.is_active is not None:
+        cur.execute("UPDATE users SET is_active=? WHERE id=?", (int(body.is_active), user_id))
+    if body.new_password is not None and body.new_password.strip():
+        if len(body.new_password) < 6:
+            con.close()
+            raise HTTPException(400, "Пароль занадто короткий (мін. 6 символів)")
+        pw_hash = hashlib.sha256(body.new_password.encode()).hexdigest()
+        cur.execute("UPDATE users SET password_hash=? WHERE id=?", (pw_hash, user_id))
+    if body.new_balance is not None:
+        if body.new_balance < 0:
+            con.close()
+            raise HTTPException(400, "Баланс не може бути від'ємним")
+        cur.execute("UPDATE users SET balance=? WHERE id=?", (round(body.new_balance, 4), user_id))
+    con.commit()
+    con.close()
+    logger.info(f"✏️ admin_update_user: id={user_id}")
+    return {"ok": True}
+
+
+@app.delete("/api/admin/users/{user_id}")
+async def admin_delete_user(
+    user_id: int,
+    authorization: Optional[str] = Header(None)
+):
+    _check_admin(authorization)
+    from billing_db import DB_PATH
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    cur.execute("SELECT id FROM users WHERE id=?", (user_id,))
+    if not cur.fetchone():
+        con.close()
+        raise HTTPException(404, "Користувач не знайдений")
+    cur.execute("DELETE FROM payments WHERE user_id=?", (user_id,))
+    cur.execute("DELETE FROM reviews WHERE user_id=?",  (user_id,))
+    cur.execute("DELETE FROM users WHERE id=?",         (user_id,))
+    con.commit()
+    con.close()
+    logger.info(f"🗑 admin_delete_user: id={user_id}")
+    return {"ok": True}
 
 # ── Finance admin ──────────────────────────────────────────────────────────────
 
