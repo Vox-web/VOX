@@ -283,3 +283,21 @@ def get_user_by_id(user_id: int) -> dict | None:
     row = cur.fetchone()
     con.close()
     return dict(row) if row else None
+
+
+# ---------------------------------------------------------------------------
+# Пороги предупреждений о балансе
+# ---------------------------------------------------------------------------
+
+BALANCE_WARN_LOW      = 1.50   # мягкое предупреждение
+BALANCE_WARN_CRITICAL = 0.50   # жёсткое предупреждение
+
+def get_balance_warning(balance: float) -> str | None:
+    """Вернуть уровень предупреждения: 'low' | 'critical' | 'zero' | None."""
+    if balance <= 0:
+        return "zero"
+    elif balance <= BALANCE_WARN_CRITICAL:
+        return "critical"
+    elif balance <= BALANCE_WARN_LOW:
+        return "low"
+    return None

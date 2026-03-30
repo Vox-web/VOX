@@ -1152,6 +1152,10 @@
             btnCloseDuo: 'Закрити сесію',
             duoStatusListening: '🎤 Слухаю...', duoStatusConnecting: 'Підключення...',
             duoStatusReady: 'Готово — говоріть!',
+            warnLow: '💛 Баланс {BAL} — скоро закінчиться{GUESTS}',
+            warnCritical: '🔶 Критичний баланс {BAL}! Поповніть зараз{GUESTS}',
+            warnZero: '🔴 Баланс вичерпано. Сесію зупинено.',
+            warnGuests: ' · {N} уч.',
         },
         en: {
             subtitle: 'Real-time AI Translation',
@@ -1207,6 +1211,10 @@
             btnCloseDuo: 'Close session',
             duoStatusListening: '🎤 Listening...', duoStatusConnecting: 'Connecting...',
             duoStatusReady: 'Ready — speak!',
+            warnLow: '💛 Balance {BAL} — running low{GUESTS}',
+            warnCritical: '🔶 Critical balance {BAL}! Top up now{GUESTS}',
+            warnZero: '🔴 Balance exhausted. Session stopped.',
+            warnGuests: ' · {N} participants',
         },
         de: {
             subtitle: 'KI-Übersetzung in Echtzeit',
@@ -1262,6 +1270,10 @@
             btnCloseDuo: 'Sitzung beenden',
             duoStatusListening: '🎤 Höre zu...', duoStatusConnecting: 'Verbinde...',
             duoStatusReady: 'Bereit — sprechen Sie!',
+            warnLow: '💛 Guthaben {BAL} — wird knapp{GUESTS}',
+            warnCritical: '🔶 Kritisches Guthaben {BAL}! Jetzt aufladen{GUESTS}',
+            warnZero: '🔴 Guthaben aufgebraucht. Sitzung beendet.',
+            warnGuests: ' · {N} Teiln.',
         },
     };
 
@@ -2483,12 +2495,38 @@
     const _origSoloOnMsg = (typeof soloWs !== 'undefined') ? null : null; // placeholder
     function _handleBillingWsMsg(data) {
         if (!data || !data.type) return;
+
         if (data.type === 'balance_warning') {
-            showVoxToast(`⚠️ Баланс закінчується! ~${data.minutes_left} хв залишилось.`, 'warning');
+            const bal        = data.balance !== undefined ? '$' + data.balance.toFixed(2) : '';
+            const guestsPart = data.guests
+                ? t('warnGuests').replace('{N}', data.guests)
+                : '';
+
+            if (data.level === 'low') {
+                const msg = t('warnLow').replace('{BAL}', bal).replace('{GUESTS}', guestsPart);
+                showVoxToast(msg, 'warning');
+
+            } else if (data.level === 'critical') {
+                const msg = t('warnCritical').replace('{BAL}', bal).replace('{GUESTS}', guestsPart);
+                showVoxToast(msg, 'error');
+                setTimeout(() => openTopupModal(), 800);
+            }
+
+            // Обновить виджет баланса в шапке
+            if (data.balance !== undefined) {
+                const amtEl  = document.getElementById('balanceAmount');
+                const widget = document.getElementById('balanceWidget');
+                if (amtEl) amtEl.textContent = '$' + data.balance.toFixed(2);
+                if (widget) {
+                    widget.classList.toggle('balance-low',   data.balance > 0.50 && data.balance <= 1.50);
+                    widget.classList.toggle('balance-empty', data.balance <= 0.50);
+                }
+            }
+
         } else if (data.type === 'session_ended' && data.reason === 'no_balance') {
-            showVoxToast('🔴 Баланс вичерпано. Сесію зупинено.', 'error');
-            // Останавливаем Solo если активен
+            showVoxToast(t('warnZero'), 'error');
             if (typeof soloStop === 'function' && soloListening) soloStop();
+            setTimeout(() => openTopupModal(), 1000);
         }
     }
     // Патч: перехватываем все входящие WS JSON сообщения

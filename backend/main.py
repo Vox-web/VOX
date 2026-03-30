@@ -1057,11 +1057,15 @@ async def websocket_solo(ws: WebSocket):
                     await ws.send_json({"type": "session_ended", "reason": "no_balance"})
                     await ws.close()
                     return
-                elif new_balance <= 0.10:
-                    from vox_db import get_finance_settings as _gfs
-                    _ppm = (_gfs().get(_user_id) or {}).get("price_per_min", 0.05)
-                    minutes_left = max(1, round(new_balance / _ppm))
-                    await ws.send_json({"type": "balance_warning", "minutes_left": minutes_left})
+                else:
+                    from billing_db import get_balance_warning as _gbw
+                    _warn = _gbw(new_balance)
+                    if _warn:
+                        await ws.send_json({
+                            "type": "balance_warning",
+                            "level": _warn,           # "low" | "critical"
+                            "balance": round(new_balance, 4),
+                        })
             except asyncio.CancelledError:
                 return
             except Exception as e:
@@ -1242,11 +1246,16 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                     await ws.send_json({"type": "session_ended", "reason": "no_balance"})
                     await ws.close()
                     return
-                elif new_balance <= 0.10:
-                    from vox_db import get_finance_settings as _gfs
-                    _ppm = (_gfs().get(_user_id) or {}).get("price_per_min", 0.05)
-                    minutes_left = max(1, round(new_balance / (_ppm * max(1, guest_count))))
-                    await ws.send_json({"type": "balance_warning", "minutes_left": minutes_left})
+                else:
+                    from billing_db import get_balance_warning as _gbw
+                    _warn = _gbw(new_balance)
+                    if _warn:
+                        await ws.send_json({
+                            "type": "balance_warning",
+                            "level": _warn,           # "low" | "critical"
+                            "balance": round(new_balance, 4),
+                            "guests": guest_count,    # сколько участников сейчас
+                        })
             except asyncio.CancelledError:
                 return
             except Exception as e:
@@ -1711,6 +1720,23 @@ async def api_register(body: RegisterBody):
         }
         raise HTTPException(400, errors.get(result["error"], result["error"]))
     result["user"].pop("password_hash", None)
+    # ── Авто-бонус $3 при регистрации (без ожидания email) ──
+    try:
+        from billing_db import _conn as _bconn
+        _bc = _bconn()
+        _bcur = _bc.cursor()
+        _bcur.execute("SELECT bonus_given FROM users WHERE id=?", (result["user"]["id"],))
+        _brow = _bcur.fetchone()
+        if _brow and not _brow["bonus_given"]:
+            _bc.execute(
+                "UPDATE users SET balance=ROUND(balance+3.0,6), bonus_given=1 WHERE id=?",
+                (result["user"]["id"],)
+            )
+            _bc.commit()
+            logger.info(f"🎁 auto bonus $3: user_id={result['user']['id']}")
+        _bc.close()
+    except Exception as _be:
+        logger.warning(f"auto_bonus failed: {_be}")
     # Отправить верификационный email ($3 бонус)
     try:
         send_verification_email(
