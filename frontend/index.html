@@ -1046,6 +1046,7 @@ uk:{
   footer_privacy:"Конфіденційність",
   footer_contact:"Контакти",
   f_password2:"Повторіть пароль",
+  hero_cta_host:"Перейти до VOX Host",
   
 },
 en:{
@@ -1098,6 +1099,7 @@ en:{
   footer_privacy:"Privacy",
   footer_contact:"Contact",
   f_password2:"Repeat password",
+  hero_cta_host:"Go to VOX Host",
   
 },
 de:{
@@ -1150,6 +1152,7 @@ de:{
   footer_privacy:"Datenschutz",
   footer_contact:"Kontakt",
   f_password2:"Passwort wiederholen",
+  hero_cta_host:"Zu VOX Host",
   
 }};
 
@@ -1212,10 +1215,8 @@ function updateNavForUser(){
   if(heroBtn){
     const span = heroBtn.querySelector('[data-i18n="hero_cta_start"]');
     if(span){
-      span.removeAttribute('data-i18n');
-      span.textContent = currentLang==='en' ? 'Go to VOX Host'
-                       : currentLang==='de' ? 'Zu VOX Host'
-                       : 'Перейти до VOX Host';
+      span.setAttribute('data-i18n', 'hero_cta_host');
+      span.textContent = t('hero_cta_host');
     }
     // Убрать иконку микрофона если была другая
     const icon = heroBtn.querySelector('span:not([data-i18n])');
