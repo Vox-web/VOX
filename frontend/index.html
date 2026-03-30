@@ -934,6 +934,10 @@ footer{
         <label class="form-label" data-i18n="f_password">Пароль</label>
         <input class="form-input" type="password" id="regPassword" placeholder="Мін. 6 символів" autocomplete="new-password"/>
       </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="f_password2">Повторіть пароль</label>
+        <input class="form-input" type="password" id="regPassword2" placeholder="••••••••" autocomplete="new-password"/>
+      </div>
       <button class="form-submit" id="regSubmit" onclick="doRegister()" data-i18n="btn_register">Зареєструватись</button>
       <div class="form-error" id="regError"></div>
       <div class="form-success" id="regSuccess"></div>
@@ -1041,6 +1045,7 @@ uk:{
   footer_docs:"Документація",
   footer_privacy:"Конфіденційність",
   footer_contact:"Контакти",
+  f_password2:"Повторіть пароль",
   
 },
 en:{
@@ -1092,6 +1097,7 @@ en:{
   footer_docs:"Documentation",
   footer_privacy:"Privacy",
   footer_contact:"Contact",
+  f_password2:"Repeat password",
   
 },
 de:{
@@ -1143,6 +1149,7 @@ de:{
   footer_docs:"Dokumentation",
   footer_privacy:"Datenschutz",
   footer_contact:"Kontakt",
+  f_password2:"Passwort wiederholen",
   
 }};
 
@@ -1313,10 +1320,12 @@ async function doRegister(){
   const name  = document.getElementById('regName').value.trim();
   const email = document.getElementById('regEmail').value.trim();
   const pass  = document.getElementById('regPassword').value;
+  const pass2 = document.getElementById('regPassword2').value;
   const errEl = document.getElementById('regError');
   const okEl  = document.getElementById('regSuccess');
   errEl.classList.remove('show'); okEl.classList.remove('show');
-  if(!name||!email||!pass){errEl.textContent=(currentLang==='en'?'Fill all fields':currentLang==='de'?'Alle Felder ausfüllen':'Заповніть всі поля');errEl.classList.add('show');return;}
+  if(!name||!email||!pass||!pass2){errEl.textContent=(currentLang==='en'?'Fill all fields':currentLang==='de'?'Alle Felder ausfüllen':'Заповніть всі поля');errEl.classList.add('show');return;}
+  if(pass !== pass2){errEl.textContent=(currentLang==='en'?'Passwords do not match':currentLang==='de'?'Passwörter stimmen nicht überein':'Паролі не співпадають');errEl.classList.add('show');return;}
   const btn = document.getElementById('regSubmit');
   btn.disabled=true;btn.textContent='...';
   try{
