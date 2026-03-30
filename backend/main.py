@@ -1885,8 +1885,8 @@ async def admin_update_user(
     authorization: Optional[str] = Header(None)
 ):
     _check_admin(authorization)
+    import sqlite3, hashlib
     from billing_db import DB_PATH
-    import hashlib
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     cur = con.cursor()
@@ -1927,6 +1927,7 @@ async def admin_delete_user(
     authorization: Optional[str] = Header(None)
 ):
     _check_admin(authorization)
+    import sqlite3
     from billing_db import DB_PATH
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
