@@ -155,7 +155,7 @@ async def api_contact(body: ContactBody):
     msg.attach(MIMEText(html, "html", "utf-8"))
 
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=5) as server:
             server.login(gmail_user, gmail_pass)
             server.sendmail(gmail_user, owner_email, msg.as_string())
         logger.info("📩 Contact form sent: %s <%s>", body.name, body.email)
@@ -1739,13 +1739,14 @@ async def api_register(body: RegisterBody):
         logger.warning(f"auto_bonus failed: {_be}")
     # Отправить верификационный email ($3 бонус)
     try:
-        send_verification_email(
-            result["user"]["id"],
-            result["user"]["email"],
-            result["user"]["name"]
-        )
+        import threading
+        threading.Thread(
+            target=send_verification_email,
+            args=(result["user"]["id"], result["user"]["email"], result["user"]["name"]),
+            daemon=True
+        ).start()
     except Exception as _e:
-        logger.warning(f"send_verification_email failed: {_e}")
+        logger.warning(f"send_verification_email thread failed: {_e}")
     return result
 
 
