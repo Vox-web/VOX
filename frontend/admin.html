@@ -981,7 +981,7 @@ async function saveUser(){
   if(isNaN(balance)||balance<0){ showToast('❌ Некоректний баланс','err'); return; }
 
   try{
-    const body = {user_id:id, name, email, is_active:active, new_balance:balance};
+    const body = {name, email, is_active:active, new_balance:balance};
     if(pass) body.new_password = pass;
 
     const r = await fetch('/api/admin/users/'+id, {

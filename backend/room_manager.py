@@ -124,7 +124,7 @@ class RoomManager:
             import qrcode
             from qrcode.image.pil import PilImage
 
-            base_url = os.getenv("BASE_URL", "http://localhost:8080")
+            base_url = (self.base_url or os.getenv("BASE_URL", "http://localhost:8080")).rstrip("/")
             url = f"{base_url}/room/{room_id}"
             qr = qrcode.QRCode(
                 version=1,

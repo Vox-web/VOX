@@ -226,7 +226,6 @@ class ReviewBody(BaseModel):
     guest_email: Optional[str] = None
 
 class UpdateUserBody(BaseModel):
-    user_id: int
     name: Optional[str] = None
     email: Optional[str] = None
     is_active: Optional[bool] = None
@@ -1885,8 +1884,9 @@ async def admin_update_user(
     authorization: Optional[str] = Header(None)
 ):
     _check_admin(authorization)
-    import sqlite3, hashlib
+    import sqlite3
     from billing_db import DB_PATH
+    from vox_db import hash_password
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     cur = con.cursor()
@@ -1908,7 +1908,7 @@ async def admin_update_user(
         if len(body.new_password) < 6:
             con.close()
             raise HTTPException(400, "Пароль занадто короткий (мін. 6 символів)")
-        pw_hash = hashlib.sha256(body.new_password.encode()).hexdigest()
+        pw_hash = hash_password(body.new_password)
         cur.execute("UPDATE users SET password_hash=? WHERE id=?", (pw_hash, user_id))
     if body.new_balance is not None:
         if body.new_balance < 0:

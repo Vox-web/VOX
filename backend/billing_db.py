@@ -13,7 +13,7 @@ import os
 logger = logging.getLogger("vox.billing_db")
 
 # Используем ту же БД, что и vox_db.py
-DB_PATH = Path(os.environ.get("DB_PATH", "/data/vox.db"))
+DB_PATH = Path(os.environ.get("VOX_DB_PATH", "/data/vox.db"))
 
 
 def _conn():
