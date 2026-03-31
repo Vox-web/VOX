@@ -87,7 +87,7 @@ def _check_admin(authorization: Optional[str]):
 # EMAIL верификация (Gmail SMTP)
 # ---------------------------------------------------------------------------
 
-def send_verification_email(user_id: int, email: str, name: str):
+def send_verification_email(user_id: int, email: str, name: str) -> bool:
     """
     Генерировать токен и отправить HTML-письмо верификации через Gmail SMTP.
     Вызывается после регистрации пользователя.
@@ -98,7 +98,7 @@ def send_verification_email(user_id: int, email: str, name: str):
 
     if not gmail_user or not gmail_pass:
         logger.warning("⚠️ GMAIL_USER або GMAIL_APP_PASSWORD не задано — email не відправлено")
-        return
+        return False
 
     token = generate_verify_token(user_id)
     verify_url = f"{BASE_URL}/api/verify-email?token={token}"
@@ -169,8 +169,10 @@ def send_verification_email(user_id: int, email: str, name: str):
             server.login(gmail_user, gmail_pass)
             server.sendmail(gmail_user, email, msg.as_string())
         logger.info(f"📧 email відправлено через Gmail: {email}")
+        return True
     except Exception as e:
         logger.error(f"❌ Gmail SMTP error: {e}")
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -284,7 +286,10 @@ async def api_send_verification(authorization: Optional[str] = Header(None)):
     if full_user.get("is_email_verified"):
         return JSONResponse({"ok": True, "message": "Email вже підтверджений"})
 
-    send_verification_email(user["id"], user["email"], user.get("name", ""))
+    sent = send_verification_email(user["id"], user["email"], user.get("name", ""))
+    if not sent:
+        raise HTTPException(503, "Не вдалося надіслати лист. Спробуйте пізніше.")
+
     return JSONResponse({"ok": True, "message": "Лист надіслано"})
 
 
