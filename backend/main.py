@@ -652,7 +652,7 @@ async def websocket_duo(ws: WebSocket):
     billing_task = asyncio.create_task(billing_tick())
 
     dg = DeepgramTranscriber()
-    await dg.start(language="multi", model="nova-3")
+    await dg.start(language="multi", model="nova-3", endpointing=700)
 
     async def handle_results():
         while True:
@@ -735,7 +735,7 @@ async def websocket_duo(ws: WebSocket):
 
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
-                    await dg.start(language="multi", model="nova-3")
+                    await dg.start(language="multi", model="nova-3", endpointing=700)
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
@@ -765,7 +765,7 @@ async def websocket_duo(ws: WebSocket):
                                 return
 
                             await dg.stop()
-                            await dg.start(language="multi", model="nova-3")
+                            await dg.start(language="multi", model="nova-3", endpointing=700)
 
                     elif msg_type == "ping":
                         pass
@@ -831,7 +831,7 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
     await ws.send_json({"type": "duo_ready", "lang_a": session.lang_a, "lang_b": session.lang_b})
 
     dg = DeepgramTranscriber()
-    await dg.start(language=session.lang_a)
+    await dg.start(language=session.lang_a, endpointing=700)
 
     async def handle_results():
         while True:
@@ -876,7 +876,7 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
                 break
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
-                    await dg.start(language=session.lang_a)
+                    await dg.start(language=session.lang_a, endpointing=700)
                 await dg.send_audio(message["bytes"])
             elif "text" in message and message["text"]:
                 try:
@@ -925,7 +925,7 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
             pass
 
     dg = DeepgramTranscriber()
-    await dg.start(language=session.lang_b)
+    await dg.start(language=session.lang_b, endpointing=700)
 
     async def handle_results():
         while True:
@@ -989,7 +989,7 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
 
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
-                    await dg.start(language=session.lang_b)
+                    await dg.start(language=session.lang_b, endpointing=700)
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
@@ -1232,7 +1232,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
     _user_id = None
 
     dg = DeepgramTranscriber()
-    await dg.start(language=room.host_language)
+    await dg.start(language=room.host_language, endpointing=700)
 
     await ws.send_json({"type": "room_state", "room": room.to_dict()})
 
@@ -1345,7 +1345,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                 if room.active_speaker is not None:
                     continue
                 if not dg.is_active:
-                    await dg.start(room.host_language)
+                    await dg.start(room.host_language, endpointing=700)
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
@@ -1381,7 +1381,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                 elif action == "revoke_speak":
                     await room_manager.revoke_speak(room_id, guest_id)
                     translator.clear_context()
-                    await dg.start(room.host_language)
+                    await dg.start(room.host_language, endpointing=700)
                 elif action == "deny_speak":
                     await room_manager.deny_speak(room_id, guest_id)
                 elif action == "mute":
@@ -1551,7 +1551,7 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                     _audio_chunk_count = 0
                     dg.set_input_sample_rate(guest_input_sample_rate)
                     _log_guest_trace(participant.display_name, room_id, 'deepgram_start', lang=participant.language, input_sr=guest_input_sample_rate, guest_speaking=guest_speaking, dg_active=dg.is_active)
-                    await dg.start(participant.language, input_sample_rate=guest_input_sample_rate)
+                    await dg.start(participant.language, input_sample_rate=guest_input_sample_rate, endpointing=700)
                     guest_speaking = True
                     _log_guest_trace(participant.display_name, room_id, 'deepgram_started', lang=participant.language, input_sr=guest_input_sample_rate)
 

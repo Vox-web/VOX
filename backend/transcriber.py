@@ -109,18 +109,22 @@ class DeepgramTranscriber:
     async def _delayed_flush(self, delay: float):
         """
         Таймер: якщо після is_final без speech_final пройшло `delay` секунд
-        і буфер не порожній — флашимо його як фінальний результат.
+        і буфер не порожній — емітуємо превью БЕЗ очищення буфера.
+        Буфер навмисно не очищається: щоб при реальному speech_final
+        зібрати ПОВНИЙ текст всієї репліки (Solo+Duo+Room коректно).
+        commit_final=False — Solo переводить превью, Duo/Room ігнорують.
         """
         try:
             logger.info(f"🧭 [DG TRACE] delayed_flush_sleep {delay}s")
             await asyncio.sleep(delay)
             if self._finals_buffer:
                 full_text = " ".join(self._finals_buffer)
-                self._finals_buffer = []
-                logger.info(f"📝 [{self._last_lang}] (flush timer) {full_text}")
+                # НЕ очищаємо _finals_buffer — він потрібен для повного commit_final
+                logger.info(f"📝 [{self._last_lang}] (flush timer preview) {full_text}")
                 await self.results.put(TranscriptResult(
                     text=full_text,
                     is_final=True,
+                    commit_final=False,
                     language=self._last_lang,
                     confidence=self._last_confidence,
                 ))
@@ -131,21 +135,24 @@ class DeepgramTranscriber:
     async def _interim_flush(self, delay: float = 2.0):
         """
         Клиентский flush зависших interim'ов.
-        
+
         Если interim пришёл, но final не появился за `delay` секунд —
-        сами отправляем interim как final. БЕЗ Finalize-команды в Deepgram,
-        потому что Finalize ломает сессию (GitHub #1035).
+        эмитим preview БЕЗ очистки _pending_interim_text.
+        Текст намеренно оставляем: stop() и UtteranceEnd подберут его корректно.
+        commit_final=False — Solo переводит превью, Duo/Room игнорируют.
+        БЕЗ Finalize-команды в Deepgram (GitHub #1035).
         """
         try:
             logger.info(f"🧭 [DG TRACE] interim_flush_sleep {delay}s")
             await asyncio.sleep(delay)
             if self._pending_interim_text:
                 text = self._pending_interim_text
-                self._pending_interim_text = None
-                logger.info(f"📝 [{self._last_lang}] (interim flush) {text}")
+                # НЕ очищаємо — stop()/UtteranceEnd підберуть повний текст
+                logger.info(f"📝 [{self._last_lang}] (interim flush preview) {text}")
                 await self.results.put(TranscriptResult(
                     text=text,
                     is_final=True,
+                    commit_final=False,
                     language=self._last_lang,
                     confidence=self._last_confidence,
                 ))
@@ -173,12 +180,16 @@ class DeepgramTranscriber:
         language: Optional[str] = None,
         input_sample_rate: Optional[int] = None,
         model: Optional[str] = None,
+        endpointing: int = 300,
     ):
         """
         Открыть новую сессию транскрипции.
 
         Args:
-            language: Код языка ("en", "ru", ...) или None для автоопределения
+            language:    Код языка ("en", "ru", ...) или None для автоопределения
+            endpointing: Пауза (мс) для определения конца фразы.
+                         Solo: 300ms (быстрый отклик).
+                         Duo/Room: 700ms (не режет речь на коротких паузах).
         """
         await self.stop()
 
@@ -210,7 +221,7 @@ class DeepgramTranscriber:
             f"model={selected_model}",
             "interim_results=true",
             "utterance_end_ms=1500",
-            "endpointing=300",
+            f"endpointing={endpointing}",
             "encoding=linear16",
             f"sample_rate={SAMPLE_RATE}",
             "channels=1",
@@ -326,23 +337,20 @@ class DeepgramTranscriber:
         """Закрыть сессию Deepgram."""
         logger.info(f"🧭 [DG TRACE] stop_begin active={self.is_active} finals={len(self._finals_buffer)} pending_interim={bool(self._pending_interim_text)} input_sr={self._input_sample_rate}")
 
-        # Flush зависший interim перед закрытием
+        # pending_interim_text уже содержит finals_buffer + последний interim-хвост,
+        # поэтому он — наиболее полный источник. finals_buffer берём только если
+        # interim не было. Объединять нельзя — будет дубль.
         if self._pending_interim_text:
-            text = self._pending_interim_text
-            self._pending_interim_text = None
-            logger.info(f"📝 [{self._last_lang}] (stop flush) {text}")
-            await self.results.put(TranscriptResult(
-                text=text,
-                is_final=True,
-                commit_final=True,
-                language=self._last_lang,
-                confidence=self._last_confidence,
-            ))
-
-        # Flush finals buffer
-        if self._finals_buffer:
+            full_text = self._pending_interim_text
+        elif self._finals_buffer:
             full_text = " ".join(self._finals_buffer)
-            self._finals_buffer = []
+        else:
+            full_text = ""
+
+        self._finals_buffer = []
+        self._pending_interim_text = None
+
+        if full_text:
             logger.info(f"📝 [{self._last_lang}] (stop flush) {full_text}")
             await self.results.put(TranscriptResult(
                 text=full_text,
@@ -412,35 +420,33 @@ class DeepgramTranscriber:
                     logger.info("🧭 [DG TRACE] recv #%s type=%s", self._debug_results_seen, msg_type)
 
                 # UtteranceEnd: Deepgram обнаружил тишину после utterance_end_ms.
-                # Флашим буфер если там есть накопленные finals.
+                # pending_interim_text уже содержит finals_buffer + хвост,
+                # поэтому он приоритетнее. finals_buffer берём только если interim нет.
                 if msg_type == "UtteranceEnd":
                     logger.info("🧭 [DG TRACE] UtteranceEnd finals=%s pending_interim=%s", len(self._finals_buffer), bool(self._pending_interim_text))
-                    if self._finals_buffer:
-                        if self._flush_task and not self._flush_task.done():
-                            logger.info("🧭 [DG TRACE] cancel delayed flush due UtteranceEnd")
-                            self._flush_task.cancel()
-                            self._flush_task = None
+                    if self._flush_task and not self._flush_task.done():
+                        logger.info("🧭 [DG TRACE] cancel delayed flush due UtteranceEnd")
+                        self._flush_task.cancel()
+                        self._flush_task = None
+                    if self._interim_flush_task and not self._interim_flush_task.done():
+                        logger.info("🧭 [DG TRACE] cancel interim flush due UtteranceEnd")
+                        self._interim_flush_task.cancel()
+                        self._interim_flush_task = None
+
+                    if self._pending_interim_text:
+                        full_text = self._pending_interim_text
+                    elif self._finals_buffer:
                         full_text = " ".join(self._finals_buffer)
-                        self._finals_buffer = []
+                    else:
+                        full_text = ""
+
+                    self._finals_buffer = []
+                    self._pending_interim_text = None
+
+                    if full_text:
                         logger.info(f"📝 [{self._last_lang}] (UtteranceEnd) {full_text}")
                         await self.results.put(TranscriptResult(
                             text=full_text,
-                            is_final=True,
-                            commit_final=True,
-                            language=self._last_lang or "unknown",
-                            confidence=self._last_confidence,
-                        ))
-                    elif self._pending_interim_text:
-                        # Зависший interim — flush клиентски
-                        text = self._pending_interim_text
-                        self._pending_interim_text = None
-                        if self._interim_flush_task and not self._interim_flush_task.done():
-                            logger.info("🧭 [DG TRACE] cancel interim flush due UtteranceEnd")
-                            self._interim_flush_task.cancel()
-                            self._interim_flush_task = None
-                        logger.info(f"📝 [{self._last_lang}] (UtteranceEnd interim flush) {text}")
-                        await self.results.put(TranscriptResult(
-                            text=text,
                             is_final=True,
                             commit_final=True,
                             language=self._last_lang or "unknown",
