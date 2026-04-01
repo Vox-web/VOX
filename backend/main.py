@@ -1470,15 +1470,18 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                     translator.translate,
                     final_result.text, final_result.language, target_lang,
                 )
-            elif not translated:
-                translated = final_result.text
 
-            await ws.send_json({
-                "type": "translation",
-                "text": translated,
-                "lang_from": final_result.language,
-                "lang_to": target_lang,
-            })
+            # Отправляем фидбек только если перевод реально получен
+            if translated:
+                await ws.send_json({
+                    "type": "translation",
+                    "text": translated,
+                    "lang_from": final_result.language,
+                    "lang_to": target_lang,
+                })
+            else:
+                # Языки совпали — сигнал фронту убрать ⏳
+                await ws.send_json({"type": "no_translation"})
             _log_guest_trace(participant.display_name, room_id, 'process_final_done', target_lang=target_lang, translated=translated[:120])
         except Exception as e:
             if "disconnect" not in str(e).lower():

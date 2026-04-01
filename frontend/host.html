@@ -2308,6 +2308,11 @@
                     roomOrigEl.style.opacity='0.7';
                 }
                 break;
+            case 'no_translation':
+                // Языки совпали — перевод не нужен, убираем ⏳
+                roomTransEl.textContent = '—';
+                roomTransEl.style.opacity = '0.4';
+                break;
             case 'translation':
                 const langLabel = (m.lang_to||'').toUpperCase();
                 const line = langLabel ? `[${langLabel}] ${m.text}` : m.text;

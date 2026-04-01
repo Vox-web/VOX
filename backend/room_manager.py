@@ -577,7 +577,15 @@ class RoomManager:
                 continue
 
             lang = participant.language
-            translated_text = translations.get(lang, transcript_text)
+            translated_text = translations.get(lang)
+            # Если перевода нет (участник говорит на том же языке) — только transcript, без translation/audio
+            if translated_text is None:
+                tasks.append(
+                    self._send_transcript_only(
+                        participant, transcript_text, source_lang, speaker_name
+                    )
+                )
+                continue
 
             tasks.append(
                 self._send_to_participant(
@@ -590,14 +598,20 @@ class RoomManager:
         # Отправляем хосту перевод на его язык (если говорит участник)
         if speaker_guest_id and self._is_ws_open(room.host_websocket):
             host_lang = room.host_language
-            host_translated = translations.get(host_lang, transcript_text)
-            tasks.append(
-                self._send_to_host(
-                    room, transcript_text, host_translated,
-                    source_lang, host_lang, audio_chunks.get(host_lang),
-                    speaker_name=speaker_name,
+            host_translated = translations.get(host_lang)
+            # Если перевода нет — только transcript, без translation/audio
+            if host_translated is None:
+                tasks.append(
+                    self._send_transcript_only_host(room, transcript_text, source_lang, speaker_name)
                 )
-            )
+            else:
+                tasks.append(
+                    self._send_to_host(
+                        room, transcript_text, host_translated,
+                        source_lang, host_lang, audio_chunks.get(host_lang),
+                        speaker_name=speaker_name,
+                    )
+                )
 
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
@@ -669,6 +683,48 @@ class RoomManager:
 
         except Exception as e:
             logger.error(f"Ошибка отправки хосту: {e}")
+
+    async def _send_transcript_only(
+        self, participant: Participant,
+        original: str, lang_from: str,
+        speaker_name: str = "Host",
+    ):
+        """Отправить только транскрипт участнику (без перевода) — языки совпали."""
+        if not self._is_ws_open(participant.websocket):
+            return
+        try:
+            await participant.websocket.send_json({
+                "type": "transcript",
+                "text": original,
+                "is_final": True,
+                "language": lang_from,
+                "speaker": speaker_name,
+            })
+            # Сигнал фронту: перевод не нужен, убрать ⏳
+            await participant.websocket.send_json({"type": "no_translation"})
+        except Exception as e:
+            logger.error(f"Ошибка отправки transcript участнику {participant.guest_id}: {e}")
+
+    async def _send_transcript_only_host(
+        self, room: Room,
+        original: str, lang_from: str,
+        speaker_name: str = "Guest",
+    ):
+        """Отправить только транскрипт хосту (без перевода) — языки совпали."""
+        if not self._is_ws_open(room.host_websocket):
+            return
+        try:
+            await room.host_websocket.send_json({
+                "type": "transcript",
+                "text": original,
+                "is_final": True,
+                "language": lang_from,
+                "speaker": speaker_name,
+            })
+            # Сигнал фронту: перевод не нужен, убрать ⏳
+            await room.host_websocket.send_json({"type": "no_translation"})
+        except Exception as e:
+            logger.error(f"Ошибка отправки transcript хосту: {e}")
 
     # =======================================================================
     # Уведомление хоста
