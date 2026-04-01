@@ -670,7 +670,7 @@ async def websocket_duo(ws: WebSocket):
                     "confidence": result.confidence,
                 })
 
-                if not (result.is_final and result.text and result.text.strip()):
+                if not (result.commit_final and result.text and result.text.strip()):
                     continue
 
                 text = result.text.strip()
@@ -845,7 +845,7 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
                     "is_final": result.is_final, "language": result.language,
                     "confidence": result.confidence,
                 })
-                if result.is_final and result.text.strip():
+                if result.commit_final and result.text.strip():
                     translated = await asyncio.to_thread(
                         translator.translate, result.text, session.lang_a, session.lang_b
                     )
@@ -943,7 +943,7 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
                     "confidence": result.confidence,
                 })
 
-                if result.is_final and result.text.strip():
+                if result.commit_final and result.text.strip():
                     translated = await asyncio.to_thread(
                         translator.translate, result.text, session.lang_b, session.lang_a
                     )
@@ -1320,7 +1320,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                     "confidence": result.confidence,
                 })
 
-                if result.is_final and result.text.strip():
+                if result.commit_final and result.text.strip():
                     # НЕ БЛОКИРУЕМ — запускаем перевод+TTS+broadcast в фоне
                     task = asyncio.create_task(_host_process_final(result))
                     _bg_tasks_host.add(task)
@@ -1506,7 +1506,7 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                     "confidence": result.confidence,
                 })
 
-                if result.is_final and result.text.strip():
+                if result.commit_final and result.text.strip():
                     # НЕ БЛОКИРУЕМ — запускаем перевод+TTS+broadcast в фоне
                     _log_guest_trace(participant.display_name, room_id, 'schedule_process_final', text=result.text[:120], lang=result.language)
                     task = asyncio.create_task(_guest_process_final(result))

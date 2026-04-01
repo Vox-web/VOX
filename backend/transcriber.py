@@ -36,9 +36,11 @@ SAMPLE_RATE = 16000
 class TranscriptResult:
     """Результат транскрипции."""
     text: str
-    is_final: bool        # True = конец фразы, можно переводить
+    is_final: bool        # True = конец фразы (включая таймер-flush)
     language: str         # "en", "de", "uk", ...
     confidence: float     # 0.0 — 1.0
+    commit_final: bool = False  # True = безопасно переводить (DG speech_final / UtteranceEnd / stop-flush)
+                                # False = таймер-flush (_delayed_flush / _interim_flush) — Solo переводит, Duo/Room ждут
 
 
 # ---------------------------------------------------------------------------
@@ -332,6 +334,7 @@ class DeepgramTranscriber:
             await self.results.put(TranscriptResult(
                 text=text,
                 is_final=True,
+                commit_final=True,
                 language=self._last_lang,
                 confidence=self._last_confidence,
             ))
@@ -344,6 +347,7 @@ class DeepgramTranscriber:
             await self.results.put(TranscriptResult(
                 text=full_text,
                 is_final=True,
+                commit_final=True,
                 language=self._last_lang,
                 confidence=self._last_confidence,
             ))
@@ -422,6 +426,7 @@ class DeepgramTranscriber:
                         await self.results.put(TranscriptResult(
                             text=full_text,
                             is_final=True,
+                            commit_final=True,
                             language=self._last_lang or "unknown",
                             confidence=self._last_confidence,
                         ))
@@ -437,6 +442,7 @@ class DeepgramTranscriber:
                         await self.results.put(TranscriptResult(
                             text=text,
                             is_final=True,
+                            commit_final=True,
                             language=self._last_lang or "unknown",
                             confidence=self._last_confidence,
                         ))
@@ -536,6 +542,7 @@ class DeepgramTranscriber:
                         await self.results.put(TranscriptResult(
                             text=full_text,
                             is_final=True,
+                            commit_final=True,
                             language=lang or "unknown",
                             confidence=confidence,
                         ))
