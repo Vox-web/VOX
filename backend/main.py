@@ -9,6 +9,7 @@ VOX — Real-Time AI Translation Platform
 """
 
 import os
+import re
 import json
 import asyncio
 import logging
@@ -522,7 +523,38 @@ async def get_duo_info(duo_id: str):
 # ===========================================================================
 # Solo TTS буфер — накапливаем переводы, озвучиваем пакетами каждые N сек
 # ===========================================================================
-TTS_BUFFER_INTERVAL = 5  # секунд
+TTS_BUFFER_INTERVAL     = 3.5  # секунд — мягкий порог флаша (хвост завершён)
+TTS_BUFFER_HARD_TIMEOUT = 8.0  # секунд — жёсткий таймаут (флашим в любом случае)
+
+# Стоп-слова в конце фразы — признак незавершённости реплики
+_INCOMPLETE_TAIL = re.compile(
+    r"""(?ix)
+    (?:
+        # Союзы и частицы — ru/uk
+        \b(?:и|або|чи|та|але|проте|однак|що|як|якщо|тому|адже|бо|
+             но|или|либо|хотя|если|потому|ведь|же|ли|бы|бо)\b |
+        # Союзы — en/de/fr/es
+        \b(?:and|or|but|that|which|who|if|because|so|with|for|
+             und|oder|aber|dass|weil|wenn|
+             et|ou|mais|que|si|car)\b |
+        # Обрыв на предлоге — en
+        \b(?:in|on|at|to|of|by|from|into|about|over|under|between|through)\b |
+        # Запятая или тире в самом конце
+        [,\-–—]
+    )\s*$
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+def _is_incomplete(text: str) -> bool:
+    """Вернуть True если хвост фразы выглядит незавершённым."""
+    t = text.strip()
+    if not t:
+        return False
+    # Очень короткий фрагмент (1-2 слова) — скорее всего обрывок
+    if len(t.split()) <= 2:
+        return True
+    return bool(_INCOMPLETE_TAIL.search(t))
 
 async def _tts_buffer_flush(buffer: list, target_lang: str, ws: WebSocket):
     if not buffer:
@@ -578,11 +610,32 @@ async def _tts_buffer_flush(buffer: list, target_lang: str, ws: WebSocket):
             pass
 
 
-async def _tts_buffer_ticker(buffer: list, get_target_lang, get_tts_enabled, ws: WebSocket):
+async def _tts_buffer_ticker(
+    buffer: list,
+    buffer_time: list,
+    get_target_lang,
+    get_tts_enabled,
+    ws: WebSocket,
+):
+    """
+    Тикер флаша TTS-буфера.
+    - Каждые 1 сек проверяет условия флаша.
+    - Мягкий флаш (3.5 сек): только если хвост завершён.
+    - Жёсткий флаш (8 сек): в любом случае.
+    """
     while True:
-        await asyncio.sleep(TTS_BUFFER_INTERVAL)
-        if get_tts_enabled() and buffer:
+        await asyncio.sleep(1.0)
+        if not get_tts_enabled() or not buffer:
+            continue
+        age = asyncio.get_event_loop().time() - buffer_time[0]
+        tail = buffer[-1] if buffer else ""
+        hard_timeout = age >= TTS_BUFFER_HARD_TIMEOUT
+        soft_ready   = age >= TTS_BUFFER_INTERVAL and not _is_incomplete(tail)
+        if hard_timeout or soft_ready:
+            reason = "hard_timeout" if hard_timeout else "soft_complete"
+            logger.info(f"🎙 TTS ticker flush [{reason}] age={age:.1f}s tail={tail[:40]!r}")
             await _tts_buffer_flush(buffer, get_target_lang(), ws)
+            buffer_time[0] = 0.0
 
 
 # ===========================================================================
@@ -1085,6 +1138,7 @@ async def websocket_solo(ws: WebSocket):
     tts_ticker_task = asyncio.create_task(
         _tts_buffer_ticker(
             _tts_buffer,
+            _tts_buffer_time,
             lambda: session_config["target_lang"],
             lambda: session_tts_enabled,
             ws,
@@ -1126,8 +1180,9 @@ async def websocket_solo(ws: WebSocket):
                             if not _tts_buffer:
                                 _tts_buffer_time[0] = asyncio.get_event_loop().time()
                             _tts_buffer.append(translated)
-                            # Флаш если буфер копится ≥5 сек и пришёл speech_final
-                            if result.is_final and (asyncio.get_event_loop().time() - _tts_buffer_time[0]) >= TTS_BUFFER_INTERVAL:
+                            # Флаш на commit_final только если хвост завершён
+                            # Тикер сам выпустит буфер по мягкому/жёсткому таймауту
+                            if result.commit_final and not _is_incomplete(translated):
                                 await _tts_buffer_flush(_tts_buffer, session_config["target_lang"], ws)
                                 _tts_buffer_time[0] = 0.0
                     else:
@@ -1147,7 +1202,8 @@ async def websocket_solo(ws: WebSocket):
                             if not _tts_buffer:
                                 _tts_buffer_time[0] = asyncio.get_event_loop().time()
                             _tts_buffer.append(corrected)
-                            if result.is_final and (asyncio.get_event_loop().time() - _tts_buffer_time[0]) >= TTS_BUFFER_INTERVAL:
+                            # Флаш на commit_final только если хвост завершён
+                            if result.commit_final and not _is_incomplete(corrected):
                                 await _tts_buffer_flush(_tts_buffer, session_config["target_lang"], ws)
                                 _tts_buffer_time[0] = 0.0
                     logger.info(f"📝 [{source_lang}→{target_lang}] {result.text[:60]}")
