@@ -16,7 +16,7 @@ numpy==1.26.4
 soundfile==0.12.1
 
 # TTS fallback
-edge-tts==6.1.10
+edge-tts>=7.2.0
 
 # OpenAI (перевод + TTS)
 openai>=1.60.0
