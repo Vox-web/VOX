@@ -1050,7 +1050,7 @@
             if (msg.is_final) {
                 _lastFinalOriginal = msg.text || '—';
                 originalText.textContent = _lastFinalOriginal;
-                originalText.style.opacity = '1';
+                originalText.style.opacity = msg.commit_final ? '1' : '0.85';
             } else {
                 originalText.textContent = '🎤 ' + (msg.text || '');
                 originalText.style.opacity = '0.7';
@@ -1064,6 +1064,10 @@
         else if (msg.type === 'translation') {
             translationText.textContent = msg.text || '—';
             addToHistory(_lastFinalOriginal, msg.text, msg.lang_from, msg.lang_to);
+            // Фраза завершена — сбрасываем оригинал, следующая начнётся чисто
+            originalText.textContent = '—';
+            originalText.style.opacity = '0.4';
+            _lastFinalOriginal = '—';
         }
     }
 

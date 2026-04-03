@@ -1135,18 +1135,6 @@ async def websocket_solo(ws: WebSocket):
 
     billing_task = asyncio.create_task(billing_tick())
 
-    _tts_buffer: list = []
-    _tts_buffer_time: list = [0.0]  # время первого элемента в буфере
-    tts_ticker_task = asyncio.create_task(
-        _tts_buffer_ticker(
-            _tts_buffer,
-            _tts_buffer_time,
-            lambda: session_config["target_lang"],
-            lambda: session_tts_enabled,
-            ws,
-        )
-    )
-
     dg = DeepgramTranscriber()
     src_lang = session_config.get("source_lang") or "uk"
     await dg.start(language=src_lang)
@@ -1162,10 +1150,11 @@ async def websocket_solo(ws: WebSocket):
                     "type": "transcript",
                     "text": result.text,
                     "is_final": result.is_final,
+                    "commit_final": result.commit_final,
                     "language": result.language,
                     "confidence": result.confidence,
                 })
-                if result.is_final and result.text.strip():
+                if result.commit_final and result.text.strip():
                     source_lang = result.language or session_config.get("source_lang") or "uk"
                     target_lang = session_config["target_lang"]
                     if source_lang != target_lang:
@@ -1179,14 +1168,8 @@ async def websocket_solo(ws: WebSocket):
                             "lang_to": target_lang,
                         })
                         if session_tts_enabled:
-                            if not _tts_buffer or _tts_buffer_time[0] == 0.0:
-                                _tts_buffer_time[0] = asyncio.get_event_loop().time()
-                            _tts_buffer.append(translated)
-                            # Флаш на commit_final только если хвост завершён
-                            # Тикер сам выпустит буфер по мягкому/жёсткому таймауту
-                            if result.commit_final and not _is_incomplete(translated):
-                                await _tts_buffer_flush(_tts_buffer, session_config["target_lang"], ws)
-                                _tts_buffer_time[0] = 0.0
+                            # Каждая завершённая фраза — отдельный TTS, без накопления
+                            await _tts_buffer_flush([translated], target_lang, ws)
                     else:
                         # Язык источника == язык вывода:
                         # корректируем ASR-ошибки через GPT (без перевода)
@@ -1201,13 +1184,7 @@ async def websocket_solo(ws: WebSocket):
                             "note": "asr_corrected",
                         })
                         if session_tts_enabled:
-                            if not _tts_buffer or _tts_buffer_time[0] == 0.0:
-                                _tts_buffer_time[0] = asyncio.get_event_loop().time()
-                            _tts_buffer.append(corrected)
-                            # Флаш на commit_final только если хвост завершён
-                            if result.commit_final and not _is_incomplete(corrected):
-                                await _tts_buffer_flush(_tts_buffer, session_config["target_lang"], ws)
-                                _tts_buffer_time[0] = 0.0
+                            await _tts_buffer_flush([corrected], target_lang, ws)
                     logger.info(f"📝 [{source_lang}→{target_lang}] {result.text[:60]}")
             except Exception as e:
                 if "disconnect" in str(e).lower():
@@ -1256,7 +1233,6 @@ async def websocket_solo(ws: WebSocket):
     finally:
         result_task.cancel()
         billing_task.cancel()
-        tts_ticker_task.cancel()
         try:
             await result_task
         except (asyncio.CancelledError, Exception):
