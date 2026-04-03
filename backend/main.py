@@ -556,6 +556,16 @@ def _is_incomplete(text: str) -> bool:
         return True
     return bool(_INCOMPLETE_TAIL.search(t))
 
+
+def _split_sentences(text: str) -> list:
+    """
+    Разбить переведённый текст на предложения для параллельного TTS.
+    Разбивает по . ! ? с учётом пробела после знака.
+    Фильтрует пустые и слишком короткие фрагменты.
+    """
+    parts = re.split(r'(?<=[.!?])\s+', text.strip())
+    return [p.strip() for p in parts if len(p.strip()) >= 4]
+
 async def _tts_buffer_flush(buffer: list, target_lang: str, ws: WebSocket):
     if not buffer:
         return
@@ -1172,12 +1182,15 @@ async def websocket_solo(ws: WebSocket):
                             "lang_to": target_lang,
                         })
                         if session_tts_enabled:
-                            # Прямой TTS без GPT-полировки — перевод уже готов
-                            audio_bytes = await asyncio.to_thread(
-                                tts_engine.synthesize, translated, target_lang
-                            )
-                            if audio_bytes:
-                                await ws.send_bytes(b"AUDIO:" + audio_bytes)
+                            # Разбиваем на предложения → синтез параллельно → отправка по порядку
+                            sentences = _split_sentences(translated) or [translated]
+                            audio_results = await asyncio.gather(*[
+                                asyncio.to_thread(tts_engine.synthesize, s, target_lang)
+                                for s in sentences
+                            ])
+                            for audio_bytes in audio_results:
+                                if audio_bytes:
+                                    await ws.send_bytes(b"AUDIO:" + audio_bytes)
                     else:
                         # Язык источника == язык вывода:
                         # корректируем ASR-ошибки через GPT (без перевода)
@@ -1192,11 +1205,14 @@ async def websocket_solo(ws: WebSocket):
                             "note": "asr_corrected",
                         })
                         if session_tts_enabled:
-                            audio_bytes = await asyncio.to_thread(
-                                tts_engine.synthesize, corrected, target_lang
-                            )
-                            if audio_bytes:
-                                await ws.send_bytes(b"AUDIO:" + audio_bytes)
+                            sentences = _split_sentences(corrected) or [corrected]
+                            audio_results = await asyncio.gather(*[
+                                asyncio.to_thread(tts_engine.synthesize, s, target_lang)
+                                for s in sentences
+                            ])
+                            for audio_bytes in audio_results:
+                                if audio_bytes:
+                                    await ws.send_bytes(b"AUDIO:" + audio_bytes)
                     logger.info(f"📝 [{source_lang}→{target_lang}] {result.text[:60]}")
             except Exception as e:
                 if "disconnect" in str(e).lower():
