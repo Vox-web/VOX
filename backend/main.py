@@ -773,11 +773,14 @@ async def websocket_duo(ws: WebSocket):
                 })
 
                 if session_tts_enabled:
-                    audio_bytes = await asyncio.to_thread(
-                        tts_engine.synthesize, translated, tgt
-                    )
-                    if audio_bytes:
-                        await ws.send_bytes(b"AUDIO:" + audio_bytes)
+                    sentences = _split_sentences(translated) or [translated]
+                    audio_results = await asyncio.gather(*[
+                        asyncio.to_thread(tts_engine.synthesize, s, tgt)
+                        for s in sentences
+                    ])
+                    for audio_bytes in audio_results:
+                        if audio_bytes:
+                            await ws.send_bytes(b"AUDIO:" + audio_bytes)
 
                 logger.info(
                     f"🤝 Duo [{src}→{tgt}] "
@@ -922,11 +925,14 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
                     })
                     if session.guest_ws:
                         try:
-                            audio = await asyncio.to_thread(
-                                tts_engine.synthesize, translated, session.lang_b
-                            )
-                            if audio:
-                                await session.guest_ws.send_bytes(b"AUDIO:" + audio)
+                            sentences = _split_sentences(translated) or [translated]
+                            audio_results = await asyncio.gather(*[
+                                asyncio.to_thread(tts_engine.synthesize, s, session.lang_b)
+                                for s in sentences
+                            ])
+                            for audio in audio_results:
+                                if audio:
+                                    await session.guest_ws.send_bytes(b"AUDIO:" + audio)
                         except Exception:
                             pass
             except Exception as e:
@@ -1032,11 +1038,14 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
                                 "lang_to": session.lang_a,
                             })
 
-                            audio = await asyncio.to_thread(
-                                tts_engine.synthesize, translated, session.lang_a
-                            )
-                            if audio:
-                                await session.host_ws.send_bytes(b"AUDIO:" + audio)
+                            sentences = _split_sentences(translated) or [translated]
+                            audio_results = await asyncio.gather(*[
+                                asyncio.to_thread(tts_engine.synthesize, s, session.lang_a)
+                                for s in sentences
+                            ])
+                            for audio in audio_results:
+                                if audio:
+                                    await session.host_ws.send_bytes(b"AUDIO:" + audio)
                         except Exception:
                             pass
 
