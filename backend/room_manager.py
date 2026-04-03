@@ -302,9 +302,21 @@ class RoomManager:
 
         participant = room.participants[guest_id]
 
-        # Если он был спикером — сбрасываем
+        # Если он был спикером — сбрасываем и уведомляем всех
         if room.active_speaker == guest_id:
             room.active_speaker = None
+            await self._notify_all_participants(room, {
+                "type": "speaker_changed",
+                "guest_id": None,
+                "display_name": None,
+                "language": None,
+            })
+            await self._notify_host(room, {
+                "type": "speaker_changed",
+                "guest_id": None,
+                "display_name": None,
+                "language": None,
+            })
 
         del room.participants[guest_id]
 
@@ -504,6 +516,18 @@ class RoomManager:
         p = room.participants[guest_id]
         if room.active_speaker == guest_id:
             room.active_speaker = None
+            await self._notify_all_participants(room, {
+                "type": "speaker_changed",
+                "guest_id": None,
+                "display_name": None,
+                "language": None,
+            })
+            await self._notify_host(room, {
+                "type": "speaker_changed",
+                "guest_id": None,
+                "display_name": None,
+                "language": None,
+            })
 
         if p.websocket:
             try:

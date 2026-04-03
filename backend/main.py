@@ -1094,8 +1094,10 @@ async def websocket_solo(ws: WebSocket):
     logger.info("🔌 WebSocket підключено (Solo)")
 
     # Per-session стан — не глобальний session_config
-    # Кожне Solo-підключення має власний tts_enabled
+    # Кожне Solo-підключення має власний tts_enabled і мовні налаштування
     session_tts_enabled: bool = True
+    solo_source_lang: str | None = session_config.get("source_lang")
+    solo_target_lang: str = session_config.get("target_lang") or os.getenv("DEFAULT_TARGET_LANG", "uk")
 
     from billing_db import deduct_session_cost as _deduct
     _user_id = None
@@ -1108,9 +1110,9 @@ async def websocket_solo(ws: WebSocket):
                 _user_id = _user["id"] if _user else None
             elif first.get("type") == "config":
                 if first.get("source_lang"):
-                    session_config["source_lang"] = first["source_lang"]
+                    solo_source_lang = first["source_lang"]
                 if first.get("target_lang"):
-                    session_config["target_lang"] = first["target_lang"]
+                    solo_target_lang = first["target_lang"]
                 if "tts_enabled" in first:
                     session_tts_enabled = bool(first["tts_enabled"])
     except (asyncio.TimeoutError, Exception):
@@ -1150,8 +1152,7 @@ async def websocket_solo(ws: WebSocket):
     billing_task = asyncio.create_task(billing_tick())
 
     dg = DeepgramTranscriber()
-    src_lang = session_config.get("source_lang") or "uk"
-    await dg.start(language=src_lang)
+    await dg.start(language=solo_source_lang or "uk")
 
     async def handle_results():
         while True:
@@ -1169,8 +1170,8 @@ async def websocket_solo(ws: WebSocket):
                     "confidence": result.confidence,
                 })
                 if result.commit_final and result.text.strip():
-                    source_lang = result.language or session_config.get("source_lang") or "uk"
-                    target_lang = session_config["target_lang"]
+                    source_lang = result.language or solo_source_lang or "uk"
+                    target_lang = solo_target_lang
                     if source_lang != target_lang:
                         translated = await asyncio.to_thread(
                             translator.translate, result.text, source_lang, target_lang,
@@ -1229,7 +1230,7 @@ async def websocket_solo(ws: WebSocket):
                 break
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
-                    await dg.start(session_config.get("source_lang") or "uk")
+                    await dg.start(solo_source_lang or "uk")
                 await dg.send_audio(message["bytes"])
             elif "text" in message and message["text"]:
                 try:
@@ -1243,15 +1244,14 @@ async def websocket_solo(ws: WebSocket):
                         new_src = msg.get("source_lang")
                         new_tgt = msg.get("target_lang")
                         if new_tgt:
-                            session_config["target_lang"] = new_tgt
-                        if new_src and new_src != session_config.get("source_lang"):
-                            session_config["source_lang"] = new_src
+                            solo_target_lang = new_tgt
+                        if new_src and new_src != solo_source_lang:
+                            solo_source_lang = new_src
                             await dg.stop()
                             await dg.start(language=new_src)
                         if "tts_enabled" in msg:
                             session_tts_enabled = bool(msg["tts_enabled"])
-                        src = session_config.get("source_lang")
-                        logger.info(f"🎤 Solo config: source={src}, target={session_config['target_lang']}, tts={session_tts_enabled}")
+                        logger.info(f"🎤 Solo config: source={solo_source_lang}, target={solo_target_lang}, tts={session_tts_enabled}")
                 except json.JSONDecodeError:
                     pass
     except WebSocketDisconnect:
@@ -1342,7 +1342,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
             source_lang = final_result.language
 
             # Перевод + TTS + рассылка гостям (возвращает dict переводов)
-            translations = await _process_room_speech(room, final_result, speaker_guest_id=None)
+            translations = await _process_room_speech(room, final_result, speaker_guest_id=None, translator=translator)
 
             # Отправляем хосту переводы (чтобы он видел что получили гости)
             if translations:
@@ -1354,13 +1354,8 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                         "lang_to": lang,
                     })
             else:
-                await ws.send_json({
-                    "type": "translation",
-                    "text": final_result.text,
-                    "lang_from": source_lang,
-                    "lang_to": source_lang,
-                    "note": "same_language",
-                })
+                # Языки совпали — сигнал фронту убрать ⏳
+                await ws.send_json({"type": "no_translation"})
         except Exception as e:
             if "disconnect" not in str(e).lower():
                 logger.error(f"Host _process_final error: {e}")
@@ -1522,12 +1517,13 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
         try:
             _log_guest_trace(participant.display_name, room_id, 'process_final_start', text=final_result.text[:120], lang=final_result.language, confidence=final_result.confidence)
             # 1. Перевод + TTS + рассылка хосту и другим гостям
-            translations = await _process_room_speech(room, final_result, speaker_guest_id=guest_id)
+            translations = await _process_room_speech(room, final_result, speaker_guest_id=guest_id, translator=translator)
 
             # 2. Отправляем говорящему гостю перевод на язык хоста (фидбек)
-            target_lang = room.host_language
+            target_lang = (room.host_language or "").split("-")[0].lower()
+            source_lang_norm = (final_result.language or "").split("-")[0].lower()
             translated = translations.get(target_lang)
-            if not translated and target_lang != final_result.language:
+            if not translated and target_lang != source_lang_norm:
                 # Перевод на язык хоста не был в _process_room_speech
                 # (это бывает когда нет других гостей с этим языком)
                 translated = await asyncio.to_thread(
@@ -1546,7 +1542,7 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
             else:
                 # Языки совпали — сигнал фронту убрать ⏳
                 await ws.send_json({"type": "no_translation"})
-            _log_guest_trace(participant.display_name, room_id, 'process_final_done', target_lang=target_lang, translated=translated[:120])
+            _log_guest_trace(participant.display_name, room_id, 'process_final_done', target_lang=target_lang, translated=(translated[:120] if translated else None))
         except Exception as e:
             if "disconnect" not in str(e).lower():
                 logger.error(f"Guest _process_final error: {e}")
@@ -1730,11 +1726,12 @@ async def _process_room_speech(
     room,
     result: TranscriptResult,
     speaker_guest_id: str | None,
+    translator,
 ) -> dict[str, str]:
     """
     Перевод + TTS + broadcast. Возвращает dict {lang: translated_text}.
     """
-    source_lang = result.language
+    source_lang = (result.language or "").split("-")[0].lower()
     target_langs = set()
 
     for gid, p in room.participants.items():
@@ -1742,11 +1739,13 @@ async def _process_room_speech(
             continue
         if p.state == ParticipantState.MUTED:
             continue
-        if p.language != source_lang:
-            target_langs.add(p.language)
+        p_lang = (p.language or "").split("-")[0].lower()
+        if p_lang != source_lang:
+            target_langs.add(p_lang)
 
-    if speaker_guest_id and room.host_language != source_lang:
-        target_langs.add(room.host_language)
+    host_lang = (room.host_language or "").split("-")[0].lower()
+    if speaker_guest_id and host_lang != source_lang:
+        target_langs.add(host_lang)
 
     if not target_langs:
         await room_manager.broadcast_translation(

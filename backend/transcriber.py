@@ -129,7 +129,7 @@ class DeepgramTranscriber:
                     confidence=self._last_confidence,
                 ))
         except asyncio.CancelledError:
-            logger.info("🧭 [DG TRACE] receive_loop cancelled")
+            logger.info("🧭 [DG TRACE] delayed_flush cancelled")
             pass
 
     async def _interim_flush(self, delay: float = 2.0):
