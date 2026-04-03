@@ -9,6 +9,7 @@ VOX — Real-Time AI Translation Platform
 """
 
 import os
+import re
 import json
 import asyncio
 import logging
@@ -522,7 +523,38 @@ async def get_duo_info(duo_id: str):
 # ===========================================================================
 # Solo TTS буфер — накапливаем переводы, озвучиваем пакетами каждые N сек
 # ===========================================================================
-TTS_BUFFER_INTERVAL = 5  # секунд
+TTS_BUFFER_INTERVAL     = 3.5  # секунд — мягкий порог флаша (хвост завершён)
+TTS_BUFFER_HARD_TIMEOUT = 8.0  # секунд — жёсткий таймаут (флашим в любом случае)
+
+# Стоп-слова в конце фразы — признак незавершённости реплики
+_INCOMPLETE_TAIL = re.compile(
+    r"""(?ix)
+    (?:
+        # Союзы и частицы — ru/uk
+        \b(?:и|або|чи|та|але|проте|однак|що|як|якщо|тому|адже|бо|
+             но|или|либо|хотя|если|потому|ведь|же|ли|бы|бо)\b |
+        # Союзы — en/de/fr/es
+        \b(?:and|or|but|that|which|who|if|because|so|with|for|
+             und|oder|aber|dass|weil|wenn|
+             et|ou|mais|que|si|car)\b |
+        # Обрыв на предлоге — en
+        \b(?:in|on|at|to|of|by|from|into|about|over|under|between|through)\b |
+        # Запятая или тире в самом конце
+        [,\-–—]
+    )\s*$
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+def _is_incomplete(text: str) -> bool:
+    """Вернуть True если хвост фразы выглядит незавершённым."""
+    t = text.strip()
+    if not t:
+        return False
+    # Очень короткий фрагмент (1-2 слова) — скорее всего обрывок
+    if len(t.split()) <= 2:
+        return True
+    return bool(_INCOMPLETE_TAIL.search(t))
 
 async def _tts_buffer_flush(buffer: list, target_lang: str, ws: WebSocket):
     if not buffer:
@@ -578,11 +610,34 @@ async def _tts_buffer_flush(buffer: list, target_lang: str, ws: WebSocket):
             pass
 
 
-async def _tts_buffer_ticker(buffer: list, get_target_lang, get_tts_enabled, ws: WebSocket):
+async def _tts_buffer_ticker(
+    buffer: list,
+    buffer_time: list,
+    get_target_lang,
+    get_tts_enabled,
+    ws: WebSocket,
+):
+    """
+    Тикер флаша TTS-буфера.
+    - Каждые 1 сек проверяет условия флаша.
+    - Мягкий флаш (3.5 сек): только если хвост завершён.
+    - Жёсткий флаш (8 сек): в любом случае.
+    """
     while True:
-        await asyncio.sleep(TTS_BUFFER_INTERVAL)
-        if get_tts_enabled() and buffer:
+        await asyncio.sleep(1.0)
+        if not get_tts_enabled() or not buffer:
+            continue
+        age = asyncio.get_event_loop().time() - buffer_time[0] if buffer_time[0] > 0 else 0
+        if age == 0:
+            continue  # буфер только что флашнули, buffer_time ещё не обновлён
+        tail = buffer[-1] if buffer else ""
+        hard_timeout = age >= TTS_BUFFER_HARD_TIMEOUT
+        soft_ready   = age >= TTS_BUFFER_INTERVAL and not _is_incomplete(tail)
+        if hard_timeout or soft_ready:
+            reason = "hard_timeout" if hard_timeout else "soft_complete"
+            logger.info(f"🎙 TTS ticker flush [{reason}] age={age:.1f}s tail={tail[:40]!r}")
             await _tts_buffer_flush(buffer, get_target_lang(), ws)
+            buffer_time[0] = 0.0
 
 
 # ===========================================================================
@@ -591,8 +646,8 @@ async def _tts_buffer_ticker(buffer: list, get_target_lang, get_tts_enabled, ws:
 @app.websocket("/ws/duo")
 async def websocket_duo(ws: WebSocket):
     await ws.accept()
-    logger.info("🔌 WebSocket підключено (Duo one-device)")
     translator = Translator()
+    logger.info("🔌 WebSocket підключено (Duo one-device)")
 
     from billing_db import deduct_session_cost as _deduct
     _user_id = None
@@ -653,7 +708,7 @@ async def websocket_duo(ws: WebSocket):
     billing_task = asyncio.create_task(billing_tick())
 
     dg = DeepgramTranscriber()
-    await dg.start(language="multi", model="nova-3")
+    await dg.start(language="multi", model="nova-3", endpointing=700)
 
     async def handle_results():
         while True:
@@ -671,7 +726,7 @@ async def websocket_duo(ws: WebSocket):
                     "confidence": result.confidence,
                 })
 
-                if not (result.is_final and result.text and result.text.strip()):
+                if not (result.commit_final and result.text and result.text.strip()):
                     continue
 
                 text = result.text.strip()
@@ -736,7 +791,7 @@ async def websocket_duo(ws: WebSocket):
 
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
-                    await dg.start(language="multi", model="nova-3")
+                    await dg.start(language="multi", model="nova-3", endpointing=700)
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
@@ -766,7 +821,7 @@ async def websocket_duo(ws: WebSocket):
                                 return
 
                             await dg.stop()
-                            await dg.start(language="multi", model="nova-3")
+                            await dg.start(language="multi", model="nova-3", endpointing=700)
 
                     elif msg_type == "ping":
                         pass
@@ -833,7 +888,7 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
     await ws.send_json({"type": "duo_ready", "lang_a": session.lang_a, "lang_b": session.lang_b})
 
     dg = DeepgramTranscriber()
-    await dg.start(language=session.lang_a)
+    await dg.start(language=session.lang_a, endpointing=700)
 
     async def handle_results():
         while True:
@@ -847,7 +902,7 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
                     "is_final": result.is_final, "language": result.language,
                     "confidence": result.confidence,
                 })
-                if result.is_final and result.text.strip():
+                if result.commit_final and result.text.strip():
                     translated = await asyncio.to_thread(
                         translator.translate, result.text, session.lang_a, session.lang_b
                     )
@@ -878,7 +933,7 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
                 break
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
-                    await dg.start(language=session.lang_a)
+                    await dg.start(language=session.lang_a, endpointing=700)
                 await dg.send_audio(message["bytes"])
             elif "text" in message and message["text"]:
                 try:
@@ -928,7 +983,7 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
             pass
 
     dg = DeepgramTranscriber()
-    await dg.start(language=session.lang_b)
+    await dg.start(language=session.lang_b, endpointing=700)
 
     async def handle_results():
         while True:
@@ -946,7 +1001,7 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
                     "confidence": result.confidence,
                 })
 
-                if result.is_final and result.text.strip():
+                if result.commit_final and result.text.strip():
                     translated = await asyncio.to_thread(
                         translator.translate, result.text, session.lang_b, session.lang_a
                     )
@@ -992,7 +1047,7 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
 
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
-                    await dg.start(language=session.lang_b)
+                    await dg.start(language=session.lang_b, endpointing=700)
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
@@ -1025,8 +1080,8 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
 @app.websocket("/ws/solo")
 async def websocket_solo(ws: WebSocket):
     await ws.accept()
-    logger.info("🔌 WebSocket підключено (Solo)")
     translator = Translator()
+    logger.info("🔌 WebSocket підключено (Solo)")
 
     # Per-session стан — не глобальний session_config
     # Кожне Solo-підключення має власний tts_enabled
@@ -1084,17 +1139,6 @@ async def websocket_solo(ws: WebSocket):
 
     billing_task = asyncio.create_task(billing_tick())
 
-    _tts_buffer: list = []
-    _tts_buffer_time: list = [0.0]  # время первого элемента в буфере
-    tts_ticker_task = asyncio.create_task(
-        _tts_buffer_ticker(
-            _tts_buffer,
-            lambda: session_config["target_lang"],
-            lambda: session_tts_enabled,
-            ws,
-        )
-    )
-
     dg = DeepgramTranscriber()
     src_lang = session_config.get("source_lang") or "uk"
     await dg.start(language=src_lang)
@@ -1110,10 +1154,11 @@ async def websocket_solo(ws: WebSocket):
                     "type": "transcript",
                     "text": result.text,
                     "is_final": result.is_final,
+                    "commit_final": result.commit_final,
                     "language": result.language,
                     "confidence": result.confidence,
                 })
-                if result.is_final and result.text.strip():
+                if result.commit_final and result.text.strip():
                     source_lang = result.language or session_config.get("source_lang") or "uk"
                     target_lang = session_config["target_lang"]
                     if source_lang != target_lang:
@@ -1127,13 +1172,8 @@ async def websocket_solo(ws: WebSocket):
                             "lang_to": target_lang,
                         })
                         if session_tts_enabled:
-                            if not _tts_buffer:
-                                _tts_buffer_time[0] = asyncio.get_event_loop().time()
-                            _tts_buffer.append(translated)
-                            # Флаш если буфер копится ≥5 сек и пришёл speech_final
-                            if result.is_final and (asyncio.get_event_loop().time() - _tts_buffer_time[0]) >= TTS_BUFFER_INTERVAL:
-                                await _tts_buffer_flush(_tts_buffer, session_config["target_lang"], ws)
-                                _tts_buffer_time[0] = 0.0
+                            # Каждая завершённая фраза — отдельный TTS, без накопления
+                            await _tts_buffer_flush([translated], target_lang, ws)
                     else:
                         # Язык источника == язык вывода:
                         # корректируем ASR-ошибки через GPT (без перевода)
@@ -1148,12 +1188,7 @@ async def websocket_solo(ws: WebSocket):
                             "note": "asr_corrected",
                         })
                         if session_tts_enabled:
-                            if not _tts_buffer:
-                                _tts_buffer_time[0] = asyncio.get_event_loop().time()
-                            _tts_buffer.append(corrected)
-                            if result.is_final and (asyncio.get_event_loop().time() - _tts_buffer_time[0]) >= TTS_BUFFER_INTERVAL:
-                                await _tts_buffer_flush(_tts_buffer, session_config["target_lang"], ws)
-                                _tts_buffer_time[0] = 0.0
+                            await _tts_buffer_flush([corrected], target_lang, ws)
                     logger.info(f"📝 [{source_lang}→{target_lang}] {result.text[:60]}")
             except Exception as e:
                 if "disconnect" in str(e).lower():
@@ -1202,7 +1237,6 @@ async def websocket_solo(ws: WebSocket):
     finally:
         result_task.cancel()
         billing_task.cancel()
-        tts_ticker_task.cancel()
         try:
             await result_task
         except (asyncio.CancelledError, Exception):
@@ -1237,7 +1271,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
     _user_id = None
 
     dg = DeepgramTranscriber()
-    await dg.start(language=room.host_language)
+    await dg.start(language=room.host_language, endpointing=700)
 
     await ws.send_json({"type": "room_state", "room": room.to_dict()})
 
@@ -1325,7 +1359,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                     "confidence": result.confidence,
                 })
 
-                if result.is_final and result.text.strip():
+                if result.commit_final and result.text.strip():
                     # НЕ БЛОКИРУЕМ — запускаем перевод+TTS+broadcast в фоне
                     task = asyncio.create_task(_host_process_final(result))
                     _bg_tasks_host.add(task)
@@ -1350,7 +1384,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                 if room.active_speaker is not None:
                     continue
                 if not dg.is_active:
-                    await dg.start(room.host_language)
+                    await dg.start(room.host_language, endpointing=700)
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
@@ -1386,7 +1420,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                 elif action == "revoke_speak":
                     await room_manager.revoke_speak(room_id, guest_id)
                     translator.clear_context()
-                    await dg.start(room.host_language)
+                    await dg.start(room.host_language, endpointing=700)
                 elif action == "deny_speak":
                     await room_manager.deny_speak(room_id, guest_id)
                 elif action == "mute":
@@ -1476,15 +1510,18 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                     translator.translate,
                     final_result.text, final_result.language, target_lang,
                 )
-            elif not translated:
-                translated = final_result.text
 
-            await ws.send_json({
-                "type": "translation",
-                "text": translated,
-                "lang_from": final_result.language,
-                "lang_to": target_lang,
-            })
+            # Отправляем фидбек только если перевод реально получен
+            if translated:
+                await ws.send_json({
+                    "type": "translation",
+                    "text": translated,
+                    "lang_from": final_result.language,
+                    "lang_to": target_lang,
+                })
+            else:
+                # Языки совпали — сигнал фронту убрать ⏳
+                await ws.send_json({"type": "no_translation"})
             _log_guest_trace(participant.display_name, room_id, 'process_final_done', target_lang=target_lang, translated=translated[:120])
         except Exception as e:
             if "disconnect" not in str(e).lower():
@@ -1512,7 +1549,7 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                     "confidence": result.confidence,
                 })
 
-                if result.is_final and result.text.strip():
+                if result.commit_final and result.text.strip():
                     # НЕ БЛОКИРУЕМ — запускаем перевод+TTS+broadcast в фоне
                     _log_guest_trace(participant.display_name, room_id, 'schedule_process_final', text=result.text[:120], lang=result.language)
                     task = asyncio.create_task(_guest_process_final(result))
@@ -1557,7 +1594,7 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                     _audio_chunk_count = 0
                     dg.set_input_sample_rate(guest_input_sample_rate)
                     _log_guest_trace(participant.display_name, room_id, 'deepgram_start', lang=participant.language, input_sr=guest_input_sample_rate, guest_speaking=guest_speaking, dg_active=dg.is_active)
-                    await dg.start(participant.language, input_sample_rate=guest_input_sample_rate)
+                    await dg.start(participant.language, input_sample_rate=guest_input_sample_rate, endpointing=700)
                     guest_speaking = True
                     _log_guest_trace(participant.display_name, room_id, 'deepgram_started', lang=participant.language, input_sr=guest_input_sample_rate)
 
