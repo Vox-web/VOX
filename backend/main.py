@@ -1172,8 +1172,12 @@ async def websocket_solo(ws: WebSocket):
                             "lang_to": target_lang,
                         })
                         if session_tts_enabled:
-                            # Каждая завершённая фраза — отдельный TTS, без накопления
-                            await _tts_buffer_flush([translated], target_lang, ws)
+                            # Прямой TTS без GPT-полировки — перевод уже готов
+                            audio_bytes = await asyncio.to_thread(
+                                tts_engine.synthesize, translated, target_lang
+                            )
+                            if audio_bytes:
+                                await ws.send_bytes(b"AUDIO:" + audio_bytes)
                     else:
                         # Язык источника == язык вывода:
                         # корректируем ASR-ошибки через GPT (без перевода)
@@ -1188,7 +1192,11 @@ async def websocket_solo(ws: WebSocket):
                             "note": "asr_corrected",
                         })
                         if session_tts_enabled:
-                            await _tts_buffer_flush([corrected], target_lang, ws)
+                            audio_bytes = await asyncio.to_thread(
+                                tts_engine.synthesize, corrected, target_lang
+                            )
+                            if audio_bytes:
+                                await ws.send_bytes(b"AUDIO:" + audio_bytes)
                     logger.info(f"📝 [{source_lang}→{target_lang}] {result.text[:60]}")
             except Exception as e:
                 if "disconnect" in str(e).lower():
