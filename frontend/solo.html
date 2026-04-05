@@ -974,6 +974,7 @@
     // --- Состояние ---
     let isListening = false;
     let ws = null;
+    let _pingInterval = null;
     let _lastFinalOriginal = '—'; // финальный оригинал для истории (не перезаписывается interim)
     let audioContext = null;
     let audioWorkletNode = null;
@@ -1020,9 +1021,15 @@
             }));
             setStatus('connected', 'connected');
             console.log('WebSocket connected');
+            // Keepalive ping — не даёт Railway proxy убить idle соединение
+            clearInterval(_pingInterval);
+            _pingInterval = setInterval(() => {
+                if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type:'ping'}));
+            }, 15000);
         };
 
         ws.onclose = () => {
+            clearInterval(_pingInterval); _pingInterval = null;
             // Не перезаписуємо статус якщо юзер сам натиснув Stop
             if (isListening) {
                 setStatus('disconnected', 'disconnected_init');

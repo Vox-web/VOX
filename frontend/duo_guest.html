@@ -120,6 +120,9 @@ let mic = null;
 let micPaused = false;
 let listening = false;
 let langB = 'en';
+let _pingInterval = null;
+let _wsRetries = 0;
+let _terminated = false;  // host_left / session_ended — не реконнектимся
 let selectedMicId = localStorage.getItem('vox_guest_mic_id') || '';
 let selectedSpkId = localStorage.getItem('vox_speaker_id') || '';
 
@@ -186,14 +189,28 @@ function connectWS() {
   ws.binaryType = 'arraybuffer';
 
   ws.onopen = () => {
+    _wsRetries = 0;
     statusDot.className = 'status-dot connected';
     statusText.textContent = 'Готово — говоріть!';
     mainBtn.disabled = false;
+    // Keepalive ping — не даёт Railway proxy убить idle соединение
+    clearInterval(_pingInterval);
+    _pingInterval = setInterval(() => {
+      if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type:'ping'}));
+    }, 15000);
   };
   ws.onclose = () => {
+    clearInterval(_pingInterval); _pingInterval = null;
     statusDot.className = 'status-dot';
     statusText.textContent = 'Відключено';
     mainBtn.disabled = true;
+    // Авто-реконнект (если сессия не завершена хостом/балансом)
+    if (!_terminated) {
+      _wsRetries++;
+      const delay = Math.min(1000 * Math.pow(2, _wsRetries - 1), 10000);
+      console.log(`WS reconnect #${_wsRetries} in ${delay}ms`);
+      setTimeout(connectWS, delay);
+    }
   };
   ws.onerror = () => { statusText.textContent = 'Помилка з\'єднання'; };
   ws.onmessage = e => {
@@ -212,14 +229,16 @@ function connectWS() {
       transText.textContent = m.text || '—';
       addHistory(origText.textContent, m.text);
     } else if (m.type === 'host_left') {
+      _terminated = true;
       showError('Хост завершив сесію');
     } else if (m.type === 'session_ended') {
+      _terminated = true;
       showError('Баланс вичерпано');
     }
   };
   window.addEventListener('online', () => {
-    if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
-  });
+    if (!_terminated && (!ws || ws.readyState === WebSocket.CLOSED)) connectWS();
+  }, {once: true});
 }
 
 async function toggle() {

@@ -1970,6 +1970,8 @@
     let _duoListening = false, _duoWs = null, _duoMic = null;
     let _duoRemoteListening = false, _duoRemoteWs = null, _duoRemoteMic = null, _duoId = null;
     let _duoAudioPlaying = false;
+    let _duoPingInterval = null;
+    let _duoRemotePingInterval = null;
     const _duoVadEl = document.getElementById('duoVad');
     const _duoRemoteVadEl = document.getElementById('duoRemoteVad');
 
@@ -2051,8 +2053,13 @@
             _duoWs.send(JSON.stringify({type: 'auth', token: _tok}));
             document.getElementById('duoStatusDot').className = 'status-dot connected';
             document.getElementById('duoStatusText').textContent = t('duoStatusReady');
+            clearInterval(_duoPingInterval);
+            _duoPingInterval = setInterval(() => {
+                if (_duoWs?.readyState === WebSocket.OPEN) _duoWs.send(JSON.stringify({type:'ping'}));
+            }, 15000);
         };
         _duoWs.onclose = () => {
+            clearInterval(_duoPingInterval); _duoPingInterval = null;
             document.getElementById('duoStatusDot').className = 'status-dot';
             document.getElementById('duoStatusText').textContent = t('soloStatusDisconnected');
         };
@@ -2094,6 +2101,7 @@
     function duoStop() {
         _duoListening = false; _duoRemoteListening = false;
         _duoMic?.stop(); _duoMic = null;
+        clearInterval(_duoPingInterval); _duoPingInterval = null;
         _duoWs?.close(); _duoWs = null;
         _duoMicPaused = false;
         // Stop dedicated duo audio player
@@ -2136,8 +2144,13 @@
             _duoRemoteWs.send(JSON.stringify({type: 'auth', token: _tok}));
             document.getElementById('duoRemoteStatusDot').className = 'status-dot connected';
             document.getElementById('duoRemoteStatusText').textContent = t('duoGuestWaiting');
+            clearInterval(_duoRemotePingInterval);
+            _duoRemotePingInterval = setInterval(() => {
+                if (_duoRemoteWs?.readyState === WebSocket.OPEN) _duoRemoteWs.send(JSON.stringify({type:'ping'}));
+            }, 15000);
         };
         _duoRemoteWs.onclose = () => {
+            clearInterval(_duoRemotePingInterval); _duoRemotePingInterval = null;
             document.getElementById('duoRemoteStatusDot').className = 'status-dot';
         };
         _duoRemoteWs.onmessage = e => {
@@ -2246,6 +2259,7 @@
                 room_id: roomId,
                 host_lang: lang,
                 qr: d.qr_code || '',
+                saved_at: Date.now(),
             }));
             showScreen('screenRoom');
             if (d.qr_code) document.getElementById('roomQrImg').src = d.qr_code;
@@ -2257,12 +2271,40 @@
     }
 
     let _roomPingInterval = null;
+    let _roomWsRetries = 0;
+
+    function _cleanupDeadRoom() {
+        roomMicObj?.stop();
+        roomMicObj = null;
+        roomMicActive = false;
+        participants = {};
+
+        document.getElementById('roomMicBtn').classList.remove('active');
+        _resetV(roomVadEl);
+
+        roomId = null;
+        roomWs = null;
+        clearInterval(_roomPingInterval); _roomPingInterval = null;
+
+        sessionStorage.removeItem('vox_host_room');
+        sessionStorage.removeItem('vox_hist_room');
+        sessionStorage.removeItem('vox_hist_room_full');
+
+        document.getElementById(curScreen).classList.remove('active');
+        navStack.length = 0;
+        curScreen = 'screenMenu';
+        document.getElementById('screenMenu').classList.add('active');
+        document.getElementById('backBtn').classList.remove('visible');
+
+        console.log('Room session expired — cleaned up');
+    }
 
     function connectRoomWS() {
         const p = location.protocol==='https:'?'wss:':'ws:';
         roomWs = new WebSocket(`${p}//${location.host}/ws/room/${roomId}/host`);
         roomWs.binaryType = 'arraybuffer';
         roomWs.onopen = () => {
+            _roomWsRetries = 0;
             roomSetStatus('roomStatusConnected');
             // Auth для білінгу
             const _tok = localStorage.getItem('vox_token') || '';
@@ -2272,12 +2314,31 @@
             _roomPingInterval = setInterval(() => {
                 if (roomWs?.readyState === WebSocket.OPEN) roomWs.send(JSON.stringify({type:'ping'}));
             }, 15000);
+            // Обновляем saved_at при успешном подключении
+            try {
+                const sr = JSON.parse(sessionStorage.getItem('vox_host_room') || '{}');
+                sr.saved_at = Date.now();
+                sessionStorage.setItem('vox_host_room', JSON.stringify(sr));
+            } catch(_) {}
         };
         roomWs.onclose = (e) => {
             clearInterval(_roomPingInterval); _roomPingInterval = null;
             roomSetStatus('roomStatusDisconnected');
-            if (e.code === 4004 || !roomId) return;
-            setTimeout(connectRoomWS, 500);
+            // Комната не найдена на сервере — полный сброс
+            if (e.code === 4004) {
+                _cleanupDeadRoom();
+                return;
+            }
+            if (!roomId) return;
+            // Ограниченный реконнект (макс 5 попыток)
+            _roomWsRetries++;
+            if (_roomWsRetries <= 5) {
+                const delay = Math.min(500 * Math.pow(2, _roomWsRetries - 1), 5000);
+                setTimeout(connectRoomWS, delay);
+            } else {
+                console.warn('Room reconnect limit reached');
+                _cleanupDeadRoom();
+            }
         };
 
         roomWs.onerror = () => roomSetStatus('roomStatusDisconnected');
@@ -2397,26 +2458,56 @@
     window.addEventListener('online', () => {
         if (roomId && (!roomWs || roomWs.readyState === WebSocket.CLOSED)) connectRoomWS();
     });
-    // Восстановление комнаты после рефреша
+    // Восстановление комнаты после рефреша (с TTL и проверкой на сервере)
+    const ROOM_RESTORE_TTL_MS = 2 * 60 * 1000; // 2 минуты — если дольше, комната точно мёртва
     const savedRoom = sessionStorage.getItem('vox_host_room');
     if (savedRoom) {
-        try {
-            const sr = JSON.parse(savedRoom);
-            roomId = sr.room_id;
-            showScreen('screenRoom');
-            if (sr.qr) document.getElementById('roomQrImg').src = sr.qr;
-            document.getElementById('roomCode').textContent = roomId.toUpperCase();
-            document.getElementById('roomUrl').textContent = `${location.origin}/room/${roomId}`;
-            connectRoomWS();
-            // Восстановить историю
-            const hist = JSON.parse(sessionStorage.getItem('vox_hist_room') || '[]');
-            hist.reverse().forEach(h => {
-                const it = document.createElement('div'); it.className = 'history-item';
-                const who = h.speaker ? `<span style="color:var(--accent);font-weight:600;">${_esc(h.speaker)}</span> · ` : '';
-                it.innerHTML = `<div class="history-time">${who}${h.tm}</div><div class="history-original">${_esc(h.o)}</div><div class="history-translation">${_esc(h.tr)}</div>`;
-                roomHistEl.insertBefore(it, roomHistEl.firstChild);
-            });
-        } catch(e) { sessionStorage.removeItem('vox_host_room'); }
+        (async () => {
+            try {
+                const sr = JSON.parse(savedRoom);
+                // TTL: если сохранено давно — не восстанавливаем
+                if (sr.saved_at && (Date.now() - sr.saved_at > ROOM_RESTORE_TTL_MS)) {
+                    console.log('Room restore skipped: TTL expired (' + Math.round((Date.now() - sr.saved_at)/1000) + 's ago)');
+                    sessionStorage.removeItem('vox_host_room');
+                    sessionStorage.removeItem('vox_hist_room');
+                    sessionStorage.removeItem('vox_hist_room_full');
+                    return;
+                }
+                // Проверка: жива ли комната на сервере
+                try {
+                    const resp = await fetch(`/room/${sr.room_id}/status`);
+                    if (!resp.ok) {
+                        console.log('Room restore skipped: server returned ' + resp.status);
+                        sessionStorage.removeItem('vox_host_room');
+                        sessionStorage.removeItem('vox_hist_room');
+                        sessionStorage.removeItem('vox_hist_room_full');
+                        return;
+                    }
+                } catch(fetchErr) {
+                    console.warn('Room restore: status check failed, trying WS anyway', fetchErr);
+                    // Сеть может быть недоступна — пусть WS сам попробует
+                }
+                // Всё ок — восстанавливаем
+                roomId = sr.room_id;
+                showScreen('screenRoom');
+                if (sr.qr) document.getElementById('roomQrImg').src = sr.qr;
+                document.getElementById('roomCode').textContent = roomId.toUpperCase();
+                document.getElementById('roomUrl').textContent = `${location.origin}/room/${roomId}`;
+                connectRoomWS();
+                // Восстановить историю
+                const hist = JSON.parse(sessionStorage.getItem('vox_hist_room') || '[]');
+                hist.reverse().forEach(h => {
+                    const it = document.createElement('div'); it.className = 'history-item';
+                    const who = h.speaker ? `<span style="color:var(--accent);font-weight:600;">${_esc(h.speaker)}</span> · ` : '';
+                    it.innerHTML = `<div class="history-time">${who}${h.tm}</div><div class="history-original">${_esc(h.o)}</div><div class="history-translation">${_esc(h.tr)}</div>`;
+                    roomHistEl.insertBefore(it, roomHistEl.firstChild);
+                });
+            } catch(e) {
+                sessionStorage.removeItem('vox_host_room');
+                sessionStorage.removeItem('vox_hist_room');
+                sessionStorage.removeItem('vox_hist_room_full');
+            }
+        })();
     }
    
     console.log('VOX v0.3.3 — Deepgram Streaming');

@@ -64,7 +64,12 @@ function isStaticAsset(request, url) {
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(PRECACHE))
+      .then(cache =>
+        // Каждый файл кешируется независимо — 404 одного не блокирует весь SW
+        Promise.allSettled(PRECACHE.map(url => cache.add(url).catch(e => {
+          console.warn('SW precache skip:', url, e.message);
+        })))
+      )
       .then(() => self.skipWaiting())
   );
 });

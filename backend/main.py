@@ -251,7 +251,7 @@ async def serve_index():
             status_code=404, 
             detail=f"Сбой путей: файл не найден по адресу {html_path}"
         )
-    return FileResponse(html_path)
+    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/landing")
@@ -259,7 +259,7 @@ async def serve_landing():
     html_path = FRONTEND_DIR / "index.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="index.html not found")
-    return FileResponse(html_path)
+    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/host")
@@ -267,7 +267,7 @@ async def serve_host():
     html_path = FRONTEND_DIR / "host.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="host.html not found")
-    return FileResponse(html_path)
+    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/solo")
@@ -275,7 +275,7 @@ async def serve_solo():
     html_path = FRONTEND_DIR / "solo.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="solo.html not found")
-    return FileResponse(html_path)
+    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/admin")
@@ -283,7 +283,7 @@ async def serve_admin():
     html_path = FRONTEND_DIR / "admin.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="admin.html not found")
-    return FileResponse(html_path)
+    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/cabinet")
@@ -291,7 +291,7 @@ async def serve_cabinet():
     html_path = FRONTEND_DIR / "index.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="index.html not found")
-    return FileResponse(html_path)
+    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/review")
@@ -299,7 +299,7 @@ async def serve_review():
     html_path = FRONTEND_DIR / "review_form.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="review_form.html not found")
-    return FileResponse(html_path)
+    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
 
 
 # Алиас: host.html ссылается на /review_form.html?source=host — поддерживаем оба пути
@@ -308,7 +308,7 @@ async def serve_review_form_html():
     html_path = FRONTEND_DIR / "review_form.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="review_form.html not found")
-    return FileResponse(html_path)
+    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/room/{room_id}")
@@ -318,7 +318,7 @@ async def serve_guest(room_id: str):
     html_path = FRONTEND_DIR / "guest.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="guest.html not found")
-    return FileResponse(html_path)
+    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
 
 
 # ===========================================================================
@@ -458,14 +458,14 @@ async def serve_docs():
     html_path = FRONTEND_DIR / "docs.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="docs.html not found")
-    return FileResponse(html_path)
+    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
 
 @app.get("/privacy")
 async def serve_privacy():
     html_path = FRONTEND_DIR / "privacy.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="privacy.html not found")
-    return FileResponse(html_path)
+    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
 
 # ===========================================================================
 # Duo режим — менеджер сессий
@@ -510,7 +510,7 @@ async def serve_duo_guest_page(duo_id: str):
     html_path = FRONTEND_DIR / "duo_guest.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="duo_guest.html not found")
-    return FileResponse(html_path)
+    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/duo/{duo_id}/info")
@@ -837,7 +837,7 @@ async def websocket_duo(ws: WebSocket):
                             await dg.start(language="multi", model="nova-3", endpointing=700)
 
                     elif msg_type == "ping":
-                        pass
+                        await ws.send_json({"type": "pong"})
 
                 except json.JSONDecodeError:
                     pass
@@ -955,7 +955,7 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
                 try:
                     msg = json.loads(message["text"])
                     if msg.get("type") == "ping":
-                        pass
+                        await ws.send_json({"type": "pong"})
                 except json.JSONDecodeError:
                     pass
     except WebSocketDisconnect:
@@ -1073,7 +1073,7 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
                 try:
                     msg = json.loads(message["text"])
                     if msg.get("type") == "ping":
-                        pass
+                        await ws.send_json({"type": "pong"})
                 except json.JSONDecodeError:
                     pass
 
@@ -1246,7 +1246,7 @@ async def websocket_solo(ws: WebSocket):
                     msg = json.loads(message["text"])
                     msg_type = msg.get("type")
                     if msg_type == "ping":
-                        pass
+                        await ws.send_json({"type": "pong"})
                     elif msg_type == "tts_done":
                         pass
                     elif msg_type == "config":
@@ -1436,6 +1436,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                     continue
 
                 if msg_type == "ping":
+                    await ws.send_json({"type": "pong"})
                     continue
 
                 if not action or not guest_id:
@@ -1644,6 +1645,9 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
 
                 msg_type = msg.get("type")
                 action = msg.get("action")
+                if msg_type == "ping":
+                    await ws.send_json({"type": "pong"})
+                    continue
                 if msg_type == "audio_meta":
                     guest_audio_meta = dict(msg)
                     guest_input_sample_rate = _pick_client_sample_rate(guest_audio_meta)
@@ -2265,7 +2269,7 @@ async def serve_sw():
     """Service Worker для PWA."""
     sw_path = FRONTEND_DIR / "sw.js"
     if sw_path.exists():
-        return FileResponse(sw_path, media_type="application/javascript")
+        return FileResponse(sw_path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     # Минимальный SW если файл не найден
     sw_code = """
 self.addEventListener('install', e => self.skipWaiting());
@@ -2280,7 +2284,7 @@ async def serve_pwa_install_js():
     pwa_path = FRONTEND_DIR / "pwa-install.js"
     if not pwa_path.exists():
         raise HTTPException(status_code=404, detail="pwa-install.js not found")
-    return FileResponse(pwa_path, media_type="application/javascript")
+    return FileResponse(pwa_path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 @app.get("/icons/icon-{size}.png")
 async def serve_icon(size: str):
