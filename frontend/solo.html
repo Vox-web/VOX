@@ -978,6 +978,7 @@
     let _lastFinalOriginal = '—'; // финальный оригинал для истории (не перезаписывается interim)
     let audioContext = null;
     let audioWorkletNode = null;
+    let hpFilter = null;
     let mediaStream = null;
 
     // --- DOM ---
@@ -1440,6 +1441,9 @@
             URL.revokeObjectURL(url);
 
             const source = audioContext.createMediaStreamSource(mediaStream);
+            // Wind-noise reduction: highpass filter cuts low-frequency rumble (<250 Hz)
+            hpFilter = audioContext.createBiquadFilter();
+            hpFilter.type = 'highpass'; hpFilter.frequency.value = 250; hpFilter.Q.value = 0.7;
             audioWorkletNode = new AudioWorkletNode(audioContext, 'vox-processor');
 
             audioWorkletNode.port.onmessage = (event) => {
@@ -1450,7 +1454,8 @@
                 animateVAD(chunk);
             };
 
-            source.connect(audioWorkletNode);
+            source.connect(hpFilter);
+            hpFilter.connect(audioWorkletNode);
         } catch (e) {
             console.error('Microphone error:', e);
             setStatus('disconnected', 'mic_error');
@@ -1464,6 +1469,10 @@
         if (audioWorkletNode) {
             audioWorkletNode.disconnect();
             audioWorkletNode = null;
+        }
+        if (hpFilter) {
+            hpFilter.disconnect();
+            hpFilter = null;
         }
         if (audioContext) {
             audioContext.close();

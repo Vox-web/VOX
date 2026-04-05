@@ -258,7 +258,7 @@ async function toggle() {
 }
 
 async function startMic() {
-  const constraints = {sampleRate:16000,channelCount:1,echoCancellation:false,noiseSuppression:false,autoGainControl:false};
+  const constraints = {sampleRate:16000,channelCount:1,echoCancellation:false,noiseSuppression:true,autoGainControl:true};
   if (selectedMicId) constraints.deviceId = {exact: selectedMicId};
   let st;
   try { st = await navigator.mediaDevices.getUserMedia({audio: constraints}); }
@@ -272,13 +272,15 @@ async function startMic() {
   const u = URL.createObjectURL(bl);
   await cx.audioWorklet.addModule(u); URL.revokeObjectURL(u);
   const src = cx.createMediaStreamSource(st);
+  // Wind-noise reduction: highpass filter cuts low-frequency rumble (<250 Hz)
+  const hp = cx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 250; hp.Q.value = 0.7;
   const nd = new AudioWorkletNode(cx,'VoxDG');
   nd.port.onmessage = ev => {
     if (ws?.readyState === WebSocket.OPEN) ws.send(ev.data);
     animateVAD(new Float32Array(ev.data));
   };
-  src.connect(nd);
-  return {stop(){try{nd.disconnect();}catch(_){}try{src.disconnect();}catch(_){}try{cx.close();}catch(_){}st.getTracks().forEach(t=>t.stop());}};
+  src.connect(hp); hp.connect(nd);
+  return {stop(){try{nd.disconnect();}catch(_){}try{hp.disconnect();}catch(_){}try{src.disconnect();}catch(_){}try{cx.close();}catch(_){}st.getTracks().forEach(t=>t.stop());}};
 }
 
 function animateVAD(chunk) {

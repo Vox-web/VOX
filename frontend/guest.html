@@ -1090,8 +1090,8 @@
             sampleRate: GUEST_TARGET_SAMPLE_RATE,
             channelCount: 1,
             echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
+            noiseSuppression: true,
+            autoGainControl: true,
         };
 
         // deviceId передаётся отдельным top-level ключом, не внутри audio-constraints
@@ -1140,9 +1140,11 @@
         URL.revokeObjectURL(u);
 
         const src = cx.createMediaStreamSource(st);
+        // Wind-noise reduction: highpass filter cuts low-frequency rumble (<250 Hz)
+        const hp = cx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 250; hp.Q.value = 0.7;
         const nd = new AudioWorkletNode(cx, name);
         nd.port.onmessage = e => onChunk(e.data);
-        src.connect(nd);
+        src.connect(hp); hp.connect(nd);
         // Не подключаем к destination: это capture-only тракт.
 
         const meta = {
@@ -1172,6 +1174,7 @@
             getState() { return cx.state; },
             stop() {
                 try { nd.disconnect(); } catch (_) {}
+                try { hp.disconnect(); } catch (_) {}
                 try { src.disconnect(); } catch (_) {}
                 try { cx.close(); } catch (_) {}
                 st.getTracks().forEach(t => t.stop());

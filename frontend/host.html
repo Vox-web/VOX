@@ -1589,10 +1589,12 @@
         const bl = new Blob([code],{type:'application/javascript'}); const u = URL.createObjectURL(bl);
         await cx.audioWorklet.addModule(u); URL.revokeObjectURL(u);
         const src = cx.createMediaStreamSource(st);
+        // Wind-noise reduction: highpass filter cuts low-frequency rumble (<250 Hz)
+        const hp = cx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 250; hp.Q.value = 0.7;
         const nd = new AudioWorkletNode(cx, name);
         nd.port.onmessage = e => onChunk(e.data);
-        src.connect(nd); // nd НЕ подключается к cx.destination — иначе аудио-петля и баг маршрутизации на Android
-        return { stop(){ nd.disconnect(); cx.close(); st.getTracks().forEach(t=>t.stop()); } };
+        src.connect(hp); hp.connect(nd); // nd НЕ подключается к cx.destination — иначе аудио-петля и баг маршрутизации на Android
+        return { stop(){ try{nd.disconnect();}catch(_){} try{hp.disconnect();}catch(_){} try{src.disconnect();}catch(_){} try{cx.close();}catch(_){} st.getTracks().forEach(t=>t.stop()); } };
     }
 
     // =====================================================================
