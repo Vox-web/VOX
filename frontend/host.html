@@ -541,6 +541,39 @@
         .hybrid-toggle-btn.hybrid-on { border-color: var(--green); color: var(--green); background: rgba(46,204,113,0.08); }
         .hybrid-toggle-btn.hybrid-warn { border-color: var(--yellow); color: var(--yellow); background: rgba(240,165,0,0.08); }
 
+        /* --- Mode toggle (Standard / Premium AI) --- */
+        .mode-toggle-wrap {
+            display: flex; align-items: center; justify-content: center;
+            gap: 0; margin: 2px auto 0;
+        }
+        .mode-toggle {
+            display: flex;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 3px;
+            gap: 2px;
+        }
+        .mode-btn {
+            border: none; background: transparent;
+            color: var(--text2); font-size: 13px; font-weight: 500;
+            padding: 7px 16px; border-radius: 10px;
+            cursor: pointer; transition: all 0.25s ease;
+            display: flex; align-items: center; gap: 5px;
+            white-space: nowrap; position: relative; z-index: 1;
+        }
+        .mode-btn:hover { color: var(--text); }
+        .mode-btn.active {
+            color: var(--white);
+            background: var(--accent);
+            box-shadow: 0 2px 10px var(--accent-glow);
+        }
+        .mode-btn.active.chatgpt-active {
+            background: linear-gradient(135deg, #10a37f, #1a7f64);
+            box-shadow: 0 2px 12px rgba(16,163,127,0.35);
+        }
+        .mode-btn .mode-icon { font-size: 14px; }
+
         /* ======== Solo big btn ======== */
         .solo-btn {
             width: 130px; height: 130px; border-radius: 50%;
@@ -860,6 +893,19 @@
                 <span id="ttsToggleIcon">🔊</span>
                 <span id="ttsToggleLabel">Озвучка увімкнена</span>
             </button>
+            <!-- Mode toggle: Standard / Premium AI -->
+            <div class="mode-toggle-wrap">
+                <div class="mode-toggle" id="modeToggle">
+                    <button class="mode-btn active" id="modeStandardBtn" onclick="setTranslateMode('standard')">
+                        <span class="mode-icon">🔤</span>
+                        <span id="modeStandardLabel">Стандарт</span>
+                    </button>
+                    <button class="mode-btn" id="modeChatgptBtn" onclick="setTranslateMode('chatgpt')">
+                        <span class="mode-icon">✨</span>
+                        <span id="modeChatgptLabel">Premium AI</span>
+                    </button>
+                </div>
+            </div>
             <button class="hybrid-toggle-btn" id="hybridToggleBtn" onclick="toggleHybrid()">
                 <span id="hybridToggleLabel">Гібридний режим</span>
             </button>
@@ -1159,6 +1205,10 @@
             micLabel: '🎤 Мікрофон:', micDefault: 'За замовчуванням', micRefreshTitle: 'Оновити список',
             micHint: '💡 «За замовчуванням» — браузер вибирає мікрофон сам. Якщо підключена гарнітура і хочете записувати зовнішній звук — виберіть «За замовчуванням» і вимкніть мікрофон гарнітури фізично. Вбудований мікрофон телефону краще чує дальні джерела звуку.',
             ttsOn: 'Озвучка увімкнена', ttsOff: 'Озвучка вимкнена',
+            modeStandard: 'Стандарт', modePremium: 'Premium AI',
+            toastPremiumOn: '✨ Premium AI — покращений переклад (GPT-4o) і озвучка',
+            toastPremiumPrice: 'Тариф ×2',
+            toastStandardOn: '🔤 Стандартний режим відновлено',
             menuDuoTitle: 'Duo', menuDuoDesc: 'Двомовний діалог для двох',
             duoSetupTitle: 'Налаштування Duo', duoLangALabel: 'Мова A:', duoLangBLabel: 'Мова B:',
             btnDuoLocal: '📱 На одному пристрої', btnDuoRemote: '📡 Дистанційно (QR)',
@@ -1218,6 +1268,10 @@
             micLabel: '🎤 Microphone:', micDefault: 'Default', micRefreshTitle: 'Refresh list',
             micHint: '💡 "Default" lets the browser pick the microphone automatically. If you wear headphones and want to capture external sound — choose "Default" and physically disable the headset mic. The phone\'s built-in mic generally picks up distant sound sources better.',
             ttsOn: 'Audio on', ttsOff: 'Audio off',
+            modeStandard: 'Standard', modePremium: 'Premium AI',
+            toastPremiumOn: '✨ Premium AI — enhanced translation (GPT-4o) & voice',
+            toastPremiumPrice: 'Rate ×2',
+            toastStandardOn: '🔤 Standard mode restored',
             menuDuoTitle: 'Duo', menuDuoDesc: 'Two-language conversation for two',
             duoSetupTitle: 'Duo Setup', duoLangALabel: 'Language A:', duoLangBLabel: 'Language B:',
             btnDuoLocal: '📱 One device', btnDuoRemote: '📡 Remote (QR)',
@@ -1277,6 +1331,10 @@
             micLabel: '🎤 Mikrofon:', micDefault: 'Standard', micRefreshTitle: 'Liste aktualisieren',
             micHint: '💡 „Standard" lässt den Browser das Mikrofon automatisch wählen. Wenn Sie Kopfhörer tragen und externen Ton aufnehmen möchten — wählen Sie „Standard" und deaktivieren Sie das Headset-Mikrofon physisch. Das eingebaute Telefonmikrofon erfasst entfernte Tonquellen in der Regel besser.',
             ttsOn: 'Ton an', ttsOff: 'Ton aus',
+            modeStandard: 'Standard', modePremium: 'Premium AI',
+            toastPremiumOn: '✨ Premium AI — verbesserte Übersetzung (GPT-4o) & Stimme',
+            toastPremiumPrice: 'Tarif ×2',
+            toastStandardOn: '🔤 Standardmodus wiederhergestellt',
             menuDuoTitle: 'Duo', menuDuoDesc: 'Zweisprachiger Dialog für zwei Personen',
             duoSetupTitle: 'Duo-Einstellungen', duoLangALabel: 'Sprache A:', duoLangBLabel: 'Sprache B:',
             btnDuoLocal: '📱 Ein Gerät', btnDuoRemote: '📡 Fernverbindung (QR)',
@@ -1398,6 +1456,7 @@
             if (roomSpkSel && roomSpkSel.options.length > 0 && roomSpkSel.options[0].value === '') roomSpkSel.options[0].textContent = t('speakerDefault');
             if (roomSpkNoSup) roomSpkNoSup.textContent = t('speakerNoSupport');
             _updateTtsBtn();
+            _updateModeToggle();
             // Duo i18n
             const _di = ['menuDuoTitle','menuDuoDesc','duoSetupTitle','duoLangALabel','duoLangBLabel',
                 'btnDuoLocal','btnDuoRemote','duoLabelOrig','duoLabelTrans','duoLabelHist',
@@ -1555,6 +1614,39 @@
         }
         _updateTtsBtn();
     }
+
+    // ======== TRANSLATE MODE TOGGLE (Standard / Premium AI) ========
+    let _translateMode = localStorage.getItem('vox_translate_mode') || 'standard';
+
+    function _updateModeToggle() {
+        const stdBtn = document.getElementById('modeStandardBtn');
+        const gptBtn = document.getElementById('modeChatgptBtn');
+        const stdLbl = document.getElementById('modeStandardLabel');
+        const gptLbl = document.getElementById('modeChatgptLabel');
+        if (!stdBtn || !gptBtn) return;
+        stdBtn.classList.toggle('active', _translateMode === 'standard');
+        gptBtn.classList.toggle('active', _translateMode === 'chatgpt');
+        gptBtn.classList.toggle('chatgpt-active', _translateMode === 'chatgpt');
+        if (stdLbl) stdLbl.textContent = t('modeStandard');
+        if (gptLbl) gptLbl.textContent = t('modePremium');
+    }
+
+    function setTranslateMode(mode) {
+        if (mode === _translateMode) return;
+        _translateMode = mode;
+        localStorage.setItem('vox_translate_mode', mode);
+        _updateModeToggle();
+        if (soloWs?.readyState === WebSocket.OPEN) {
+            soloWs.send(JSON.stringify({ type: 'config', translate_mode: mode }));
+        }
+        if (mode === 'chatgpt') {
+            showVoxToast(t('toastPremiumOn') + ' (' + t('toastPremiumPrice') + ')', '');
+        } else {
+            showVoxToast(t('toastStandardOn'), '');
+        }
+    }
+
+    _updateModeToggle();
 
     function _audioMsg(d) { const p = new TextDecoder().decode(new Uint8Array(d,0,6)); if (p==='AUDIO:' && _ttsEnabled) _playA(d.slice(6)); }
 
@@ -1749,6 +1841,7 @@
                 source_lang: srcLang === 'auto' ? null : srcLang,
                 target_lang: tgtLang,
                 tts_enabled: _ttsEnabled,
+                translate_mode: _translateMode,
             }));
             clearInterval(_soloPingInterval);
             _soloPingInterval = setInterval(() => {
@@ -1833,6 +1926,7 @@
             source_lang: srcSel.value === 'auto' ? null : srcSel.value,
             target_lang: tgtSel.value,
             tts_enabled: _ttsEnabled,
+            translate_mode: _translateMode,
         };
         try {
             await fetch('/set-config', {
