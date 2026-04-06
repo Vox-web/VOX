@@ -9,7 +9,6 @@ VOX — Real-Time AI Translation Platform
 """
 
 import os
-import re
 import json
 import asyncio
 import logging
@@ -156,7 +155,7 @@ async def api_contact(body: ContactBody):
     msg.attach(MIMEText(html, "html", "utf-8"))
 
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=5) as server:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(gmail_user, gmail_pass)
             server.sendmail(gmail_user, owner_email, msg.as_string())
         logger.info("📩 Contact form sent: %s <%s>", body.name, body.email)
@@ -226,13 +225,6 @@ class ReviewBody(BaseModel):
     guest_name: Optional[str] = None
     guest_email: Optional[str] = None
 
-class UpdateUserBody(BaseModel):
-    name: Optional[str] = None
-    email: Optional[str] = None
-    is_active: Optional[bool] = None
-    new_password: Optional[str] = None
-    new_balance: Optional[float] = None    
-
 ADMIN_LOGIN    = os.getenv("ADMIN_LOGIN", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "kozerog")
 
@@ -251,7 +243,7 @@ async def serve_index():
             status_code=404, 
             detail=f"Сбой путей: файл не найден по адресу {html_path}"
         )
-    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
+    return FileResponse(html_path)
 
 
 @app.get("/landing")
@@ -259,7 +251,7 @@ async def serve_landing():
     html_path = FRONTEND_DIR / "index.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="index.html not found")
-    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
+    return FileResponse(html_path)
 
 
 @app.get("/host")
@@ -267,7 +259,7 @@ async def serve_host():
     html_path = FRONTEND_DIR / "host.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="host.html not found")
-    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
+    return FileResponse(html_path)
 
 
 @app.get("/solo")
@@ -275,7 +267,7 @@ async def serve_solo():
     html_path = FRONTEND_DIR / "solo.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="solo.html not found")
-    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
+    return FileResponse(html_path)
 
 
 @app.get("/admin")
@@ -283,7 +275,7 @@ async def serve_admin():
     html_path = FRONTEND_DIR / "admin.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="admin.html not found")
-    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
+    return FileResponse(html_path)
 
 
 @app.get("/cabinet")
@@ -291,7 +283,7 @@ async def serve_cabinet():
     html_path = FRONTEND_DIR / "index.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="index.html not found")
-    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
+    return FileResponse(html_path)
 
 
 @app.get("/review")
@@ -299,7 +291,7 @@ async def serve_review():
     html_path = FRONTEND_DIR / "review_form.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="review_form.html not found")
-    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
+    return FileResponse(html_path)
 
 
 # Алиас: host.html ссылается на /review_form.html?source=host — поддерживаем оба пути
@@ -308,7 +300,7 @@ async def serve_review_form_html():
     html_path = FRONTEND_DIR / "review_form.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="review_form.html not found")
-    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
+    return FileResponse(html_path)
 
 
 @app.get("/room/{room_id}")
@@ -318,7 +310,7 @@ async def serve_guest(room_id: str):
     html_path = FRONTEND_DIR / "guest.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="guest.html not found")
-    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
+    return FileResponse(html_path)
 
 
 # ===========================================================================
@@ -458,640 +450,15 @@ async def serve_docs():
     html_path = FRONTEND_DIR / "docs.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="docs.html not found")
-    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
+    return FileResponse(html_path)
 
 @app.get("/privacy")
 async def serve_privacy():
     html_path = FRONTEND_DIR / "privacy.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="privacy.html not found")
-    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
+    return FileResponse(html_path)
 
-# ===========================================================================
-# Duo режим — менеджер сессий
-# ===========================================================================
-import secrets as _sec
-
-class DuoSession:
-    def __init__(self, duo_id: str, lang_a: str, lang_b: str):
-        self.duo_id = duo_id
-        self.lang_a = lang_a
-        self.lang_b = lang_b
-        self.host_ws: Optional[WebSocket] = None
-        self.guest_ws: Optional[WebSocket] = None
-
-_duo_sessions: dict[str, "DuoSession"] = {}
-
-
-@app.post("/duo/create")
-async def create_duo(body: dict):
-    lang_a = body.get("lang_a", "uk")
-    lang_b = body.get("lang_b", "en")
-    duo_id = _sec.token_urlsafe(4)[:6].upper()
-    _duo_sessions[duo_id] = DuoSession(duo_id, lang_a, lang_b)
-    base_url = os.getenv("BASE_URL", "").rstrip("/")
-    guest_url = f"{base_url}/duo/{duo_id}" if base_url else f"/duo/{duo_id}"
-    try:
-        import qrcode as _qr, base64 as _b64, io as _io
-        q = _qr.QRCode(box_size=4, border=2)
-        q.add_data(guest_url); q.make(fit=True)
-        img = q.make_image(fill_color="black", back_color="white")
-        buf = _io.BytesIO(); img.save(buf, format="PNG")
-        qr_b64 = "data:image/png;base64," + _b64.b64encode(buf.getvalue()).decode()
-    except Exception as e:
-        logger.warning(f"Duo QR failed: {e}"); qr_b64 = ""
-    return JSONResponse({"duo_id": duo_id, "qr_code": qr_b64, "guest_url": guest_url})
-
-
-@app.get("/duo/{duo_id}")
-async def serve_duo_guest_page(duo_id: str):
-    if duo_id not in _duo_sessions:
-        raise HTTPException(status_code=404, detail="Duo session not found")
-    html_path = FRONTEND_DIR / "duo_guest.html"
-    if not html_path.exists():
-        raise HTTPException(status_code=404, detail="duo_guest.html not found")
-    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
-
-
-@app.get("/api/duo/{duo_id}/info")
-async def get_duo_info(duo_id: str):
-    s = _duo_sessions.get(duo_id)
-    if not s:
-        raise HTTPException(status_code=404, detail="Not found")
-    return {"lang_a": s.lang_a, "lang_b": s.lang_b}
-
-# ===========================================================================
-# Solo TTS буфер — накапливаем переводы, озвучиваем пакетами каждые N сек
-# ===========================================================================
-TTS_BUFFER_INTERVAL     = 3.5  # секунд — мягкий порог флаша (хвост завершён)
-TTS_BUFFER_HARD_TIMEOUT = 8.0  # секунд — жёсткий таймаут (флашим в любом случае)
-
-# Стоп-слова в конце фразы — признак незавершённости реплики
-_INCOMPLETE_TAIL = re.compile(
-    r"""(?ix)
-    (?:
-        # Союзы и частицы — ru/uk
-        \b(?:и|або|чи|та|але|проте|однак|що|як|якщо|тому|адже|бо|
-             но|или|либо|хотя|если|потому|ведь|же|ли|бы|бо)\b |
-        # Союзы — en/de/fr/es
-        \b(?:and|or|but|that|which|who|if|because|so|with|for|
-             und|oder|aber|dass|weil|wenn|
-             et|ou|mais|que|si|car)\b |
-        # Обрыв на предлоге — en
-        \b(?:in|on|at|to|of|by|from|into|about|over|under|between|through)\b |
-        # Запятая или тире в самом конце
-        [,\-–—]
-    )\s*$
-    """,
-    re.IGNORECASE | re.VERBOSE,
-)
-
-def _is_incomplete(text: str) -> bool:
-    """Вернуть True если хвост фразы выглядит незавершённым."""
-    t = text.strip()
-    if not t:
-        return False
-    # Очень короткий фрагмент (1-2 слова) — скорее всего обрывок
-    if len(t.split()) <= 2:
-        return True
-    return bool(_INCOMPLETE_TAIL.search(t))
-
-
-def _split_sentences(text: str) -> list:
-    """
-    Разбить переведённый текст на предложения для параллельного TTS.
-    Разбивает по . ! ? с учётом пробела после знака.
-    Фильтрует пустые и слишком короткие фрагменты.
-    """
-    parts = re.split(r'(?<=[.!?])\s+', text.strip())
-    return [p.strip() for p in parts if len(p.strip()) >= 4]
-
-async def _tts_buffer_flush(buffer: list, target_lang: str, ws: WebSocket):
-    if not buffer:
-        return
-    combined = " ".join(buffer)
-    buffer.clear()
-    try:
-        from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        lang_names = {
-            "uk": "Ukrainian", "ru": "Russian", "en": "English",
-            "de": "German", "pl": "Polish", "fr": "French",
-            "zh": "Chinese", "es": "Spanish", "it": "Italian",
-            "pt": "Portuguese", "ja": "Japanese", "ko": "Korean",
-            "ar": "Arabic", "tr": "Turkish", "hi": "Hindi",
-        }
-        lang_name = lang_names.get(target_lang, target_lang)
-        response = await asyncio.to_thread(
-            lambda: client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{
-                    "role": "system",
-                    "content": (
-                        f"You are a real-time speech interpreter. "
-                        f"The following is a raw machine translation of a speech fragment in {lang_name}. "
-                        f"Rewrite it as natural, lively, conversational {lang_name} speech ready for TTS. "
-                        f"Preserve ALL names, locations, numbers and key facts exactly. "
-                        f"Connect fragments into complete, meaningful sentences with natural flow. "
-                        f"You may compress repeated or redundant parts, but never lose key meaning. "
-                        f"Add natural spoken connectors (well, so, you know, actually) only if they improve flow. "
-                        f"Output ONLY the final text. No line breaks. No explanations."
-                    )
-                }, {
-                    "role": "user",
-                    "content": combined
-                }],
-                temperature=0.2,
-                max_tokens=400,
-            )
-        )
-        polished = response.choices[0].message.content.strip()
-        logger.info(f"🎙 TTS buffer flush [{target_lang}]: {combined[:60]} → {polished[:60]}")
-        audio_bytes = await asyncio.to_thread(tts_engine.synthesize, polished, target_lang)
-        if audio_bytes:
-            await ws.send_bytes(b"AUDIO:" + audio_bytes)
-    except Exception as e:
-        logger.warning(f"TTS buffer flush error: {e}")
-        try:
-            audio_bytes = await asyncio.to_thread(tts_engine.synthesize, combined, target_lang)
-            if audio_bytes:
-                await ws.send_bytes(b"AUDIO:" + audio_bytes)
-        except Exception:
-            pass
-
-
-async def _tts_buffer_ticker(
-    buffer: list,
-    buffer_time: list,
-    get_target_lang,
-    get_tts_enabled,
-    ws: WebSocket,
-):
-    """
-    Тикер флаша TTS-буфера.
-    - Каждые 1 сек проверяет условия флаша.
-    - Мягкий флаш (3.5 сек): только если хвост завершён.
-    - Жёсткий флаш (8 сек): в любом случае.
-    """
-    while True:
-        await asyncio.sleep(1.0)
-        if not get_tts_enabled() or not buffer:
-            continue
-        age = asyncio.get_event_loop().time() - buffer_time[0] if buffer_time[0] > 0 else 0
-        if age == 0:
-            continue  # буфер только что флашнули, buffer_time ещё не обновлён
-        tail = buffer[-1] if buffer else ""
-        hard_timeout = age >= TTS_BUFFER_HARD_TIMEOUT
-        soft_ready   = age >= TTS_BUFFER_INTERVAL and not _is_incomplete(tail)
-        if hard_timeout or soft_ready:
-            reason = "hard_timeout" if hard_timeout else "soft_complete"
-            logger.info(f"🎙 TTS ticker flush [{reason}] age={age:.1f}s tail={tail[:40]!r}")
-            await _tts_buffer_flush(buffer, get_target_lang(), ws)
-            buffer_time[0] = 0.0
-
-
-# ===========================================================================
-# WebSocket: Duo режим — один пристрій (language=multi, автодетекція)
-# ===========================================================================
-@app.websocket("/ws/duo")
-async def websocket_duo(ws: WebSocket):
-    await ws.accept()
-    translator = Translator()
-    logger.info("🔌 WebSocket підключено (Duo one-device)")
-
-    from billing_db import deduct_session_cost as _deduct
-    _user_id = None
-    lang_a = "uk"
-    lang_b = "en"
-    session_tts_enabled = True
-
-    try:
-        for _ in range(2):
-            raw = await asyncio.wait_for(ws.receive(), timeout=1.0)
-            if not raw.get("text"):
-                continue
-
-            msg = json.loads(raw["text"])
-            msg_type = msg.get("type")
-
-            if msg_type == "auth":
-                _user = get_user_by_token(msg.get("token", ""))
-                _user_id = _user["id"] if _user else None
-
-            elif msg_type == "config":
-                lang_a = msg.get("lang_a", lang_a)
-                lang_b = msg.get("lang_b", lang_b)
-                session_tts_enabled = bool(msg.get("tts_enabled", session_tts_enabled))
-    except (asyncio.TimeoutError, Exception):
-        pass
-
-    logger.info(f"🤝 Duo one-device pair: {lang_a}↔{lang_b} user={_user_id}")
-
-    # Пары, которые реально поддерживаются в nova-3 multi
-    MULTI_LANGS = {"en", "es", "fr", "de", "hi", "ru", "pt", "ja", "it", "nl"}
-
-    if lang_a not in MULTI_LANGS or lang_b not in MULTI_LANGS:
-        await ws.send_json({
-            "type": "error",
-            "message": f"One-device auto mode is not supported for pair {lang_a}↔{lang_b}.",
-            "code": "pair_not_supported",
-        })
-        await ws.close()
-        return
-
-    async def billing_tick():
-        if not _user_id:
-            return
-        while True:
-            await asyncio.sleep(60)
-            try:
-                new_balance = _deduct(_user_id, "duo", 0)
-                if new_balance <= 0:
-                    await ws.send_json({"type": "session_ended", "reason": "no_balance"})
-                    await ws.close()
-                    return
-            except asyncio.CancelledError:
-                return
-            except Exception as e:
-                logger.warning(f"Duo billing error: {e}")
-
-    billing_task = asyncio.create_task(billing_tick())
-
-    dg = DeepgramTranscriber()
-    await dg.start(language="multi", model="nova-3", endpointing=700)
-
-    async def handle_results():
-        while True:
-            try:
-                result = await dg.results.get()
-            except asyncio.CancelledError:
-                break
-
-            try:
-                await ws.send_json({
-                    "type": "transcript",
-                    "text": result.text,
-                    "is_final": result.is_final,
-                    "language": result.language,
-                    "confidence": result.confidence,
-                })
-
-                if not (result.commit_final and result.text and result.text.strip()):
-                    continue
-
-                text = result.text.strip()
-                detected = (result.language or "").split("-")[0]
-
-                # Берём только язык из жёстко заданной пары
-                if detected not in (lang_a, lang_b):
-                    logger.info(
-                        f"🧭 Duo skip out-of-pair transcript: "
-                        f"text={text!r} detected={detected!r} pair={lang_a}/{lang_b}"
-                    )
-                    continue
-
-                # Отсекаем слишком слабые короткие pseudo-final после interim_flush
-                if result.confidence < 0.65 and len(text.split()) <= 2:
-                    logger.info(
-                        f"🧭 Duo skip weak short final: "
-                        f"text={text!r} detected={detected!r} conf={result.confidence:.3f}"
-                    )
-                    continue
-
-                src = detected
-                tgt = lang_b if detected == lang_a else lang_a
-
-                translated = await asyncio.to_thread(
-                    translator.translate, text, src, tgt
-                )
-
-                await ws.send_json({
-                    "type": "translation",
-                    "text": translated,
-                    "lang_from": src,
-                    "lang_to": tgt,
-                })
-
-                if session_tts_enabled:
-                    sentences = _split_sentences(translated) or [translated]
-                    audio_results = await asyncio.gather(*[
-                        asyncio.to_thread(tts_engine.synthesize, s, tgt)
-                        for s in sentences
-                    ])
-                    for audio_bytes in audio_results:
-                        if audio_bytes:
-                            await ws.send_bytes(b"AUDIO:" + audio_bytes)
-
-                logger.info(
-                    f"🤝 Duo [{src}→{tgt}] "
-                    f"text={text[:80]!r} conf={result.confidence:.3f}"
-                )
-
-            except Exception as e:
-                if "disconnect" in str(e).lower():
-                    break
-                logger.error(f"Duo one-device error: {e}")
-                break
-
-    result_task = asyncio.create_task(handle_results())
-
-    try:
-        while True:
-            message = await ws.receive()
-
-            if message.get("type") == "websocket.disconnect":
-                break
-
-            if "bytes" in message and message["bytes"]:
-                if not dg.is_active:
-                    await dg.start(language="multi", model="nova-3", endpointing=700)
-                await dg.send_audio(message["bytes"])
-
-            elif "text" in message and message["text"]:
-                try:
-                    msg = json.loads(message["text"])
-                    msg_type = msg.get("type")
-
-                    if msg_type == "auth" and not _user_id:
-                        _user = get_user_by_token(msg.get("token", ""))
-                        _user_id = _user["id"] if _user else None
-
-                    elif msg_type == "config":
-                        new_a = msg.get("lang_a", lang_a)
-                        new_b = msg.get("lang_b", lang_b)
-                        session_tts_enabled = bool(msg.get("tts_enabled", session_tts_enabled))
-
-                        if (new_a, new_b) != (lang_a, lang_b):
-                            lang_a, lang_b = new_a, new_b
-
-                            if lang_a not in MULTI_LANGS or lang_b not in MULTI_LANGS:
-                                await ws.send_json({
-                                    "type": "error",
-                                    "message": f"One-device auto mode is not supported for pair {lang_a}↔{lang_b}.",
-                                    "code": "pair_not_supported",
-                                })
-                                await ws.close()
-                                return
-
-                            await dg.stop()
-                            await dg.start(language="multi", model="nova-3", endpointing=700)
-
-                    elif msg_type == "ping":
-                        await ws.send_json({"type": "pong"})
-
-                except json.JSONDecodeError:
-                    pass
-
-    except WebSocketDisconnect:
-        logger.info("🔌 Duo one-device відключено")
-    except Exception as e:
-        logger.error(f"❌ Duo one-device error: {e}", exc_info=True)
-    finally:
-        result_task.cancel()
-        billing_task.cancel()
-        try:
-            await result_task
-        except (asyncio.CancelledError, Exception):
-            pass
-        await dg.stop()
-
-
-# ===========================================================================
-# WebSocket: Duo режим — дистанційно (хост)
-# ===========================================================================
-@app.websocket("/ws/duo/{duo_id}/host")
-async def websocket_duo_host(ws: WebSocket, duo_id: str):
-    await ws.accept()
-    translator = Translator()
-    session = _duo_sessions.get(duo_id)
-    if not session:
-        await ws.send_json({"type": "error", "message": "Duo session not found"})
-        await ws.close(); return
-
-    session.host_ws = ws
-    from billing_db import deduct_session_cost as _deduct
-    _user_id = None
-
-    try:
-        first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
-        if first_raw.get("text"):
-            first = json.loads(first_raw["text"])
-            if first.get("type") == "auth":
-                _user = get_user_by_token(first.get("token", ""))
-                _user_id = _user["id"] if _user else None
-    except (asyncio.TimeoutError, Exception):
-        pass
-
-    async def billing_tick():
-        if not _user_id:
-            return
-        while True:
-            await asyncio.sleep(60)
-            try:
-                new_balance = _deduct(_user_id, "duo", 0)
-                if new_balance <= 0:
-                    await ws.send_json({"type": "session_ended", "reason": "no_balance"})
-                    await ws.close(); return
-            except asyncio.CancelledError:
-                return
-            except Exception as e:
-                logger.warning(f"Duo host billing error: {e}")
-
-    billing_task = asyncio.create_task(billing_tick())
-    await ws.send_json({"type": "duo_ready", "lang_a": session.lang_a, "lang_b": session.lang_b})
-
-    dg = DeepgramTranscriber()
-    await dg.start(language=session.lang_a, endpointing=700)
-
-    async def handle_results():
-        while True:
-            try:
-                result = await dg.results.get()
-            except asyncio.CancelledError:
-                break
-            try:
-                await ws.send_json({
-                    "type": "transcript", "text": result.text,
-                    "is_final": result.is_final, "language": result.language,
-                    "confidence": result.confidence,
-                })
-                if result.commit_final and result.text.strip():
-                    translated = await asyncio.to_thread(
-                        translator.translate, result.text, session.lang_a, session.lang_b
-                    )
-                    await ws.send_json({
-                        "type": "translation", "text": translated,
-                        "lang_from": session.lang_a, "lang_to": session.lang_b,
-                    })
-                    if session.guest_ws:
-                        try:
-                            sentences = _split_sentences(translated) or [translated]
-                            audio_results = await asyncio.gather(*[
-                                asyncio.to_thread(tts_engine.synthesize, s, session.lang_b)
-                                for s in sentences
-                            ])
-                            for audio in audio_results:
-                                if audio:
-                                    await session.guest_ws.send_bytes(b"AUDIO:" + audio)
-                        except Exception:
-                            pass
-            except Exception as e:
-                if "disconnect" in str(e).lower():
-                    break
-                logger.error(f"Duo host result error: {e}"); break
-
-    result_task = asyncio.create_task(handle_results())
-
-    try:
-        while True:
-            message = await ws.receive()
-            if message.get("type") == "websocket.disconnect":
-                break
-            if "bytes" in message and message["bytes"]:
-                if not dg.is_active:
-                    await dg.start(language=session.lang_a, endpointing=700)
-                await dg.send_audio(message["bytes"])
-            elif "text" in message and message["text"]:
-                try:
-                    msg = json.loads(message["text"])
-                    if msg.get("type") == "ping":
-                        await ws.send_json({"type": "pong"})
-                except json.JSONDecodeError:
-                    pass
-    except WebSocketDisconnect:
-        logger.info(f"🔌 Duo host відключився {duo_id}")
-    finally:
-        result_task.cancel(); billing_task.cancel()
-        session.host_ws = None
-        try:
-            await result_task
-        except (asyncio.CancelledError, Exception):
-            pass
-        await dg.stop()
-        if session.guest_ws:
-            try:
-                await session.guest_ws.send_json({"type": "host_left"})
-            except Exception:
-                pass
-        _duo_sessions.pop(duo_id, None)
-
-
-# ===========================================================================
-# WebSocket: Duo режим — дистанційно (гість)
-# ===========================================================================
-@app.websocket("/ws/duo/{duo_id}/guest")
-async def websocket_duo_guest(ws: WebSocket, duo_id: str):
-    await ws.accept()
-    translator = Translator()
-    session = _duo_sessions.get(duo_id)
-    if not session:
-        await ws.send_json({"type": "error", "message": "Duo session not found"})
-        await ws.close()
-        return
-
-    session.guest_ws = ws
-    await ws.send_json({"type": "duo_ready", "lang_a": session.lang_a, "lang_b": session.lang_b})
-
-    if session.host_ws:
-        try:
-            await session.host_ws.send_json({"type": "guest_connected"})
-        except Exception:
-            pass
-
-    dg = DeepgramTranscriber()
-    await dg.start(language=session.lang_b, endpointing=700)
-
-    async def handle_results():
-        while True:
-            try:
-                result = await dg.results.get()
-            except asyncio.CancelledError:
-                break
-
-            try:
-                await ws.send_json({
-                    "type": "transcript",
-                    "text": result.text,
-                    "is_final": result.is_final,
-                    "language": result.language,
-                    "confidence": result.confidence,
-                })
-
-                if result.commit_final and result.text.strip():
-                    translated = await asyncio.to_thread(
-                        translator.translate, result.text, session.lang_b, session.lang_a
-                    )
-
-                    await ws.send_json({
-                        "type": "translation",
-                        "text": translated,
-                        "lang_from": session.lang_b,
-                        "lang_to": session.lang_a,
-                    })
-
-                    if session.host_ws:
-                        try:
-                            await session.host_ws.send_json({
-                                "type": "translation",
-                                "text": translated,
-                                "lang_from": session.lang_b,
-                                "lang_to": session.lang_a,
-                            })
-
-                            sentences = _split_sentences(translated) or [translated]
-                            audio_results = await asyncio.gather(*[
-                                asyncio.to_thread(tts_engine.synthesize, s, session.lang_a)
-                                for s in sentences
-                            ])
-                            for audio in audio_results:
-                                if audio:
-                                    await session.host_ws.send_bytes(b"AUDIO:" + audio)
-                        except Exception:
-                            pass
-
-            except Exception as e:
-                if "disconnect" in str(e).lower():
-                    break
-                logger.error(f"Duo guest result error: {e}")
-                break
-
-    result_task = asyncio.create_task(handle_results())
-
-    try:
-        while True:
-            message = await ws.receive()
-
-            if message.get("type") == "websocket.disconnect":
-                break
-
-            if "bytes" in message and message["bytes"]:
-                if not dg.is_active:
-                    await dg.start(language=session.lang_b, endpointing=700)
-                await dg.send_audio(message["bytes"])
-
-            elif "text" in message and message["text"]:
-                try:
-                    msg = json.loads(message["text"])
-                    if msg.get("type") == "ping":
-                        await ws.send_json({"type": "pong"})
-                except json.JSONDecodeError:
-                    pass
-
-    except WebSocketDisconnect:
-        logger.info(f"🔌 Duo guest відключився {duo_id}")
-    finally:
-        result_task.cancel()
-        session.guest_ws = None
-        try:
-            await result_task
-        except (asyncio.CancelledError, Exception):
-            pass
-        await dg.stop()
-        if session.host_ws:
-            try:
-                await session.host_ws.send_json({"type": "guest_left"})
-            except Exception:
-                pass
 
 # ===========================================================================
 # WebSocket: Solo режим (Phase 3 proxy: аудіо → Railway → Deepgram)
@@ -1099,38 +466,28 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
 @app.websocket("/ws/solo")
 async def websocket_solo(ws: WebSocket):
     await ws.accept()
-    translator = Translator()
     logger.info("🔌 WebSocket підключено (Solo)")
 
     # Per-session стан — не глобальний session_config
-    # Кожне Solo-підключення має власний tts_enabled і мовні налаштування
+    # Кожне Solo-підключення має власний tts_enabled
     session_tts_enabled: bool = True
-    solo_source_lang: str | None = session_config.get("source_lang")
-    solo_target_lang: str = session_config.get("target_lang") or os.getenv("DEFAULT_TARGET_LANG", "uk")
-    session_translate_mode: str = "standard"  # "standard" | "chatgpt"
 
     from billing_db import deduct_session_cost as _deduct
     _user_id = None
     try:
-        # Читаем до 2 сообщений при старте: auth + config (как в Duo)
-        for _ in range(2):
-            raw = await asyncio.wait_for(ws.receive(), timeout=2.0)
-            if not raw.get("text"):
-                continue
-            msg = json.loads(raw["text"])
-            msg_type = msg.get("type")
-            if msg_type == "auth":
-                _user = get_user_by_token(msg.get("token", ""))
+        first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
+        if first_raw.get("text"):
+            first = json.loads(first_raw["text"])
+            if first.get("type") == "auth":
+                _user = get_user_by_token(first.get("token", ""))
                 _user_id = _user["id"] if _user else None
-            elif msg_type == "config":
-                if msg.get("source_lang"):
-                    solo_source_lang = msg["source_lang"]
-                if msg.get("target_lang"):
-                    solo_target_lang = msg["target_lang"]
-                if "tts_enabled" in msg:
-                    session_tts_enabled = bool(msg["tts_enabled"])
-                if msg.get("translate_mode") in ("standard", "chatgpt"):
-                    session_translate_mode = msg["translate_mode"]
+            elif first.get("type") == "config":
+                if first.get("source_lang"):
+                    session_config["source_lang"] = first["source_lang"]
+                if first.get("target_lang"):
+                    session_config["target_lang"] = first["target_lang"]
+                if "tts_enabled" in first:
+                    session_tts_enabled = bool(first["tts_enabled"])
     except (asyncio.TimeoutError, Exception):
         pass
 
@@ -1140,28 +497,22 @@ async def websocket_solo(ws: WebSocket):
         logger.info("💳 Solo: anonymous session (no billing)")
 
     async def billing_tick():
-        """Биллинг: списание раз в минуту. Поддерживает late-auth."""
+        if not _user_id:
+            return
         while True:
             await asyncio.sleep(60)
-            if not _user_id:
-                continue  # ждём auth (может прийти позже)
             try:
-                _mult = 2.0 if session_translate_mode == "chatgpt" else 1.0
-                new_balance = _deduct(_user_id, "solo", 0, _mult)
-                logger.info(f"💸 Solo billing tick: user={_user_id} mode={session_translate_mode} balance={new_balance:.4f}")
+                new_balance = _deduct(_user_id, "solo", 0)
+                logger.info(f"💸 Solo billing tick: user={_user_id} balance={new_balance:.4f}")
                 if new_balance <= 0:
                     await ws.send_json({"type": "session_ended", "reason": "no_balance"})
                     await ws.close()
                     return
-                else:
-                    from billing_db import get_balance_warning as _gbw
-                    _warn = _gbw(new_balance)
-                    if _warn:
-                        await ws.send_json({
-                            "type": "balance_warning",
-                            "level": _warn,           # "low" | "critical"
-                            "balance": round(new_balance, 4),
-                        })
+                elif new_balance <= 0.10:
+                    from vox_db import get_finance_settings as _gfs
+                    _ppm = (_gfs().get(user_id) or {}).get("price_per_min", 0.05)
+                    minutes_left = max(1, round(new_balance / _ppm))
+                    await ws.send_json({"type": "balance_warning", "minutes_left": minutes_left})
             except asyncio.CancelledError:
                 return
             except Exception as e:
@@ -1170,7 +521,8 @@ async def websocket_solo(ws: WebSocket):
     billing_task = asyncio.create_task(billing_tick())
 
     dg = DeepgramTranscriber()
-    await dg.start(language=solo_source_lang or "uk")
+    src_lang = session_config.get("source_lang") or "uk"
+    await dg.start(language=src_lang)
 
     async def handle_results():
         while True:
@@ -1183,19 +535,15 @@ async def websocket_solo(ws: WebSocket):
                     "type": "transcript",
                     "text": result.text,
                     "is_final": result.is_final,
-                    "commit_final": result.commit_final,
                     "language": result.language,
                     "confidence": result.confidence,
                 })
-                if result.commit_final and result.text.strip():
-                    source_lang = result.language or solo_source_lang or "uk"
-                    target_lang = solo_target_lang
-                    # Выбор модели и TTS в зависимости от режима
-                    _model = "gpt-4o" if session_translate_mode == "chatgpt" else "gpt-4o-mini"
-                    _prefer_openai_tts = session_translate_mode == "chatgpt"
+                if result.is_final and result.text.strip():
+                    source_lang = result.language or session_config.get("source_lang") or "uk"
+                    target_lang = session_config["target_lang"]
                     if source_lang != target_lang:
                         translated = await asyncio.to_thread(
-                            translator.translate, result.text, source_lang, target_lang, _model,
+                            translator.translate, result.text, source_lang, target_lang,
                         )
                         await ws.send_json({
                             "type": "translation",
@@ -1204,20 +552,16 @@ async def websocket_solo(ws: WebSocket):
                             "lang_to": target_lang,
                         })
                         if session_tts_enabled:
-                            # Разбиваем на предложения → синтез параллельно → отправка по порядку
-                            sentences = _split_sentences(translated) or [translated]
-                            audio_results = await asyncio.gather(*[
-                                asyncio.to_thread(tts_engine.synthesize, s, target_lang, _prefer_openai_tts)
-                                for s in sentences
-                            ])
-                            for audio_bytes in audio_results:
-                                if audio_bytes:
-                                    await ws.send_bytes(b"AUDIO:" + audio_bytes)
+                            audio_bytes = await asyncio.to_thread(
+                                tts_engine.synthesize, translated, target_lang,
+                            )
+                            if audio_bytes:
+                                await ws.send_bytes(b"AUDIO:" + audio_bytes)
                     else:
                         # Язык источника == язык вывода:
                         # корректируем ASR-ошибки через GPT (без перевода)
                         corrected = await asyncio.to_thread(
-                            translator.correct_asr, result.text, source_lang, _model,
+                            translator.correct_asr, result.text, source_lang,
                         )
                         await ws.send_json({
                             "type": "translation",
@@ -1227,15 +571,13 @@ async def websocket_solo(ws: WebSocket):
                             "note": "asr_corrected",
                         })
                         if session_tts_enabled:
-                            sentences = _split_sentences(corrected) or [corrected]
-                            audio_results = await asyncio.gather(*[
-                                asyncio.to_thread(tts_engine.synthesize, s, target_lang, _prefer_openai_tts)
-                                for s in sentences
-                            ])
-                            for audio_bytes in audio_results:
-                                if audio_bytes:
-                                    await ws.send_bytes(b"AUDIO:" + audio_bytes)
-                    logger.info(f"📝 [{source_lang}→{target_lang}] mode={session_translate_mode} {result.text[:60]}")
+                            # TTS озвучивает исправленный текст на том же языке
+                            audio_bytes = await asyncio.to_thread(
+                                tts_engine.synthesize, corrected, target_lang,
+                            )
+                            if audio_bytes:
+                                await ws.send_bytes(b"AUDIO:" + audio_bytes)
+                    logger.info(f"📝 [{source_lang}→{target_lang}] {result.text[:60]}")
             except Exception as e:
                 if "disconnect" in str(e).lower():
                     break
@@ -1251,35 +593,29 @@ async def websocket_solo(ws: WebSocket):
                 break
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
-                    await dg.start(solo_source_lang or "uk")
+                    await dg.start(session_config.get("source_lang") or "uk")
                 await dg.send_audio(message["bytes"])
             elif "text" in message and message["text"]:
                 try:
                     msg = json.loads(message["text"])
                     msg_type = msg.get("type")
                     if msg_type == "ping":
-                        await ws.send_json({"type": "pong"})
-                    elif msg_type == "auth" and not _user_id:
-                        _user = get_user_by_token(msg.get("token", ""))
-                        if _user:
-                            _user_id = _user["id"]
-                            logger.info(f"💳 Solo late-auth: user_id={_user_id}")
+                        pass
                     elif msg_type == "tts_done":
                         pass
                     elif msg_type == "config":
                         new_src = msg.get("source_lang")
                         new_tgt = msg.get("target_lang")
                         if new_tgt:
-                            solo_target_lang = new_tgt
-                        if new_src and new_src != solo_source_lang:
-                            solo_source_lang = new_src
+                            session_config["target_lang"] = new_tgt
+                        if new_src and new_src != session_config.get("source_lang"):
+                            session_config["source_lang"] = new_src
                             await dg.stop()
                             await dg.start(language=new_src)
                         if "tts_enabled" in msg:
                             session_tts_enabled = bool(msg["tts_enabled"])
-                        if msg.get("translate_mode") in ("standard", "chatgpt"):
-                            session_translate_mode = msg["translate_mode"]
-                        logger.info(f"🎤 Solo config: source={solo_source_lang}, target={solo_target_lang}, tts={session_tts_enabled}, mode={session_translate_mode}")
+                        src = session_config.get("source_lang")
+                        logger.info(f"🎤 Solo config: source={src}, target={session_config['target_lang']}, tts={session_tts_enabled}")
                 except json.JSONDecodeError:
                     pass
     except WebSocketDisconnect:
@@ -1302,7 +638,6 @@ async def websocket_solo(ws: WebSocket):
 @app.websocket("/ws/room/{room_id}/host")
 async def websocket_room_host(ws: WebSocket, room_id: str):
     await ws.accept()
-    translator = Translator()
 
     room = room_manager.get_room(room_id)
     if not room:
@@ -1323,7 +658,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
     _user_id = None
 
     dg = DeepgramTranscriber()
-    await dg.start(language=room.host_language, endpointing=700)
+    await dg.start(language=room.host_language)
 
     await ws.send_json({"type": "room_state", "room": room.to_dict()})
 
@@ -1344,16 +679,11 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                     await ws.send_json({"type": "session_ended", "reason": "no_balance"})
                     await ws.close()
                     return
-                else:
-                    from billing_db import get_balance_warning as _gbw
-                    _warn = _gbw(new_balance)
-                    if _warn:
-                        await ws.send_json({
-                            "type": "balance_warning",
-                            "level": _warn,           # "low" | "critical"
-                            "balance": round(new_balance, 4),
-                            "guests": guest_count,    # сколько участников сейчас
-                        })
+                elif new_balance <= 0.10:
+                    from vox_db import get_finance_settings as _gfs
+                    _ppm = (_gfs().get(user_id) or {}).get("price_per_min", 0.05)
+                    minutes_left = max(1, round(new_balance / (_ppm * max(1, guest_count))))
+                    await ws.send_json({"type": "balance_warning", "minutes_left": minutes_left})
             except asyncio.CancelledError:
                 return
             except Exception as e:
@@ -1370,7 +700,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
             source_lang = final_result.language
 
             # Перевод + TTS + рассылка гостям (возвращает dict переводов)
-            translations = await _process_room_speech(room, final_result, speaker_guest_id=None, translator=translator)
+            translations = await _process_room_speech(room, final_result, speaker_guest_id=None)
 
             # Отправляем хосту переводы (чтобы он видел что получили гости)
             if translations:
@@ -1382,8 +712,13 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                         "lang_to": lang,
                     })
             else:
-                # Языки совпали — сигнал фронту убрать ⏳
-                await ws.send_json({"type": "no_translation"})
+                await ws.send_json({
+                    "type": "translation",
+                    "text": final_result.text,
+                    "lang_from": source_lang,
+                    "lang_to": source_lang,
+                    "note": "same_language",
+                })
         except Exception as e:
             if "disconnect" not in str(e).lower():
                 logger.error(f"Host _process_final error: {e}")
@@ -1406,7 +741,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                     "confidence": result.confidence,
                 })
 
-                if result.commit_final and result.text.strip():
+                if result.is_final and result.text.strip():
                     # НЕ БЛОКИРУЕМ — запускаем перевод+TTS+broadcast в фоне
                     task = asyncio.create_task(_host_process_final(result))
                     _bg_tasks_host.add(task)
@@ -1431,7 +766,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                 if room.active_speaker is not None:
                     continue
                 if not dg.is_active:
-                    await dg.start(room.host_language, endpointing=700)
+                    await dg.start(room.host_language)
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
@@ -1455,7 +790,6 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                     continue
 
                 if msg_type == "ping":
-                    await ws.send_json({"type": "pong"})
                     continue
 
                 if not action or not guest_id:
@@ -1468,7 +802,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                 elif action == "revoke_speak":
                     await room_manager.revoke_speak(room_id, guest_id)
                     translator.clear_context()
-                    await dg.start(room.host_language, endpointing=700)
+                    await dg.start(room.host_language)
                 elif action == "deny_speak":
                     await room_manager.deny_speak(room_id, guest_id)
                 elif action == "mute":
@@ -1513,7 +847,6 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
 @app.websocket("/ws/room/{room_id}/guest/{guest_id}")
 async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
     await ws.accept()
-    translator = Translator()
 
     room = room_manager.get_room(room_id)
     if not room:
@@ -1546,32 +879,28 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
         try:
             _log_guest_trace(participant.display_name, room_id, 'process_final_start', text=final_result.text[:120], lang=final_result.language, confidence=final_result.confidence)
             # 1. Перевод + TTS + рассылка хосту и другим гостям
-            translations = await _process_room_speech(room, final_result, speaker_guest_id=guest_id, translator=translator)
+            translations = await _process_room_speech(room, final_result, speaker_guest_id=guest_id)
 
             # 2. Отправляем говорящему гостю перевод на язык хоста (фидбек)
-            target_lang = (room.host_language or "").split("-")[0].lower()
-            source_lang_norm = (final_result.language or "").split("-")[0].lower()
+            target_lang = room.host_language
             translated = translations.get(target_lang)
-            if not translated and target_lang != source_lang_norm:
+            if not translated and target_lang != final_result.language:
                 # Перевод на язык хоста не был в _process_room_speech
                 # (это бывает когда нет других гостей с этим языком)
                 translated = await asyncio.to_thread(
                     translator.translate,
                     final_result.text, final_result.language, target_lang,
                 )
+            elif not translated:
+                translated = final_result.text
 
-            # Отправляем фидбек только если перевод реально получен
-            if translated:
-                await ws.send_json({
-                    "type": "translation",
-                    "text": translated,
-                    "lang_from": final_result.language,
-                    "lang_to": target_lang,
-                })
-            else:
-                # Языки совпали — сигнал фронту убрать ⏳
-                await ws.send_json({"type": "no_translation"})
-            _log_guest_trace(participant.display_name, room_id, 'process_final_done', target_lang=target_lang, translated=(translated[:120] if translated else None))
+            await ws.send_json({
+                "type": "translation",
+                "text": translated,
+                "lang_from": final_result.language,
+                "lang_to": target_lang,
+            })
+            _log_guest_trace(participant.display_name, room_id, 'process_final_done', target_lang=target_lang, translated=translated[:120])
         except Exception as e:
             if "disconnect" not in str(e).lower():
                 logger.error(f"Guest _process_final error: {e}")
@@ -1598,7 +927,7 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                     "confidence": result.confidence,
                 })
 
-                if result.commit_final and result.text.strip():
+                if result.is_final and result.text.strip():
                     # НЕ БЛОКИРУЕМ — запускаем перевод+TTS+broadcast в фоне
                     _log_guest_trace(participant.display_name, room_id, 'schedule_process_final', text=result.text[:120], lang=result.language)
                     task = asyncio.create_task(_guest_process_final(result))
@@ -1643,7 +972,7 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                     _audio_chunk_count = 0
                     dg.set_input_sample_rate(guest_input_sample_rate)
                     _log_guest_trace(participant.display_name, room_id, 'deepgram_start', lang=participant.language, input_sr=guest_input_sample_rate, guest_speaking=guest_speaking, dg_active=dg.is_active)
-                    await dg.start(participant.language, input_sample_rate=guest_input_sample_rate, endpointing=700)
+                    await dg.start(participant.language, input_sample_rate=guest_input_sample_rate)
                     guest_speaking = True
                     _log_guest_trace(participant.display_name, room_id, 'deepgram_started', lang=participant.language, input_sr=guest_input_sample_rate)
 
@@ -1664,9 +993,6 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
 
                 msg_type = msg.get("type")
                 action = msg.get("action")
-                if msg_type == "ping":
-                    await ws.send_json({"type": "pong"})
-                    continue
                 if msg_type == "audio_meta":
                     guest_audio_meta = dict(msg)
                     guest_input_sample_rate = _pick_client_sample_rate(guest_audio_meta)
@@ -1758,12 +1084,11 @@ async def _process_room_speech(
     room,
     result: TranscriptResult,
     speaker_guest_id: str | None,
-    translator,
 ) -> dict[str, str]:
     """
     Перевод + TTS + broadcast. Возвращает dict {lang: translated_text}.
     """
-    source_lang = (result.language or "").split("-")[0].lower()
+    source_lang = result.language
     target_langs = set()
 
     for gid, p in room.participants.items():
@@ -1771,13 +1096,11 @@ async def _process_room_speech(
             continue
         if p.state == ParticipantState.MUTED:
             continue
-        p_lang = (p.language or "").split("-")[0].lower()
-        if p_lang != source_lang:
-            target_langs.add(p_lang)
+        if p.language != source_lang:
+            target_langs.add(p.language)
 
-    host_lang = (room.host_language or "").split("-")[0].lower()
-    if speaker_guest_id and host_lang != source_lang:
-        target_langs.add(host_lang)
+    if speaker_guest_id and room.host_language != source_lang:
+        target_langs.add(room.host_language)
 
     if not target_langs:
         await room_manager.broadcast_translation(
@@ -1825,33 +1148,15 @@ async def api_register(body: RegisterBody):
         }
         raise HTTPException(400, errors.get(result["error"], result["error"]))
     result["user"].pop("password_hash", None)
-    # ── Авто-бонус $3 при регистрации (без ожидания email) ──
-    try:
-        from billing_db import _conn as _bconn
-        _bc = _bconn()
-        _bcur = _bc.cursor()
-        _bcur.execute("SELECT bonus_given FROM users WHERE id=?", (result["user"]["id"],))
-        _brow = _bcur.fetchone()
-        if _brow and not _brow["bonus_given"]:
-            _bc.execute(
-                "UPDATE users SET balance=ROUND(balance+3.0,6), bonus_given=1 WHERE id=?",
-                (result["user"]["id"],)
-            )
-            _bc.commit()
-            logger.info(f"🎁 auto bonus $3: user_id={result['user']['id']}")
-        _bc.close()
-    except Exception as _be:
-        logger.warning(f"auto_bonus failed: {_be}")
     # Отправить верификационный email ($3 бонус)
     try:
-        import threading
-        threading.Thread(
-            target=send_verification_email,
-            args=(result["user"]["id"], result["user"]["email"], result["user"]["name"]),
-            daemon=True
-        ).start()
+        send_verification_email(
+            result["user"]["id"],
+            result["user"]["email"],
+            result["user"]["name"]
+        )
     except Exception as _e:
-        logger.warning(f"send_verification_email thread failed: {_e}")
+        logger.warning(f"send_verification_email failed: {_e}")
     return result
 
 
@@ -1975,71 +1280,6 @@ async def admin_get_users(authorization: Optional[str] = Header(None)):
             u.setdefault("balance", 0.0)
     return users
 
-@app.patch("/api/admin/users/{user_id}")
-async def admin_update_user(
-    user_id: int,
-    body: UpdateUserBody,
-    authorization: Optional[str] = Header(None)
-):
-    _check_admin(authorization)
-    import sqlite3
-    from billing_db import DB_PATH
-    from vox_db import hash_password
-    con = sqlite3.connect(DB_PATH)
-    con.row_factory = sqlite3.Row
-    cur = con.cursor()
-    cur.execute("SELECT id FROM users WHERE id=?", (user_id,))
-    if not cur.fetchone():
-        con.close()
-        raise HTTPException(404, "Користувач не знайдений")
-    if body.name is not None:
-        cur.execute("UPDATE users SET name=? WHERE id=?", (body.name.strip(), user_id))
-    if body.email is not None:
-        cur.execute("SELECT id FROM users WHERE email=? AND id!=?", (body.email.strip(), user_id))
-        if cur.fetchone():
-            con.close()
-            raise HTTPException(400, "Цей email вже використовується іншим користувачем")
-        cur.execute("UPDATE users SET email=? WHERE id=?", (body.email.strip(), user_id))
-    if body.is_active is not None:
-        cur.execute("UPDATE users SET is_active=? WHERE id=?", (int(body.is_active), user_id))
-    if body.new_password is not None and body.new_password.strip():
-        if len(body.new_password) < 6:
-            con.close()
-            raise HTTPException(400, "Пароль занадто короткий (мін. 6 символів)")
-        pw_hash = hash_password(body.new_password)
-        cur.execute("UPDATE users SET password_hash=? WHERE id=?", (pw_hash, user_id))
-    if body.new_balance is not None:
-        if body.new_balance < 0:
-            con.close()
-            raise HTTPException(400, "Баланс не може бути від'ємним")
-        cur.execute("UPDATE users SET balance=? WHERE id=?", (round(body.new_balance, 4), user_id))
-    con.commit()
-    con.close()
-    logger.info(f"✏️ admin_update_user: id={user_id}")
-    return {"ok": True}
-
-
-@app.delete("/api/admin/users/{user_id}")
-async def admin_delete_user(
-    user_id: int,
-    authorization: Optional[str] = Header(None)
-):
-    _check_admin(authorization)
-    import sqlite3
-    from billing_db import DB_PATH
-    con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute("SELECT id FROM users WHERE id=?", (user_id,))
-    if not cur.fetchone():
-        con.close()
-        raise HTTPException(404, "Користувач не знайдений")
-    cur.execute("DELETE FROM payments WHERE user_id=?", (user_id,))
-    cur.execute("DELETE FROM reviews WHERE user_id=?",  (user_id,))
-    cur.execute("DELETE FROM users WHERE id=?",         (user_id,))
-    con.commit()
-    con.close()
-    logger.info(f"🗑 admin_delete_user: id={user_id}")
-    return {"ok": True}
 
 # ── Finance admin ──────────────────────────────────────────────────────────────
 
@@ -2288,7 +1528,7 @@ async def serve_sw():
     """Service Worker для PWA."""
     sw_path = FRONTEND_DIR / "sw.js"
     if sw_path.exists():
-        return FileResponse(sw_path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+        return FileResponse(sw_path, media_type="application/javascript")
     # Минимальный SW если файл не найден
     sw_code = """
 self.addEventListener('install', e => self.skipWaiting());
@@ -2298,12 +1538,6 @@ self.addEventListener('fetch', e => e.respondWith(fetch(e.request)));
     from fastapi.responses import Response
     return Response(content=sw_code, media_type="application/javascript")
 
-@app.get("/pwa-install.js")
-async def serve_pwa_install_js():
-    pwa_path = FRONTEND_DIR / "pwa-install.js"
-    if not pwa_path.exists():
-        raise HTTPException(status_code=404, detail="pwa-install.js not found")
-    return FileResponse(pwa_path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 @app.get("/icons/icon-{size}.png")
 async def serve_icon(size: str):

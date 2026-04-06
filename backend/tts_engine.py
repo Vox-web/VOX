@@ -56,14 +56,13 @@ class TTSEngine:
         """Получить голоса для языка."""
         return self.VOICE_MAP.get(lang, self.VOICE_MAP["en"])
 
-    def synthesize(self, text: str, lang: str, prefer_openai: bool = False) -> Optional[bytes]:
+    def synthesize(self, text: str, lang: str) -> Optional[bytes]:
         """
         Синтезировать речь.
 
         Args:
             text: Текст для озвучки
             lang: Код языка ("uk", "en", ...)
-            prefer_openai: Если True — сначала OpenAI TTS (качественнее), потом edge-tts
 
         Returns:
             MP3 bytes или None при ошибке
@@ -72,32 +71,6 @@ class TTSEngine:
             return None
 
         voices = self._get_voices(lang)
-
-        if prefer_openai and self.openai_client:
-            # Режим ChatGPT: сначала OpenAI TTS (выше качество)
-            try:
-                audio = self._openai_tts(text, voices["openai"])
-                if audio:
-                    logger.info(f"🔊 OpenAI TTS (premium) [{lang}]: {len(audio)} байт")
-                    return audio
-                else:
-                    logger.warning(f"⚠️ OpenAI TTS [{lang}]: пустой ответ, fallback на edge-tts")
-            except Exception as e:
-                logger.warning(f"⚠️ OpenAI TTS ошибка: {e}, fallback на edge-tts")
-
-            # Fallback на edge-tts
-            try:
-                audio = self._edge_tts_sync(text, voices["edge"])
-                if audio:
-                    logger.info(f"🔊 edge-tts (fallback) [{lang}]: {len(audio)} байт")
-                    return audio
-            except Exception as e:
-                logger.error(f"❌ edge-tts fallback тоже упал: {e}")
-
-            logger.error(f"❌ TTS [{lang}]: все движки не дали результата")
-            return None
-
-        # Стандартный режим: edge-tts → OpenAI TTS fallback
 
         # Попытка 1: edge-tts (быстрее и бесплатно)
         try:
@@ -132,7 +105,7 @@ class TTSEngine:
             voice=voice,
             input=text,
             response_format="mp3",
-            speed=1.25,
+            speed=1.0,
         )
 
         # Читаем все байты

@@ -13,7 +13,7 @@ import os
 logger = logging.getLogger("vox.billing_db")
 
 # Используем ту же БД, что и vox_db.py
-DB_PATH = Path(os.environ.get("VOX_DB_PATH", "/data/vox.db"))
+DB_PATH = Path(os.environ.get("DB_PATH", "/data/vox.db"))
 
 
 def _conn():
@@ -102,18 +102,11 @@ def update_balance(user_id: int, delta: float) -> float:
     return new_bal
 
 
-def deduct_session_cost(user_id: int, mode: str, guests: int, multiplier: float = 1.0) -> float:
+def deduct_session_cost(user_id: int, mode: str, guests: int) -> float:
     """
     Списать стоимость одной минуты сессии.
     Цена берётся из user_finance_settings.price_per_min (если задана),
-    иначе дефолт $0.05. Умножается на max(1, guests) и multiplier.
-
-    Args:
-        user_id:    ID пользователя
-        mode:       Режим ("solo", "duo", "room")
-        guests:     Кол-во гостей (для room)
-        multiplier: Множитель тарифа (2.0 для Premium AI и т.п.)
-
+    иначе дефолт $0.05. Умножается на max(1, guests).
     Возвращает остаток баланса.
     """
     try:
@@ -129,9 +122,9 @@ def deduct_session_cost(user_id: int, mode: str, guests: int, multiplier: float 
     except Exception:
         price_per_min = 0.05
 
-    cost = price_per_min * max(1, guests) * max(1.0, multiplier)
+    cost = price_per_min * max(1, guests)
     new_balance = update_balance(user_id, -cost)
-    logger.info(f"💸 deduct: user={user_id} mode={mode} guests={guests} mult={multiplier:.1f} price={price_per_min:.4f} cost={cost:.4f} left={new_balance:.4f}")
+    logger.info(f"💸 deduct: user={user_id} mode={mode} guests={guests} price={price_per_min:.4f} cost={cost:.4f} left={new_balance:.4f}")
     return new_balance
 
 
@@ -290,21 +283,3 @@ def get_user_by_id(user_id: int) -> dict | None:
     row = cur.fetchone()
     con.close()
     return dict(row) if row else None
-
-
-# ---------------------------------------------------------------------------
-# Пороги предупреждений о балансе
-# ---------------------------------------------------------------------------
-
-BALANCE_WARN_LOW      = 1.50   # мягкое предупреждение
-BALANCE_WARN_CRITICAL = 0.50   # жёсткое предупреждение
-
-def get_balance_warning(balance: float) -> str | None:
-    """Вернуть уровень предупреждения: 'low' | 'critical' | 'zero' | None."""
-    if balance <= 0:
-        return "zero"
-    elif balance <= BALANCE_WARN_CRITICAL:
-        return "critical"
-    elif balance <= BALANCE_WARN_LOW:
-        return "low"
-    return None

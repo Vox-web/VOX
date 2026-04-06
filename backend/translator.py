@@ -51,16 +51,10 @@ class Translator:
         "IMPORTANT: Use the recent conversation context aggressively to reconstruct the speaker's "
         "true intent when the ASR output is garbled, phonetically corrupted, or partially missing. "
         "If a phrase is phonetically close to a real word/sentence given the context, correct it confidently. "
-        "Prefer conversational spoken phrasing over literal written phrasing. "
-        "Preserve natural discourse markers and short interjections when they carry rhythm, intent, or hesitation. "
-        "Break long utterances into short spoken clauses that sound natural in TTS. "
-        "If the source sounds emotional, uncertain, surprised, or emphatic, reflect that naturally in the target language. "
         "Preserve the speaker's tone, intent, emotional color, and sentence type. "
         "Do not make the translation more literary, formal, or verbose than the original. "
         "Prefer short, natural, speakable phrasing that sounds good in TTS. "
-        "Add punctuation (commas, periods, exclamation and question marks) based on the speaker's "
-        "intonation and sentence structure — this helps TTS sound natural and expressive. "
-        "Do not over-punctuate: prefer fewer marks over more. "
+        "Use punctuation that improves speech rhythm and intonation. "
         "Keep names, places, brands, numbers, and technical terms accurate. "
         "Remove only meaningless noise that harms clarity. "
         "Do not summarize, explain, answer, censor, or rephrase beyond what is needed for accurate translation. "
@@ -88,7 +82,7 @@ class Translator:
         "- Output ONLY the corrected phrase, nothing else."
     )
 
-    def __init__(self, cache_size: int = 50, context_size: int = 10):
+    def __init__(self, cache_size: int = 50, context_size: int = 5):
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             logger.warning("⚠️ OPENAI_API_KEY не задан! Перевод будет недоступен.")
@@ -113,7 +107,7 @@ class Translator:
     def _cache_key(self, text: str, source: str, target: str) -> str:
         return f"{source}:{target}:{text.lower().strip()}"
 
-    def correct_asr(self, text: str, lang: str, model: str = "gpt-4o-mini") -> str:
+    def correct_asr(self, text: str, lang: str) -> str:
         """
         Корректировать ASR-ошибки без перевода (source == target).
 
@@ -123,7 +117,6 @@ class Translator:
         Args:
             text: Сырой ASR текст
             lang: Код языка ("ru", "uk", "en", ...)
-            model: Модель OpenAI (gpt-4o-mini по умолчанию, gpt-4o для Premium)
 
         Returns:
             Исправленный текст. При ошибке — оригинальный текст.
@@ -160,7 +153,7 @@ class Translator:
             messages.append({"role": "user", "content": text})
 
             response = self.client.chat.completions.create(
-                model=model,
+                model="gpt-4o-mini",
                 messages=messages,
                 temperature=0.1,   # Низкая температура — нужна точность, не креатив
                 max_tokens=200,
@@ -182,7 +175,7 @@ class Translator:
             logger.error(f"❌ ASR correction error: {e}")
             return text
 
-    def translate(self, text: str, source_lang: str, target_lang: str, model: str = "gpt-4o-mini") -> str:
+    def translate(self, text: str, source_lang: str, target_lang: str) -> str:
         """
         Перевести текст.
 
@@ -196,7 +189,7 @@ class Translator:
         """
         # Один и тот же язык — корректируем ASR вместо перевода
         if source_lang == target_lang:
-            return self.correct_asr(text, source_lang, model)
+            return self.correct_asr(text, source_lang)
 
         # Проверяем кеш
         key = self._cache_key(text, source_lang, target_lang)
@@ -242,7 +235,7 @@ class Translator:
             messages.append({"role": "user", "content": text})
 
             response = self.client.chat.completions.create(
-                model=model,
+                model="gpt-4o-mini",
                 messages=messages,
                 temperature=0.2,
                 max_tokens=300,
@@ -268,8 +261,7 @@ class Translator:
             return text  # Возвращаем оригинал при ошибке
 
     async def translate_parallel(
-        self, text: str, source_lang: str, target_langs: list[str],
-        model: str = "gpt-4o-mini",
+        self, text: str, source_lang: str, target_langs: list[str]
     ) -> dict[str, str]:
         """
         Параллельный перевод на несколько языков.
@@ -279,7 +271,6 @@ class Translator:
             text: Текст для перевода
             source_lang: Код языка источника
             target_langs: Список целевых языков
-            model: Модель OpenAI для перевода
 
         Returns:
             dict: {lang_code: translated_text}
@@ -293,7 +284,7 @@ class Translator:
         # Запускаем переводы параллельно
         loop = asyncio.get_event_loop()
         tasks = [
-            loop.run_in_executor(None, self.translate, text, source_lang, lang, model)
+            loop.run_in_executor(None, self.translate, text, source_lang, lang)
             for lang in langs
         ]
         results = await asyncio.gather(*tasks)
