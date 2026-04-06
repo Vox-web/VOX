@@ -102,11 +102,18 @@ def update_balance(user_id: int, delta: float) -> float:
     return new_bal
 
 
-def deduct_session_cost(user_id: int, mode: str, guests: int) -> float:
+def deduct_session_cost(user_id: int, mode: str, guests: int, multiplier: float = 1.0) -> float:
     """
     Списать стоимость одной минуты сессии.
     Цена берётся из user_finance_settings.price_per_min (если задана),
-    иначе дефолт $0.05. Умножается на max(1, guests).
+    иначе дефолт $0.05. Умножается на max(1, guests) и multiplier.
+
+    Args:
+        user_id:    ID пользователя
+        mode:       Режим ("solo", "duo", "room")
+        guests:     Кол-во гостей (для room)
+        multiplier: Множитель тарифа (2.0 для Premium AI и т.п.)
+
     Возвращает остаток баланса.
     """
     try:
@@ -122,9 +129,9 @@ def deduct_session_cost(user_id: int, mode: str, guests: int) -> float:
     except Exception:
         price_per_min = 0.05
 
-    cost = price_per_min * max(1, guests)
+    cost = price_per_min * max(1, guests) * max(1.0, multiplier)
     new_balance = update_balance(user_id, -cost)
-    logger.info(f"💸 deduct: user={user_id} mode={mode} guests={guests} price={price_per_min:.4f} cost={cost:.4f} left={new_balance:.4f}")
+    logger.info(f"💸 deduct: user={user_id} mode={mode} guests={guests} mult={multiplier:.1f} price={price_per_min:.4f} cost={cost:.4f} left={new_balance:.4f}")
     return new_balance
 
 

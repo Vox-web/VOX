@@ -1107,23 +1107,30 @@ async def websocket_solo(ws: WebSocket):
     session_tts_enabled: bool = True
     solo_source_lang: str | None = session_config.get("source_lang")
     solo_target_lang: str = session_config.get("target_lang") or os.getenv("DEFAULT_TARGET_LANG", "uk")
+    session_translate_mode: str = "standard"  # "standard" | "chatgpt"
 
     from billing_db import deduct_session_cost as _deduct
     _user_id = None
     try:
-        first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
-        if first_raw.get("text"):
-            first = json.loads(first_raw["text"])
-            if first.get("type") == "auth":
-                _user = get_user_by_token(first.get("token", ""))
+        # Читаем до 2 сообщений при старте: auth + config (как в Duo)
+        for _ in range(2):
+            raw = await asyncio.wait_for(ws.receive(), timeout=2.0)
+            if not raw.get("text"):
+                continue
+            msg = json.loads(raw["text"])
+            msg_type = msg.get("type")
+            if msg_type == "auth":
+                _user = get_user_by_token(msg.get("token", ""))
                 _user_id = _user["id"] if _user else None
-            elif first.get("type") == "config":
-                if first.get("source_lang"):
-                    solo_source_lang = first["source_lang"]
-                if first.get("target_lang"):
-                    solo_target_lang = first["target_lang"]
-                if "tts_enabled" in first:
-                    session_tts_enabled = bool(first["tts_enabled"])
+            elif msg_type == "config":
+                if msg.get("source_lang"):
+                    solo_source_lang = msg["source_lang"]
+                if msg.get("target_lang"):
+                    solo_target_lang = msg["target_lang"]
+                if "tts_enabled" in msg:
+                    session_tts_enabled = bool(msg["tts_enabled"])
+                if msg.get("translate_mode") in ("standard", "chatgpt"):
+                    session_translate_mode = msg["translate_mode"]
     except (asyncio.TimeoutError, Exception):
         pass
 
@@ -1133,13 +1140,15 @@ async def websocket_solo(ws: WebSocket):
         logger.info("💳 Solo: anonymous session (no billing)")
 
     async def billing_tick():
-        if not _user_id:
-            return
+        """Биллинг: списание раз в минуту. Поддерживает late-auth."""
         while True:
             await asyncio.sleep(60)
+            if not _user_id:
+                continue  # ждём auth (может прийти позже)
             try:
-                new_balance = _deduct(_user_id, "solo", 0)
-                logger.info(f"💸 Solo billing tick: user={_user_id} balance={new_balance:.4f}")
+                _mult = 2.0 if session_translate_mode == "chatgpt" else 1.0
+                new_balance = _deduct(_user_id, "solo", 0, _mult)
+                logger.info(f"💸 Solo billing tick: user={_user_id} mode={session_translate_mode} balance={new_balance:.4f}")
                 if new_balance <= 0:
                     await ws.send_json({"type": "session_ended", "reason": "no_balance"})
                     await ws.close()
@@ -1181,9 +1190,12 @@ async def websocket_solo(ws: WebSocket):
                 if result.commit_final and result.text.strip():
                     source_lang = result.language or solo_source_lang or "uk"
                     target_lang = solo_target_lang
+                    # Выбор модели и TTS в зависимости от режима
+                    _model = "gpt-4o" if session_translate_mode == "chatgpt" else "gpt-4o-mini"
+                    _prefer_openai_tts = session_translate_mode == "chatgpt"
                     if source_lang != target_lang:
                         translated = await asyncio.to_thread(
-                            translator.translate, result.text, source_lang, target_lang,
+                            translator.translate, result.text, source_lang, target_lang, _model,
                         )
                         await ws.send_json({
                             "type": "translation",
@@ -1195,7 +1207,7 @@ async def websocket_solo(ws: WebSocket):
                             # Разбиваем на предложения → синтез параллельно → отправка по порядку
                             sentences = _split_sentences(translated) or [translated]
                             audio_results = await asyncio.gather(*[
-                                asyncio.to_thread(tts_engine.synthesize, s, target_lang)
+                                asyncio.to_thread(tts_engine.synthesize, s, target_lang, _prefer_openai_tts)
                                 for s in sentences
                             ])
                             for audio_bytes in audio_results:
@@ -1205,7 +1217,7 @@ async def websocket_solo(ws: WebSocket):
                         # Язык источника == язык вывода:
                         # корректируем ASR-ошибки через GPT (без перевода)
                         corrected = await asyncio.to_thread(
-                            translator.correct_asr, result.text, source_lang,
+                            translator.correct_asr, result.text, source_lang, _model,
                         )
                         await ws.send_json({
                             "type": "translation",
@@ -1217,13 +1229,13 @@ async def websocket_solo(ws: WebSocket):
                         if session_tts_enabled:
                             sentences = _split_sentences(corrected) or [corrected]
                             audio_results = await asyncio.gather(*[
-                                asyncio.to_thread(tts_engine.synthesize, s, target_lang)
+                                asyncio.to_thread(tts_engine.synthesize, s, target_lang, _prefer_openai_tts)
                                 for s in sentences
                             ])
                             for audio_bytes in audio_results:
                                 if audio_bytes:
                                     await ws.send_bytes(b"AUDIO:" + audio_bytes)
-                    logger.info(f"📝 [{source_lang}→{target_lang}] {result.text[:60]}")
+                    logger.info(f"📝 [{source_lang}→{target_lang}] mode={session_translate_mode} {result.text[:60]}")
             except Exception as e:
                 if "disconnect" in str(e).lower():
                     break
@@ -1247,6 +1259,11 @@ async def websocket_solo(ws: WebSocket):
                     msg_type = msg.get("type")
                     if msg_type == "ping":
                         await ws.send_json({"type": "pong"})
+                    elif msg_type == "auth" and not _user_id:
+                        _user = get_user_by_token(msg.get("token", ""))
+                        if _user:
+                            _user_id = _user["id"]
+                            logger.info(f"💳 Solo late-auth: user_id={_user_id}")
                     elif msg_type == "tts_done":
                         pass
                     elif msg_type == "config":
@@ -1260,7 +1277,9 @@ async def websocket_solo(ws: WebSocket):
                             await dg.start(language=new_src)
                         if "tts_enabled" in msg:
                             session_tts_enabled = bool(msg["tts_enabled"])
-                        logger.info(f"🎤 Solo config: source={solo_source_lang}, target={solo_target_lang}, tts={session_tts_enabled}")
+                        if msg.get("translate_mode") in ("standard", "chatgpt"):
+                            session_translate_mode = msg["translate_mode"]
+                        logger.info(f"🎤 Solo config: source={solo_source_lang}, target={solo_target_lang}, tts={session_tts_enabled}, mode={session_translate_mode}")
                 except json.JSONDecodeError:
                     pass
     except WebSocketDisconnect:

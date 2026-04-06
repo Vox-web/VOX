@@ -381,6 +381,72 @@
             background: rgba(240,165,0,0.08);
         }
 
+        /* --- Mode toggle (Standard / ChatGPT) --- */
+        .mode-toggle-wrap {
+            display: flex; align-items: center; justify-content: center;
+            gap: 0; margin: 2px auto 0;
+        }
+        .mode-toggle {
+            display: flex;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 3px;
+            gap: 2px;
+            position: relative;
+        }
+        .mode-btn {
+            border: none; background: transparent;
+            color: var(--text2); font-size: 13px; font-weight: 500;
+            padding: 7px 16px; border-radius: 10px;
+            cursor: pointer; transition: all 0.25s ease;
+            display: flex; align-items: center; gap: 5px;
+            white-space: nowrap; position: relative; z-index: 1;
+        }
+        .mode-btn:hover { color: var(--text); }
+        .mode-btn.active {
+            color: var(--white);
+            background: var(--accent);
+            box-shadow: 0 2px 10px var(--accent-glow);
+        }
+        .mode-btn.active.chatgpt-active {
+            background: linear-gradient(135deg, #10a37f, #1a7f64);
+            box-shadow: 0 2px 12px rgba(16,163,127,0.35);
+        }
+        .mode-btn .mode-icon { font-size: 14px; }
+
+        /* --- Toast notification --- */
+        .vox-toast {
+            position: fixed; top: 60px; left: 50%; transform: translateX(-50%) translateY(-20px);
+            z-index: 999;
+            background: var(--surface); border: 1px solid var(--border-strong);
+            border-radius: 14px; padding: 12px 20px;
+            font-size: 13px; color: var(--text);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+            opacity: 0; pointer-events: none;
+            transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
+            max-width: 360px; width: calc(100% - 32px);
+            text-align: center; line-height: 1.5;
+        }
+        .vox-toast.show {
+            opacity: 1; pointer-events: auto;
+            transform: translateX(-50%) translateY(0);
+        }
+        .vox-toast .toast-icon { font-size: 16px; margin-right: 6px; }
+        .vox-toast .toast-price {
+            display: inline-block;
+            background: rgba(16,163,127,0.12);
+            color: #10a37f;
+            padding: 2px 8px; border-radius: 6px;
+            font-weight: 600; font-size: 12px;
+            margin-top: 4px;
+        }
+        :root[data-theme="dark"] .vox-toast {
+            background: #1a1a24;
+            border-color: #333;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+
         /* --- Главная кнопка --- */
         .main-btn {
             width: 140px;
@@ -681,6 +747,23 @@
             <span id="ttsToggleLabel">Озвучка увімкнена</span>
         </button>
 
+        <!-- Mode toggle: Standard / ChatGPT -->
+        <div class="mode-toggle-wrap">
+            <div class="mode-toggle" id="modeToggle">
+                <button class="mode-btn active" id="modeStandardBtn" onclick="setTranslateMode('standard')">
+                    <span class="mode-icon">🔤</span>
+                    <span id="modeStandardLabel">Стандарт</span>
+                </button>
+                <button class="mode-btn" id="modeChatgptBtn" onclick="setTranslateMode('chatgpt')">
+                    <span class="mode-icon">✨</span>
+                    <span id="modeChatgptLabel">Premium AI</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Toast notification -->
+        <div class="vox-toast" id="voxToast"></div>
+
         <button class="hybrid-toggle-btn" id="hybridToggleBtn" onclick="toggleHybrid()">
             <span id="hybridToggleLabel">Гібридний режим</span>
         </button>
@@ -760,6 +843,15 @@
             hybridWarn:         '⚠️ Вбудований мік не знайдено',
             micHint:            '💡 «За замовчуванням» — браузер вибирає мікрофон сам. Якщо підключена гарнітура і хочете записувати зовнішній звук — виберіть «За замовчуванням» і вимкніть мікрофон гарнітури фізично. Вбудований мікрофон телефону краще чує дальні джерела звуку.',
             langTooltip:        (lang, conf) => `Мова: ${lang} (${conf}%)`,
+            modeStandard:       'Стандарт',
+            modeChatgpt:        'Premium AI',
+            toastChatgptOn:     '✨ Premium AI — покращений переклад (GPT-4o) і озвучка',
+            toastChatgptPrice:  'Тариф ×2',
+            toastStandardOn:    '🔤 Стандартний режим відновлено',
+            balanceLow:         '⚠️ Баланс низький: $${balance}',
+            balanceCritical:    '🔴 Баланс критичний: $${balance}. Поповніть рахунок!',
+            balanceZero:        '❌ Баланс вичерпано. Сесію буде зупинено.',
+            sessionEnded:       '⏹ Сесію завершено: баланс вичерпано',
         },
         en: {
             statusDisconnected: 'Disconnected',
@@ -803,6 +895,15 @@
             hybridWarn:         '⚠️ Built-in mic not found',
             micHint:            '💡 "Default" lets the browser pick the microphone automatically. If you wear headphones and want to capture external sound — choose "Default" and physically disable the headset mic. The phone\'s built-in mic generally picks up distant sound sources better.',
             langTooltip:        (lang, conf) => `Language: ${lang} (${conf}%)`,
+            modeStandard:       'Standard',
+            modeChatgpt:        'Premium AI',
+            toastChatgptOn:     '✨ Premium AI — enhanced translation (GPT-4o) & voice',
+            toastChatgptPrice:  'Rate ×2',
+            toastStandardOn:    '🔤 Standard mode restored',
+            balanceLow:         '⚠️ Balance is low: $${balance}',
+            balanceCritical:    '🔴 Balance critical: $${balance}. Please top up!',
+            balanceZero:        '❌ Balance depleted. Session will be stopped.',
+            sessionEnded:       '⏹ Session ended: balance depleted',
         },
         de: {
             statusDisconnected: 'Nicht verbunden',
@@ -846,6 +947,15 @@
             hybridWarn:         '⚠️ Eingebautes Mikrofon nicht gefunden',
             micHint:            '💡 „Standard" lässt den Browser das Mikrofon automatisch wählen. Wenn Sie Kopfhörer tragen und externen Ton aufnehmen möchten — wählen Sie „Standard" und deaktivieren Sie das Headset-Mikrofon physisch. Das eingebaute Telefonmikrofon erfasst entfernte Tonquellen in der Regel besser.',
             langTooltip:        (lang, conf) => `Sprache: ${lang} (${conf}%)`,
+            modeStandard:       'Standard',
+            modeChatgpt:        'Premium AI',
+            toastChatgptOn:     '✨ Premium AI — verbesserte Übersetzung (GPT-4o) & Stimme',
+            toastChatgptPrice:  'Tarif ×2',
+            toastStandardOn:    '🔤 Standardmodus wiederhergestellt',
+            balanceLow:         '⚠️ Guthaben niedrig: $${balance}',
+            balanceCritical:    '🔴 Guthaben kritisch: $${balance}. Bitte aufladen!',
+            balanceZero:        '❌ Guthaben aufgebraucht. Sitzung wird beendet.',
+            sessionEnded:       '⏹ Sitzung beendet: Guthaben aufgebraucht',
         },
     };
 
@@ -920,6 +1030,7 @@
             updateThemeToggle();
             _updateTtsBtn();
             _updateHybridBtn(!_hybridMode || !!_selectedMicId);
+            _updateModeToggle();
 
             const navR = document.getElementById('navReviewLabel');
             const navC = document.getElementById('navCabinetLabel');
@@ -1014,11 +1125,17 @@
         ws.binaryType = 'arraybuffer';
 
         ws.onopen = () => {
+            // Отправляем auth-токен для биллинга (если пользователь авторизован)
+            const _authToken = localStorage.getItem('vox_token');
+            if (_authToken) {
+                ws.send(JSON.stringify({ type: 'auth', token: _authToken }));
+            }
             ws.send(JSON.stringify({
                 type: 'config',
                 source_lang: sourceLangSelect.value,
                 target_lang: langSelect.value,
                 tts_enabled: _ttsEnabled,
+                translate_mode: _translateMode,
             }));
             setStatus('connected', 'connected');
             console.log('WebSocket connected');
@@ -1077,6 +1194,22 @@
             originalText.style.opacity = '0.4';
             _lastFinalOriginal = '—';
         }
+        // ── Billing: предупреждения о балансе ──
+        else if (msg.type === 'balance_warning') {
+            const bal = (msg.balance || 0).toFixed(2);
+            let key = 'balanceLow';
+            let dur = 4000;
+            if (msg.level === 'critical') { key = 'balanceCritical'; dur = 6000; }
+            if (msg.level === 'zero')     { key = 'balanceZero';     dur = 8000; }
+            showToast(t(key).replace('${balance}', bal), dur);
+        }
+        else if (msg.type === 'session_ended') {
+            showToast(t('sessionEnded'), 10000);
+            // Автоматически останавливаем прослушивание
+            if (isListening) {
+                toggleListening();
+            }
+        }
     }
 
     // ======== TTS TOGGLE ========
@@ -1111,6 +1244,59 @@
 
         // Init TTS button
     _updateTtsBtn();
+
+    // ======== TRANSLATE MODE TOGGLE (Standard / ChatGPT) ========
+    let _translateMode = localStorage.getItem('vox_translate_mode') || 'standard';
+
+    function _updateModeToggle() {
+        const stdBtn = document.getElementById('modeStandardBtn');
+        const gptBtn = document.getElementById('modeChatgptBtn');
+        const stdLbl = document.getElementById('modeStandardLabel');
+        const gptLbl = document.getElementById('modeChatgptLabel');
+        if (!stdBtn || !gptBtn) return;
+
+        stdBtn.classList.toggle('active', _translateMode === 'standard');
+        gptBtn.classList.toggle('active', _translateMode === 'chatgpt');
+        gptBtn.classList.toggle('chatgpt-active', _translateMode === 'chatgpt');
+
+        if (stdLbl) stdLbl.textContent = t('modeStandard');
+        if (gptLbl) gptLbl.textContent = t('modeChatgpt');
+    }
+
+    function setTranslateMode(mode) {
+        if (mode === _translateMode) return;
+        _translateMode = mode;
+        localStorage.setItem('vox_translate_mode', mode);
+        _updateModeToggle();
+
+        // Уведомляем сервер на лету
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'config', translate_mode: mode }));
+        }
+
+        // Toast уведомление
+        if (mode === 'chatgpt') {
+            showToast(
+                t('toastChatgptOn') +
+                '<br><span class="toast-price">' + t('toastChatgptPrice') + '</span>',
+                4000
+            );
+        } else {
+            showToast(t('toastStandardOn'), 2500);
+        }
+    }
+
+    let _toastTimer = null;
+    function showToast(html, duration) {
+        const el = document.getElementById('voxToast');
+        if (!el) return;
+        clearTimeout(_toastTimer);
+        el.innerHTML = html;
+        el.classList.add('show');
+        _toastTimer = setTimeout(() => el.classList.remove('show'), duration || 3000);
+    }
+
+    _updateModeToggle();
 
     // ======== HYBRID MIC MODE ========
     let _hybridMode = localStorage.getItem('vox_hybrid_mode') === 'true';
@@ -1564,6 +1750,7 @@
             source_lang: sourceLangSelect.value,
             target_lang: langSelect.value,
             tts_enabled: _ttsEnabled,
+            translate_mode: _translateMode,
         };
 
         try {
