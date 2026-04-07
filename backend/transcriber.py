@@ -18,6 +18,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Optional
+import re
 
 import numpy as np
 import websockets
