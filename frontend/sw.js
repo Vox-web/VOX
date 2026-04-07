@@ -13,7 +13,7 @@
  * - При обновлении service worker сразу активируется
  */
 
-const CACHE_NAME = 'vox-static-v2';
+const CACHE_NAME = 'vox-static-v78';
 
 const PRECACHE = [
   '/manifest.json',
