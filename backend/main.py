@@ -81,6 +81,14 @@ async def lifespan(app: FastAPI):
     room_manager = RoomManager(base_url=base_url)
     logger.info("✅ RoomManager готов")
 
+    try:
+        logger.info(
+            "🧪 BUILD INFO: %s",
+            json.dumps(_build_info_payload(), ensure_ascii=False)
+        )
+    except Exception as e:
+        logger.warning("⚠️ BUILD INFO log failed: %r", e)
+
     logger.info("🟢 VOX сервер готов к работе!")
     yield
 
@@ -169,6 +177,60 @@ async def api_contact(body: ContactBody):
 # Используем .resolve() чтобы получить абсолютный путь без ошибок симлинков
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
+
+BACKEND_DIR = Path(__file__).resolve().parent
+
+
+def _safe_file_info(path: Path) -> dict:
+    try:
+        resolved = path.resolve()
+    except Exception:
+        resolved = path
+
+    info = {
+        "path": str(resolved),
+        "exists": path.exists(),
+    }
+
+    if info["exists"]:
+        try:
+            st = path.stat()
+            info["size"] = st.st_size
+            info["mtime"] = st.st_mtime
+        except Exception as e:
+            info["stat_error"] = repr(e)
+
+    return info
+
+
+def _build_info_payload() -> dict:
+    return {
+        "service": "VOX",
+        "app_version": app.version,
+        "python_file": str(Path(__file__).resolve()),
+        "cwd": os.getcwd(),
+        "backend_dir": str(BACKEND_DIR),
+        "base_dir": str(BASE_DIR),
+        "frontend_dir": str(FRONTEND_DIR),
+        "env": {
+            "PORT": os.getenv("PORT"),
+            "BASE_URL": os.getenv("BASE_URL"),
+            "RAILWAY_DEPLOYMENT_ID": os.getenv("RAILWAY_DEPLOYMENT_ID"),
+            "RAILWAY_REPLICA_ID": os.getenv("RAILWAY_REPLICA_ID"),
+            "RAILWAY_GIT_COMMIT_SHA": os.getenv("RAILWAY_GIT_COMMIT_SHA"),
+        },
+        "files": {
+            "main_py": _safe_file_info(BACKEND_DIR / "main.py"),
+            "transcriber_py": _safe_file_info(BACKEND_DIR / "transcriber.py"),
+            "translator_py": _safe_file_info(BACKEND_DIR / "translator.py"),
+            "host_html": _safe_file_info(FRONTEND_DIR / "host.html"),
+            "solo_html": _safe_file_info(FRONTEND_DIR / "solo.html"),
+            "guest_html": _safe_file_info(FRONTEND_DIR / "guest.html"),
+            "sw_js": _safe_file_info(FRONTEND_DIR / "sw.js"),
+            "pwa_install_js": _safe_file_info(FRONTEND_DIR / "pwa-install.js"),
+            "index_html": _safe_file_info(FRONTEND_DIR / "index.html"),
+        },
+    }
 
 # ---------------------------------------------------------------------------
 # Конфигурация Solo-сессии
@@ -344,6 +406,12 @@ async def api_config():
         "landing_url": f"{base_url}/landing" if base_url else "/landing",
     })
 
+@app.get("/api/build-info")
+async def api_build_info():
+    return JSONResponse(
+        _build_info_payload(),
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+    )
 
 # ===========================================================================
 # REST: Solo конфигурация
