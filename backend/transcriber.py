@@ -472,7 +472,12 @@ class DeepgramTranscriber:
 
     async def stop(self):
         """Закрыть сессию Deepgram."""
-        logger.info(f"🧭 [DG TRACE] stop_begin active={self.is_active} finals={len(self._finals_buffer)} pending_interim={bool(self._pending_interim_text)} input_sr={self._input_sample_rate}")
+        logger.info(
+            f"🧭 [DG TRACE] stop_begin active={self.is_active} "
+            f"finals={len(self._finals_buffer)} "
+            f"pending_interim={bool(self._pending_interim_text)} "
+            f"input_sr={self._input_sample_rate}"
+        )
 
         # pending_interim_text уже содержит finals_buffer + последний interim-хвост,
         # поэтому он — наиболее полный источник. finals_buffer берём только если
@@ -480,26 +485,30 @@ class DeepgramTranscriber:
         if self._pending_interim_text:
             full_text = self._pending_interim_text
         elif self._finals_buffer:
-            full_text = " ".join(self._finals_buffer)
+            full_text = " ".join(part for part in self._finals_buffer if part).strip()
         else:
             full_text = ""
 
-        self._finals_buffer = []
-        self._pending_interim_text = None
-
         if full_text:
-            logger.info(f"📝 [{self._last_lang}] (stop flush) {full_text}")
-            await self.results.put(TranscriptResult(
-                text=full_text,
-                is_final=True,
-                commit_final=True,
-                language=self._last_lang,
-                confidence=self._last_confidence,
-            ))
+            await self._emit_commit(
+                full_text,
+                self._last_lang or "unknown",
+                self._last_confidence,
+                reason="stop_flush",
+                clear_finals=True,
+                clear_pending_interim=True,
+            )
+        else:
+            self._finals_buffer = []
+            self._pending_interim_text = None
 
         if self._interim_flush_task and not self._interim_flush_task.done():
             self._interim_flush_task.cancel()
             self._interim_flush_task = None
+
+        if self._flush_task and not self._flush_task.done():
+            self._flush_task.cancel()
+            self._flush_task = None
 
         if self._receive_task:
             self._receive_task.cancel()
@@ -515,7 +524,7 @@ class DeepgramTranscriber:
                 await self._keepalive_task
             except (asyncio.CancelledError, Exception):
                 pass
-            self._keepalive_task = None    
+            self._keepalive_task = None
 
         if self._ws and not self._ws.closed:
             try:
@@ -528,9 +537,7 @@ class DeepgramTranscriber:
 
         self._ws = None
         self._finals_buffer = []
-        if self._flush_task and not self._flush_task.done():
-            self._flush_task.cancel()
-            self._flush_task = None
+        self._pending_interim_text = None
         logger.info("🧭 [DG TRACE] stop_end")
 
     async def _receive_loop(self):
