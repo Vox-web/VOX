@@ -1174,7 +1174,8 @@ async def websocket_solo(ws: WebSocket):
     # Per-session стан — не глобальний session_config
     # Кожне Solo-підключення має власний tts_enabled і мовні налаштування
     session_tts_enabled: bool = True
-        # Solo: отдельный переводчик на сессию, чтобы контекст не был общим на весь сервер
+
+    # Solo: окремий перекладач на сесію, щоб контекст не був спільним на весь сервер
     solo_translator = Translator(context_size=10)
     solo_buffer = SoloSemanticBuffer(
         translator=solo_translator,
@@ -1184,18 +1185,22 @@ async def websocket_solo(ws: WebSocket):
         min_ready_words=4,
         keep_tail_words=6,
     )
+
     solo_source_lang: str | None = session_config.get("source_lang")
     solo_target_lang: str = session_config.get("target_lang") or os.getenv("DEFAULT_TARGET_LANG", "uk")
 
     from billing_db import deduct_session_cost as _deduct
     _user_id = None
+
     try:
         first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
         if first_raw.get("text"):
             first = json.loads(first_raw["text"])
+
             if first.get("type") == "auth":
                 _user = get_user_by_token(first.get("token", ""))
                 _user_id = _user["id"] if _user else None
+
             elif first.get("type") == "config":
                 if first.get("source_lang"):
                     solo_source_lang = first["source_lang"]
@@ -1229,7 +1234,7 @@ async def websocket_solo(ws: WebSocket):
                     if _warn:
                         await ws.send_json({
                             "type": "balance_warning",
-                            "level": _warn,           # "low" | "critical"
+                            "level": _warn,
                             "balance": round(new_balance, 4),
                         })
             except asyncio.CancelledError:
@@ -1248,6 +1253,7 @@ async def websocket_solo(ws: WebSocket):
                 result = await dg.results.get()
             except asyncio.CancelledError:
                 break
+
             try:
                 await ws.send_json({
                     "type": "transcript",
@@ -1257,51 +1263,55 @@ async def websocket_solo(ws: WebSocket):
                     "language": result.language,
                     "confidence": result.confidence,
                 })
-                if result.commit_final and result.text.strip():
-                    source_lang = result.language or solo_source_lang or "uk"
-                    target_lang = solo_target_lang
 
-                    packets = await asyncio.to_thread(
-                        solo_buffer.push_and_maybe_flush,
-                        result.text,
-                        source_lang,
-                        target_lang,
-                    )
+                if not (result.commit_final and result.text.strip()):
+                    continue
+
+                source_lang = result.language or solo_source_lang or "uk"
+                target_lang = solo_target_lang
+
+                packets = await asyncio.to_thread(
+                    solo_buffer.push_and_maybe_flush,
+                    result.text,
+                    source_lang,
+                    target_lang,
+                )
+
+                logger.info(
+                    "🧠 [SOLO_SEMANTIC] commit text=%r packets=%d src=%s tgt=%s",
+                    result.text[:160],
+                    len(packets),
+                    source_lang,
+                    target_lang,
+                )
+
+                for packet in packets:
+                    translated_text = packet["translated"]
+
+                    await ws.send_json({
+                        "type": "translation",
+                        "text": translated_text,
+                        "lang_from": packet["lang_from"],
+                        "lang_to": packet["lang_to"],
+                        **({"note": "asr_corrected"} if packet["lang_from"] == packet["lang_to"] else {}),
+                    })
+
+                    if session_tts_enabled:
+                        sentences = _split_sentences(translated_text) or [translated_text]
+                        audio_results = await asyncio.gather(*[
+                            asyncio.to_thread(tts_engine.synthesize, s, packet["lang_to"])
+                            for s in sentences
+                        ])
+                        for audio_bytes in audio_results:
+                            if audio_bytes:
+                                await ws.send_bytes(b"AUDIO:" + audio_bytes)
 
                     logger.info(
-                        "🧠 [SOLO_SEMANTIC] commit text=%r packets=%d src=%s tgt=%s",
-                        result.text[:160],
-                        len(packets),
-                        source_lang,
-                        target_lang,
+                        "🧠 [SOLO_SEMANTIC] flush src=%r out=%r",
+                        packet["source"][:160],
+                        translated_text[:160],
                     )
 
-                    for packet in packets:
-                        translated_text = packet["translated"]
-
-                        await ws.send_json({
-                            "type": "translation",
-                            "text": translated_text,
-                            "lang_from": packet["lang_from"],
-                            "lang_to": packet["lang_to"],
-                            **({"note": "asr_corrected"} if packet["lang_from"] == packet["lang_to"] else {}),
-                        })
-
-                        if session_tts_enabled:
-                            sentences = _split_sentences(translated_text) or [translated_text]
-                            audio_results = await asyncio.gather(*[
-                                asyncio.to_thread(tts_engine.synthesize, s, packet["lang_to"])
-                                for s in sentences
-                            ])
-                            for audio_bytes in audio_results:
-                                if audio_bytes:
-                                    await ws.send_bytes(b"AUDIO:" + audio_bytes)
-
-                        logger.info(
-                            "🧠 [SOLO_SEMANTIC] flush src=%r out=%r",
-                            packet["source"][:160],
-                            translated_text[:160],
-                        )
             except Exception as e:
                 if "disconnect" in str(e).lower():
                     break
@@ -1313,43 +1323,56 @@ async def websocket_solo(ws: WebSocket):
     try:
         while True:
             message = await ws.receive()
+
             if message.get("type") == "websocket.disconnect":
                 break
+
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
                     await dg.start(solo_source_lang or "uk")
                 await dg.send_audio(message["bytes"])
+
             elif "text" in message and message["text"]:
                 try:
                     msg = json.loads(message["text"])
                     msg_type = msg.get("type")
+
                     if msg_type == "ping":
                         await ws.send_json({"type": "pong"})
+
                     elif msg_type == "tts_done":
                         pass
-                    if new_tgt and new_tgt != solo_target_lang:
-                        solo_target_lang = new_tgt
-                        lang_changed = True
 
-                    if new_src and new_src != solo_source_lang:
-                        solo_source_lang = new_src
-                        lang_changed = True
-                        await dg.stop()
-                        await dg.start(language=new_src)
+                    elif msg_type == "config":
+                        new_src = msg.get("source_lang")
+                        new_tgt = msg.get("target_lang")
+                        lang_changed = False
 
-                    if lang_changed:
-                        solo_buffer.reset()
-                        solo_translator.clear_context()
-                        logger.info("🧹 [SOLO_SEMANTIC] reset because config changed")
+                        if new_tgt and new_tgt != solo_target_lang:
+                            solo_target_lang = new_tgt
+                            lang_changed = True
 
-                    if "tts_enabled" in msg:
-                        session_tts_enabled = bool(msg["tts_enabled"])
+                        if new_src and new_src != solo_source_lang:
+                            solo_source_lang = new_src
+                            lang_changed = True
+                            await dg.stop()
+                            await dg.start(language=new_src)
 
-                    logger.info(
-                        f"🎤 Solo config: source={solo_source_lang}, target={solo_target_lang}, tts={session_tts_enabled}"
-                    )
+                        if lang_changed:
+                            solo_buffer.reset()
+                            solo_translator.clear_context()
+                            logger.info("🧹 [SOLO_SEMANTIC] reset because config changed")
+
+                        if "tts_enabled" in msg:
+                            session_tts_enabled = bool(msg["tts_enabled"])
+
+                        logger.info(
+                            f"🎤 Solo config: source={solo_source_lang}, target={solo_target_lang}, tts={session_tts_enabled}"
+                        )
+
                 except json.JSONDecodeError:
                     pass
+
     except WebSocketDisconnect:
         logger.info("🔌 WebSocket відключено (Solo)")
     except Exception as e:
