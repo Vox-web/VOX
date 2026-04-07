@@ -58,26 +58,69 @@ class SoloSemanticBuffer:
         self._last_seen_at = None
         self._lang_pair = None
 
+    def _clear_translator_context(self):
+        if hasattr(self.translator, "clear_context"):
+            try:
+                self.translator.clear_context()
+            except Exception as e:
+                logger.warning("⚠️ SoloSemanticBuffer: clear_context failed: %r", e)
+
+    @classmethod
+    def _looks_complete_now(cls, text: str) -> bool:
+        text = cls._normalize(text)
+        if not text:
+            return False
+
+        words = text.split()
+        if len(words) < 4:
+            return False
+
+        # Явно законченная реплика
+        if re.search(r'[.!?…]["»)\]]*\s*$', text):
+            return True
+
+        # Или уже накопилось хотя бы 2 законченных предложения
+        strong_count = len(re.findall(r'[.!?…]["»)\]]*(?:\s+|$)', text))
+        if strong_count >= 2:
+            return True
+
+        return False
+
     def push_and_maybe_flush(self, text: str, source_lang: str, target_lang: str) -> list[dict[str, str]]:
         text = self._normalize(text)
         if not text:
             return []
 
         now = time.monotonic()
+        out: list[dict[str, str]] = []
 
+        # Смена языковой пары — жёсткий reset
         if self._lang_pair and self._lang_pair != (source_lang, target_lang):
             logger.info(
                 "🧹 SoloSemanticBuffer: language pair changed %s -> %s, reset",
                 self._lang_pair,
                 (source_lang, target_lang),
             )
-            self.translator.clear_context()
+            self._clear_translator_context()
             self.reset()
 
-        if self._last_seen_at and (now - self._last_seen_at) >= self.idle_reset_sec:
-            logger.info("🧹 SoloSemanticBuffer: idle reset after %.1fs", now - self._last_seen_at)
-            self.translator.clear_context()
-            self.reset()
+        # Длинная пауза: сначала пытаемся дожать pending chunk.
+        elif self._last_seen_at and (now - self._last_seen_at) >= self.idle_reset_sec:
+            logger.info("🧹 SoloSemanticBuffer: idle gap %.1fs", now - self._last_seen_at)
+
+            had_pending = bool(self._carry or self._parts)
+            if had_pending:
+                logger.info("🧠 SoloSemanticBuffer: force flush stale pending chunk before reset")
+                flushed = self._flush(source_lang, target_lang, force=True)
+                out.extend(flushed)
+
+            # Если после force flush carry всё ещё осталось, не сбрасываем состояние:
+            # текущий incoming text может как раз продолжить эту незавершённую мысль.
+            if self._carry:
+                logger.info("🧠 SoloSemanticBuffer: keep pending carry after idle gap")
+            else:
+                self._clear_translator_context()
+                self.reset()
 
         self._lang_pair = (source_lang, target_lang)
         self._last_seen_at = now
@@ -86,13 +129,23 @@ class SoloSemanticBuffer:
             self._opened_at = now
 
         self._parts.append(text)
+
+        full_now = self._normalize(" ".join(part for part in [self._carry, *self._parts] if part))
         elapsed = now - self._opened_at
 
+        # Если уже сейчас видим законченную мысль — не ждём ещё один push
+        if self._looks_complete_now(full_now):
+            logger.info("🧠 SoloSemanticBuffer: immediate flush complete chunk")
+            out.extend(self._flush(source_lang, target_lang, force=True))
+            return out
+
+        # Классическое окно 5 сек
         if elapsed < self.flush_after_sec:
-            return []
+            return out
 
         force = elapsed >= self.hard_flush_sec
-        return self._flush(source_lang, target_lang, force=force)
+        out.extend(self._flush(source_lang, target_lang, force=force))
+        return out
 
     def flush_all(self, source_lang: str, target_lang: str) -> list[dict[str, str]]:
         return self._flush(source_lang, target_lang, force=True)
