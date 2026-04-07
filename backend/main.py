@@ -636,6 +636,35 @@ def _split_sentences(text: str) -> list:
     parts = re.split(r'(?<=[.!?])\s+', text.strip())
     return [p.strip() for p in parts if len(p.strip()) >= 4]
 
+_CYRILLIC_RE = re.compile(r"[А-Яа-яЁёІіЇїЄєҐґ]")
+_UK_SPECIFIC_RE = re.compile(r"[ІіЇїЄєҐґ]")
+
+def _infer_duo_source_lang(text: str, detected: str, lang_a: str, lang_b: str) -> str:
+    """
+    Нормализовать язык для Duo one-device.
+    Если Deepgram ошибся с language, но текст кириллический и пара содержит ru/uk,
+    пробуем восстановить язык по самой строке.
+    """
+    detected = (detected or "").split("-")[0].lower()
+    pair = {lang_a, lang_b}
+
+    if detected in pair:
+        return detected
+
+    # Кириллица + пара содержит ru/uk → не доверяем metadata полностью
+    if _CYRILLIC_RE.search(text) and ({"ru", "uk"} & pair):
+        if "uk" in pair and "ru" not in pair:
+            return "uk"
+        if "ru" in pair and "uk" not in pair:
+            return "ru"
+
+        # Если обе есть в паре — пытаемся угадать по уникальным украинским буквам
+        if _UK_SPECIFIC_RE.search(text):
+            return "uk"
+        return "ru"
+
+    return detected
+
 async def _tts_buffer_flush(buffer: list, target_lang: str, ws: WebSocket):
     if not buffer:
         return
@@ -810,26 +839,28 @@ async def websocket_duo(ws: WebSocket):
                     continue
 
                 text = result.text.strip()
-                detected = (result.language or "").split("-")[0]
+                raw_detected = (result.language or "").split("-")[0].lower()
+                src = _infer_duo_source_lang(text, raw_detected, lang_a, lang_b)
 
-                # Берём только язык из жёстко заданной пары
-                if detected not in (lang_a, lang_b):
+                # Берём только язык из заданной пары, но уже после нормализации
+                if src not in (lang_a, lang_b):
                     logger.info(
                         f"🧭 Duo skip out-of-pair transcript: "
-                        f"text={text!r} detected={detected!r} pair={lang_a}/{lang_b}"
+                        f"text={text!r} raw_detected={raw_detected!r} "
+                        f"normalized={src!r} pair={lang_a}/{lang_b}"
                     )
                     continue
 
-                # Отсекаем слишком слабые короткие pseudo-final после interim_flush
+                # Отсекаем только совсем слабый и очень короткий мусор
                 if result.confidence < 0.65 and len(text.split()) <= 2:
                     logger.info(
                         f"🧭 Duo skip weak short final: "
-                        f"text={text!r} detected={detected!r} conf={result.confidence:.3f}"
+                        f"text={text!r} raw_detected={raw_detected!r} "
+                        f"normalized={src!r} conf={result.confidence:.3f}"
                     )
                     continue
 
-                src = detected
-                tgt = lang_b if detected == lang_a else lang_a
+                tgt = lang_b if src == lang_a else lang_a
 
                 translated = await asyncio.to_thread(
                     translator.translate, text, src, tgt
@@ -1246,6 +1277,7 @@ async def websocket_solo(ws: WebSocket):
 
     dg = DeepgramTranscriber()
     await dg.start(language=solo_source_lang or "uk")
+    last_solo_seen_final_text = ""
 
     async def handle_results():
         while True:
@@ -1264,7 +1296,27 @@ async def websocket_solo(ws: WebSocket):
                     "confidence": result.confidence,
                 })
 
-                if not (result.commit_final and result.text.strip()):
+                text = (result.text or "").strip()
+                if not text:
+                    continue
+
+                # Solo должен уметь жить не только на commit_final,
+                # потому что Deepgram часто шлёт финальный preview без speech_final.
+                if not result.is_final:
+                    continue
+
+                # Убираем повторную обработку одного и того же cumulative preview
+                if text == last_solo_seen_final_text:
+                    continue
+
+                if last_solo_seen_final_text and text.startswith(last_solo_seen_final_text):
+                    incremental_text = text[len(last_solo_seen_final_text):].strip(" ,.!?;:-–—")
+                else:
+                    incremental_text = text
+
+                last_solo_seen_final_text = text
+
+                if not incremental_text:
                     continue
 
                 source_lang = result.language or solo_source_lang or "uk"
@@ -1272,17 +1324,19 @@ async def websocket_solo(ws: WebSocket):
 
                 packets = await asyncio.to_thread(
                     solo_buffer.push_and_maybe_flush,
-                    result.text,
+                    incremental_text,
                     source_lang,
                     target_lang,
                 )
 
                 logger.info(
-                    "🧠 [SOLO_SEMANTIC] commit text=%r packets=%d src=%s tgt=%s",
-                    result.text[:160],
+                    "🧠 [SOLO_SEMANTIC] final text=%r incremental=%r packets=%d src=%s tgt=%s commit=%s",
+                    text[:160],
+                    incremental_text[:160],
                     len(packets),
                     source_lang,
                     target_lang,
+                    result.commit_final,
                 )
 
                 for packet in packets:
