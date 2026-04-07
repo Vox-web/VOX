@@ -8,6 +8,7 @@ VOX — Перевод текста через GPT-4o-mini
 """
 
 import os
+import json
 import logging
 import asyncio
 from collections import OrderedDict
@@ -86,6 +87,23 @@ class Translator:
         "- Do NOT invent information not hinted at by the ASR output or context. "
         "- Do NOT add explanations, commentary, or alternatives. "
         "- Output ONLY the corrected phrase, nothing else."
+    
+    )
+
+    SEMANTIC_GATE_PROMPT = (
+        "You are a real-time speech-to-speech translation gate for TTS. "
+        "You receive a source speech chunk and its draft translation. "
+        "Your task is to decide whether this translated chunk is already a COMPLETE, SELF-SUFFICIENT spoken thought "
+        "that can be played aloud now, or whether it should be HELD and merged with the next chunk. "
+        "This decision must be language-agnostic and based on semantic completeness, not on any hard-coded word list. "
+        "Hold the chunk if it sounds cut off, dangling, syntactically incomplete, ends in a connector, "
+        "depends on the next clause, or would sound awkward/confusing if spoken now. "
+        "Emit the chunk only if it already sounds natural and complete for immediate TTS playback. "
+        "If you emit, lightly polish the translation into natural spoken phrasing, but do not add new facts. "
+        "Preserve names, numbers, places, and technical terms exactly. "
+        "Return ONLY valid JSON with this exact schema: "
+        "{\"emit_now\": true|false, \"spoken_text\": \"...\", \"reason\": \"...\"}. "
+        "If emit_now is false, spoken_text must be an empty string."
     )
 
     def __init__(self, cache_size: int = 50, context_size: int = 10):
@@ -112,6 +130,18 @@ class Translator:
 
     def _cache_key(self, text: str, source: str, target: str) -> str:
         return f"{source}:{target}:{text.lower().strip()}"
+    
+    def _recent_context_block(self) -> str:
+        if not self._context:
+            return ""
+
+        lines = []
+        for item in self._context[-self._context_size:]:
+            src = item.get("source", "").strip()
+            trn = item.get("translation", "").strip()
+            if src or trn:
+                lines.append(f"SRC: {src}\nTRN: {trn}")
+        return "\n\n".join(lines)
 
     def correct_asr(self, text: str, lang: str) -> str:
         """
@@ -265,6 +295,113 @@ class Translator:
         except Exception as e:
             logger.error(f"❌ Ошибка перевода: {e}")
             return text  # Возвращаем оригинал при ошибке
+        
+    def translate_with_semantic_gate(self, text: str, source_lang: str, target_lang: str) -> dict:
+        """
+        Перевести текст и одновременно решить, можно ли уже отдавать его в TTS.
+
+        Возвращает dict:
+        {
+            "emit_now": bool,
+            "spoken_text": str,
+            "reason": str,
+        }
+        """
+        if source_lang == target_lang:
+            corrected = self.correct_asr(text, source_lang)
+            return {
+                "emit_now": True,
+                "spoken_text": corrected,
+                "reason": "same_language_asr_correction",
+            }
+
+        if self.client is None:
+            return {
+                "emit_now": True,
+                "spoken_text": text,
+                "reason": "no_openai_client_fallback",
+            }
+
+        source_name = self.SUPPORTED_LANGUAGES.get(source_lang, source_lang)
+        target_name = self.SUPPORTED_LANGUAGES.get(target_lang, target_lang)
+
+        try:
+            context_block = self._recent_context_block()
+
+            draft_translation = self.translate(text, source_lang, target_lang)
+
+            messages = [
+                {
+                    "role": "system",
+                    "content": self.SEMANTIC_GATE_PROMPT,
+                }
+            ]
+
+            if context_block:
+                messages.append({
+                    "role": "system",
+                    "content": "Recent conversation context:\n" + context_block,
+                })
+
+            messages.append({
+                "role": "user",
+                "content": (
+                    f"Source language: {source_name}\n"
+                    f"Target language: {target_name}\n\n"
+                    f"Source chunk:\n{text}\n\n"
+                    f"Draft translation:\n{draft_translation}"
+                ),
+            })
+
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+                temperature=0.1,
+                max_tokens=220,
+                response_format={"type": "json_object"},
+            )
+
+            raw = response.choices[0].message.content.strip()
+            data = json.loads(raw)
+
+            emit_now = bool(data.get("emit_now", False))
+            spoken_text = (data.get("spoken_text") or "").strip()
+            reason = (data.get("reason") or "").strip()
+
+            if not emit_now:
+                return {
+                    "emit_now": False,
+                    "spoken_text": "",
+                    "reason": reason or "semantic_hold",
+                }
+
+            if not spoken_text:
+                spoken_text = draft_translation
+
+            # Сохраняем в контекст только то, что реально пошло в озвучку
+            self._context.append({"source": text, "translation": spoken_text})
+            if len(self._context) > self._context_size * 2:
+                self._context = self._context[-self._context_size:]
+
+            logger.info(
+                f"🧠 semantic gate [{source_lang}→{target_lang}] emit={emit_now} "
+                f"reason={reason!r} src={text[:80]!r} out={spoken_text[:80]!r}"
+            )
+
+            return {
+                "emit_now": True,
+                "spoken_text": spoken_text,
+                "reason": reason or "emit",
+            }
+
+        except Exception as e:
+            logger.warning(f"⚠️ semantic gate fallback: {e}")
+            fallback = self.translate(text, source_lang, target_lang)
+            return {
+                "emit_now": True,
+                "spoken_text": fallback,
+                "reason": "fallback_translate",
+            }    
 
     async def translate_parallel(
         self, text: str, source_lang: str, target_langs: list[str]

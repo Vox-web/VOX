@@ -115,7 +115,22 @@ class SoloSemanticBuffer:
                 self._carry = full
                 break
 
-            translated = self._translate_ready(ready, source_lang, target_lang)
+            gate = self._translate_ready(ready, source_lang, target_lang)
+
+            if not gate.get("emit_now", False):
+                logger.info(
+                    "🧠 SoloSemanticBuffer: hold for next chunk reason=%r src=%r",
+                    gate.get("reason", ""),
+                    ready[:160],
+                )
+                self._carry = self._normalize(" ".join(part for part in [ready, tail] if part))
+                break
+
+            translated = (gate.get("spoken_text") or "").strip()
+            if not translated:
+                self._carry = self._normalize(" ".join(part for part in [ready, tail] if part))
+                break
+
             out.append(
                 {
                     "source": ready,
@@ -136,10 +151,21 @@ class SoloSemanticBuffer:
 
         return out
 
-    def _translate_ready(self, text: str, source_lang: str, target_lang: str) -> str:
+    def _translate_ready(self, text: str, source_lang: str, target_lang: str) -> dict:
+        if hasattr(self.translator, "translate_with_semantic_gate"):
+            return self.translator.translate_with_semantic_gate(text, source_lang, target_lang)
+
+        # Fallback для совместимости со старым translator.py
         if source_lang == target_lang:
-            return self.translator.correct_asr(text, source_lang)
-        return self.translator.translate(text, source_lang, target_lang)
+            spoken = self.translator.correct_asr(text, source_lang)
+        else:
+            spoken = self.translator.translate(text, source_lang, target_lang)
+
+        return {
+            "emit_now": True,
+            "spoken_text": spoken,
+            "reason": "legacy_fallback",
+        }
 
     def _split_ready_and_tail(self, text: str, force: bool = False) -> tuple[str, str]:
         text = self._normalize(text)
