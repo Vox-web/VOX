@@ -1337,16 +1337,20 @@
                 processAudioQueue();
             };
 
-            // Solo semantic mode:
-            // ничего не выбрасываем из середины очереди — пусть куски идут по порядку.
-            // Сервер теперь сам режет фразы аккуратнее.
-            const backlog = audioQueue.length;
+            // Дроп середины: если накопилось 3+ фрагмента — оставляем только последний (самый свежий).
+            // Слушатель теряет середину, но слышит актуальное, а не хвост из прошлого.
+            if (audioQueue.length >= 3) {
+                const last = audioQueue[audioQueue.length - 1];
+                audioQueue.length = 0;
+                audioQueue.push(last);
+                console.warn('[VOX] backlog drop: kept last fragment only');
+            }
 
-            // Лёгкое ускорение оставляем, но делаем мягким,
-            // чтобы не превращать речь в пулемёт.
+            // Ускорение: 1.0x (норма) → 1.35x (1 в очереди) → 1.5x (2+ в очереди)
+            const backlog = audioQueue.length;
             let rate = 1.0;
-            if (backlog === 1) rate = 1.08;
-            if (backlog >= 2) rate = 1.12;
+            if (backlog === 1) rate = 1.35;
+            if (backlog >= 2) rate = 1.5;
             audio.playbackRate = rate;
 
             _applySinkId(audio).finally(() => {
