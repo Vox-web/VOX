@@ -1280,6 +1280,8 @@ async def websocket_solo(ws: WebSocket):
     last_solo_seen_final_text = ""
 
     async def handle_results():
+        nonlocal last_solo_seen_final_text
+
         while True:
             try:
                 result = await dg.results.get()
@@ -1369,7 +1371,7 @@ async def websocket_solo(ws: WebSocket):
             except Exception as e:
                 if "disconnect" in str(e).lower():
                     break
-                logger.error(f"Solo result error: {e}")
+                logger.error(f"Solo result error: {e}", exc_info=True)
                 break
 
     result_task = asyncio.create_task(handle_results())
@@ -1415,6 +1417,7 @@ async def websocket_solo(ws: WebSocket):
                         if lang_changed:
                             solo_buffer.reset()
                             solo_translator.clear_context()
+                            last_solo_seen_final_text = ""
                             logger.info("🧹 [SOLO_SEMANTIC] reset because config changed")
 
                         if "tts_enabled" in msg:
