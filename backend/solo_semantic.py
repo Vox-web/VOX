@@ -10,7 +10,20 @@ class SoloSemanticBuffer:
     """
     Solo-режим: копит финальные куски ASR, удерживает обрезанный хвост,
     и отдаёт в GPT/TTS только более связные, завершённые части.
+
+    Главный механизм качества — semantic gate в Translator. Этот буфер
+    его НЕ обходит в нормальной работе. Force-bypass срабатывает только в
+    двух аварийных случаях:
+      1) `_looks_complete_now()` уже видит явно завершённую мысль
+         (точка/!/? или 2+ предложения) — gate тут уже ничего не улучшит;
+      2) carry физически переполнился (см. MAX_CARRY_WORDS / MAX_CARRY_AGE_SEC)
+         — это страховка от зависания gate, а не компромисс по качеству.
     """
+
+    # Аварийные пороги. В нормальной работе НЕ должны срабатывать —
+    # окно flush_after_sec=5 вычистит carry задолго до этих лимитов.
+    MAX_CARRY_WORDS = 70       # ~30-40 секунд речи
+    MAX_CARRY_AGE_SEC = 20.0   # 4 полных окна по 5 сек
 
     _CARRY_WORDS = {
         # DE
@@ -47,7 +60,12 @@ class SoloSemanticBuffer:
 
         self._parts: list[str] = []
         self._carry: str = ""
+        # Возраст самого старого непереведённого куска. НЕ сбрасывается при hold —
+        # благодаря этому hard_flush_sec реально считается от появления текста,
+        # а не от последней попытки flush.
         self._opened_at: float | None = None
+        # Когда carry стал непустым в результате hold'а — для MAX_CARRY_AGE_SEC.
+        self._carry_started_at: float | None = None
         self._last_seen_at: float | None = None
         self._lang_pair: tuple[str, str] | None = None
 
@@ -55,6 +73,7 @@ class SoloSemanticBuffer:
         self._parts = []
         self._carry = ""
         self._opened_at = None
+        self._carry_started_at = None
         self._last_seen_at = None
         self._lang_pair = None
 
@@ -114,8 +133,9 @@ class SoloSemanticBuffer:
                 flushed = self._flush(source_lang, target_lang, force=True)
                 out.extend(flushed)
 
-            # Если после force flush carry всё ещё осталось, не сбрасываем состояние:
-            # текущий incoming text может как раз продолжить эту незавершённую мысль.
+            # Если после force flush carry всё ещё остался — сохраняем его:
+            # пользователю важно качество, обрывки мысли не дропаем,
+            # ждём продолжения от следующего push.
             if self._carry:
                 logger.info("🧠 SoloSemanticBuffer: keep pending carry after idle gap")
             else:
@@ -133,7 +153,23 @@ class SoloSemanticBuffer:
         full_now = self._normalize(" ".join(part for part in [self._carry, *self._parts] if part))
         elapsed = now - self._opened_at
 
-        # Если уже сейчас видим законченную мысль — не ждём ещё один push
+        # Аварийный клапан №1: carry физически переполнен.
+        # В норме сюда не попадаем — это защита от зависшего gate.
+        carry_words = len(self._carry.split()) if self._carry else 0
+        parts_words = sum(len(p.split()) for p in self._parts)
+        total_pending = carry_words + parts_words
+        carry_age = (now - self._carry_started_at) if self._carry_started_at else 0.0
+
+        if total_pending >= self.MAX_CARRY_WORDS or carry_age >= self.MAX_CARRY_AGE_SEC:
+            logger.warning(
+                "🚨 SoloSemanticBuffer: carry overflow words=%d age=%.1fs → force flush",
+                total_pending, carry_age,
+            )
+            out.extend(self._flush(source_lang, target_lang, force=True))
+            return out
+
+        # Если уже сейчас видим законченную мысль — не ждём ещё один push.
+        # На force gate тоже обходим: мысль объективно дозрела.
         if self._looks_complete_now(full_now):
             logger.info("🧠 SoloSemanticBuffer: immediate flush complete chunk")
             out.extend(self._flush(source_lang, target_lang, force=True))
@@ -153,10 +189,14 @@ class SoloSemanticBuffer:
     def _flush(self, source_lang: str, target_lang: str, force: bool) -> list[dict[str, str]]:
         full = self._normalize(" ".join(part for part in [self._carry, *self._parts] if part))
         self._parts = []
-        self._opened_at = None
+        # ВАЖНО: _opened_at НЕ сбрасываем безусловно. Если flush ничего не выпустил
+        # (carry остался), таймер должен продолжать тикать от исходного момента,
+        # чтобы hard_flush_sec работал по своему прямому назначению.
 
         if not full:
             self._carry = ""
+            self._opened_at = None
+            self._carry_started_at = None
             return []
 
         out: list[dict[str, str]] = []
@@ -166,9 +206,30 @@ class SoloSemanticBuffer:
 
             if not ready:
                 self._carry = full
+                # carry остался — таймеры продолжают тикать
+                if self._carry_started_at is None:
+                    self._carry_started_at = time.monotonic()
                 break
 
-            gate = self._translate_ready(ready, source_lang, target_lang)
+            # На force gate не спрашиваем — переводим напрямую и эмитим.
+            # force=True означает: мысль уже дозрела (looks_complete_now)
+            # ИЛИ сработал аварийный клапан. В обоих случаях gate не нужен.
+            if force:
+                try:
+                    if source_lang == target_lang:
+                        spoken = self.translator.correct_asr(ready, source_lang)
+                    else:
+                        spoken = self.translator.translate(ready, source_lang, target_lang)
+                except Exception as e:
+                    logger.warning("⚠️ force translate failed: %r", e)
+                    spoken = ready
+                gate = {
+                    "emit_now": True,
+                    "spoken_text": spoken,
+                    "reason": "force_bypass_gate",
+                }
+            else:
+                gate = self._translate_ready(ready, source_lang, target_lang)
 
             if not gate.get("emit_now", False):
                 logger.info(
@@ -177,11 +238,15 @@ class SoloSemanticBuffer:
                     ready[:160],
                 )
                 self._carry = self._normalize(" ".join(part for part in [ready, tail] if part))
+                if self._carry_started_at is None:
+                    self._carry_started_at = time.monotonic()
                 break
 
             translated = (gate.get("spoken_text") or "").strip()
             if not translated:
                 self._carry = self._normalize(" ".join(part for part in [ready, tail] if part))
+                if self._carry_started_at is None:
+                    self._carry_started_at = time.monotonic()
                 break
 
             out.append(
@@ -197,10 +262,20 @@ class SoloSemanticBuffer:
 
             if not force:
                 self._carry = full
+                # Если что-то осталось в carry — продолжаем считать его возраст,
+                # если carry опустел — сбрасываем оба таймера.
+                if self._carry:
+                    if self._carry_started_at is None:
+                        self._carry_started_at = time.monotonic()
+                else:
+                    self._carry_started_at = None
+                    self._opened_at = None
                 break
 
         if not full:
             self._carry = ""
+            self._carry_started_at = None
+            self._opened_at = None
 
         return out
 
