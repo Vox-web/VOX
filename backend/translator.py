@@ -51,10 +51,16 @@ class Translator:
         "IMPORTANT: Use the recent conversation context aggressively to reconstruct the speaker's "
         "true intent when the ASR output is garbled, phonetically corrupted, or partially missing. "
         "If a phrase is phonetically close to a real word/sentence given the context, correct it confidently. "
+        "Prefer conversational spoken phrasing over literal written phrasing. "
+        "Preserve natural discourse markers and short interjections when they carry rhythm, intent, or hesitation. "
+        "Break long utterances into short spoken clauses that sound natural in TTS. "
+        "If the source sounds emotional, uncertain, surprised, or emphatic, reflect that naturally in the target language. "
         "Preserve the speaker's tone, intent, emotional color, and sentence type. "
         "Do not make the translation more literary, formal, or verbose than the original. "
         "Prefer short, natural, speakable phrasing that sounds good in TTS. "
-        "Use punctuation that improves speech rhythm and intonation. "
+        "Add punctuation (commas, periods, exclamation and question marks) based on the speaker's "
+        "intonation and sentence structure — this helps TTS sound natural and expressive. "
+        "Do not over-punctuate: prefer fewer marks over more. "
         "Keep names, places, brands, numbers, and technical terms accurate. "
         "Remove only meaningless noise that harms clarity. "
         "Do not summarize, explain, answer, censor, or rephrase beyond what is needed for accurate translation. "
@@ -82,7 +88,7 @@ class Translator:
         "- Output ONLY the corrected phrase, nothing else."
     )
 
-    def __init__(self, cache_size: int = 50, context_size: int = 5):
+    def __init__(self, cache_size: int = 50, context_size: int = 10):
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             logger.warning("⚠️ OPENAI_API_KEY не задан! Перевод будет недоступен.")
