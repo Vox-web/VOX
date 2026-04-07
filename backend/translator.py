@@ -142,6 +142,85 @@ class Translator:
             if src or trn:
                 lines.append(f"SRC: {src}\nTRN: {trn}")
         return "\n\n".join(lines)
+    
+    def _translate_raw(
+        self,
+        text: str,
+        source_lang: str,
+        target_lang: str,
+        *,
+        store_context: bool = True,
+        use_cache: bool = True,
+    ) -> str:
+        if source_lang == target_lang:
+            return self.correct_asr(text, source_lang)
+
+        key = self._cache_key(text, source_lang, target_lang)
+
+        if use_cache and key in self._cache:
+            self._cache.move_to_end(key)
+            logger.debug(f"📋 Кеш: {text[:30]}...")
+            return self._cache[key]
+
+        if self.client is None:
+            logger.warning("⚠️ OpenAI клиент не инициализирован, возвращаю оригинал")
+            return text
+
+        try:
+            source_name = self.SUPPORTED_LANGUAGES.get(source_lang, source_lang)
+            target_name = self.SUPPORTED_LANGUAGES.get(target_lang, target_lang)
+
+            messages = [
+                {
+                    "role": "system",
+                    "content": self.SYSTEM_PROMPT.format(
+                        source=source_name, target=target_name
+                    ),
+                },
+            ]
+
+            if self._context:
+                context_lines = []
+                for item in self._context[-self._context_size:]:
+                    context_lines.append(
+                        f'[{item["source"]}] → [{item["translation"]}]'
+                    )
+                messages.append({
+                    "role": "system",
+                    "content": (
+                        "Recent conversation context (for reference only, "
+                        "do NOT repeat these translations):\n"
+                        + "\n".join(context_lines)
+                    ),
+                })
+
+            messages.append({"role": "user", "content": text})
+
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+                temperature=0.2,
+                max_tokens=300,
+            )
+
+            translated = response.choices[0].message.content.strip()
+
+            if use_cache:
+                self._cache[key] = translated
+                if len(self._cache) > self._cache_size:
+                    self._cache.popitem(last=False)
+
+            if store_context:
+                self._context.append({"source": text, "translation": translated})
+                if len(self._context) > self._context_size * 2:
+                    self._context = self._context[-self._context_size:]
+
+            logger.info(f"🌐 [{source_lang}→{target_lang}] {text[:30]}... → {translated[:30]}...")
+            return translated
+
+        except Exception as e:
+            logger.error(f"❌ Ошибка перевода: {e}")
+            return text
 
     def correct_asr(self, text: str, lang: str) -> str:
         """
@@ -214,87 +293,14 @@ class Translator:
     def translate(self, text: str, source_lang: str, target_lang: str) -> str:
         """
         Перевести текст.
-
-        Args:
-            text: Текст для перевода
-            source_lang: Код языка источника ("en", "de", ...)
-            target_lang: Код целевого языка ("uk", "ru", ...)
-
-        Returns:
-            Переведённый текст. При ошибке — оригинальный текст.
         """
-        # Один и тот же язык — корректируем ASR вместо перевода
-        if source_lang == target_lang:
-            return self.correct_asr(text, source_lang)
-
-        # Проверяем кеш
-        key = self._cache_key(text, source_lang, target_lang)
-        if key in self._cache:
-            self._cache.move_to_end(key)
-            logger.debug(f"📋 Кеш: {text[:30]}...")
-            return self._cache[key]
-
-        # Нет API клиента
-        if self.client is None:
-            logger.warning("⚠️ OpenAI клиент не инициализирован, возвращаю оригинал")
-            return text
-
-        try:
-            source_name = self.SUPPORTED_LANGUAGES.get(source_lang, source_lang)
-            target_name = self.SUPPORTED_LANGUAGES.get(target_lang, target_lang)
-
-            messages = [
-                {
-                    "role": "system",
-                    "content": self.SYSTEM_PROMPT.format(
-                        source=source_name, target=target_name
-                    ),
-                },
-            ]
-
-            # Добавляем контекст последних фраз
-            if self._context:
-                context_lines = []
-                for item in self._context[-self._context_size:]:
-                    context_lines.append(
-                        f'[{item["source"]}] → [{item["translation"]}]'
-                    )
-                messages.append({
-                    "role": "system",
-                    "content": (
-                        "Recent conversation context (for reference only, "
-                        "do NOT repeat these translations):\n"
-                        + "\n".join(context_lines)
-                    ),
-                })
-
-            messages.append({"role": "user", "content": text})
-
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=messages,
-                temperature=0.2,
-                max_tokens=300,
-            )
-
-            translated = response.choices[0].message.content.strip()
-
-            # Сохраняем в контекст
-            self._context.append({"source": text, "translation": translated})
-            if len(self._context) > self._context_size * 2:
-                self._context = self._context[-self._context_size:]
-
-            # Сохраняем в кеш
-            self._cache[key] = translated
-            if len(self._cache) > self._cache_size:
-                self._cache.popitem(last=False)
-
-            logger.info(f"🌐 [{source_lang}→{target_lang}] {text[:30]}... → {translated[:30]}...")
-            return translated
-
-        except Exception as e:
-            logger.error(f"❌ Ошибка перевода: {e}")
-            return text  # Возвращаем оригинал при ошибке
+        return self._translate_raw(
+            text,
+            source_lang,
+            target_lang,
+            store_context=True,
+            use_cache=True,
+        )
         
     def translate_with_semantic_gate(self, text: str, source_lang: str, target_lang: str) -> dict:
         """
@@ -328,7 +334,13 @@ class Translator:
         try:
             context_block = self._recent_context_block()
 
-            draft_translation = self.translate(text, source_lang, target_lang)
+            draft_translation = self._translate_raw(
+                text,
+                source_lang,
+                target_lang,
+                store_context=False,
+                use_cache=True,
+            )
 
             messages = [
                 {
