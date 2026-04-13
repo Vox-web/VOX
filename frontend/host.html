@@ -2863,6 +2863,241 @@
     navigator.mediaDevices.addEventListener('devicechange', async () => { await populateMicDevices(); await populateSpeakerDevices(); });
 
     </script>
+    <script>
+    (() => {
+        const RESUME_AFTER_MS = 15000;
+        let hiddenAt = 0;
+        let repairScheduled = null;
+        let repairing = false;
+
+        function wsClosedOrBroken(ws) {
+            return !ws || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED;
+        }
+
+        function safeClose(ws, reason = 'resume_reconnect') {
+            try {
+                if (!ws) return;
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.close(1000, reason);
+                } else if (ws.readyState === WebSocket.CONNECTING) {
+                    ws.close();
+                }
+            } catch (_) {}
+        }
+
+        function clearAllPingIntervals() {
+            try { clearInterval(_soloPingInterval); } catch(_) {}
+            try { _soloPingInterval = null; } catch(_) {}
+
+            try { clearInterval(_duoPingInterval); } catch(_) {}
+            try { _duoPingInterval = null; } catch(_) {}
+
+            try { clearInterval(_duoRemotePingInterval); } catch(_) {}
+            try { _duoRemotePingInterval = null; } catch(_) {}
+
+            try { clearInterval(_roomPingInterval); } catch(_) {}
+            try { _roomPingInterval = null; } catch(_) {}
+        }
+
+        function scheduleRepair(reason, delay = 350) {
+            clearTimeout(repairScheduled);
+            repairScheduled = setTimeout(() => maybeRepair(reason), delay);
+        }
+
+        function reloadFresh(reason) {
+            console.log('[VOX resume guard] reload:', reason);
+            window.location.reload();
+        }
+
+        function repairSolo(reason) {
+            console.log('[VOX resume guard] solo reconnect:', reason);
+            safeClose(soloWs, 'solo_resume_reconnect');
+            setTimeout(() => {
+                try {
+                    soloConnectWS();
+                } finally {
+                    repairing = false;
+                }
+            }, 150);
+        }
+
+        function repairDuoLocal(reason) {
+            console.log('[VOX resume guard] duo local reconnect:', reason);
+
+            const langA = document.getElementById('duoLangASelect')?.value || 'uk';
+            const langB = document.getElementById('duoLangBSelect')?.value || 'ru';
+
+            safeClose(_duoWs, 'duo_local_resume_reconnect');
+
+            setTimeout(() => {
+                try {
+                    const p = location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    _duoWs = new WebSocket(`${p}//${location.host}/ws/duo`);
+                    _duoWs.binaryType = 'arraybuffer';
+
+                    _duoWs.onopen = () => {
+                        const _tok = localStorage.getItem('vox_token') || '';
+                        _duoWs.send(JSON.stringify({
+                            type: 'config',
+                            lang_a: langA,
+                            lang_b: langB,
+                            tts_enabled: _ttsEnabled
+                        }));
+                        _duoWs.send(JSON.stringify({type: 'auth', token: _tok}));
+                        document.getElementById('duoStatusDot').className = 'status-dot connected';
+                        document.getElementById('duoStatusText').textContent = t(_duoListening ? 'duoStatusListening' : 'duoStatusReady');
+
+                        clearInterval(_duoPingInterval);
+                        _duoPingInterval = setInterval(() => {
+                            if (_duoWs?.readyState === WebSocket.OPEN) {
+                                _duoWs.send(JSON.stringify({type:'ping'}));
+                            }
+                        }, 15000);
+                    };
+
+                    _duoWs.onclose = () => {
+                        clearInterval(_duoPingInterval);
+                        _duoPingInterval = null;
+                        document.getElementById('duoStatusDot').className = 'status-dot';
+                        document.getElementById('duoStatusText').textContent = t('soloStatusDisconnected');
+                    };
+
+                    _duoWs.onerror = () => {
+                        document.getElementById('duoStatusText').textContent = t('soloStatusError');
+                    };
+
+                    _duoWs.onmessage = e => {
+                        if (e.data instanceof ArrayBuffer) {
+                            _duoPlayAudio(e.data);
+                            return;
+                        }
+                        const m = JSON.parse(e.data);
+                        _handleBillingWsMsg(m);
+                        if (m.type === 'transcript') {
+                            document.getElementById('duoOriginal').textContent =
+                                m.is_final ? (m.text || '—') : '🎤 ' + m.text;
+                        } else if (m.type === 'translation') {
+                            document.getElementById('duoTranslation').textContent = m.text || '—';
+                            _hist(
+                                document.getElementById('duoHistory'),
+                                document.getElementById('duoOriginal').textContent,
+                                m.text
+                            );
+                        }
+                    };
+                } finally {
+                    repairing = false;
+                }
+            }, 150);
+        }
+
+        function repairDuoRemote(reason) {
+            console.log('[VOX resume guard] duo remote reconnect:', reason);
+            const langA = document.getElementById('duoLangASelect')?.value || 'uk';
+            const langB = document.getElementById('duoLangBSelect')?.value || 'ru';
+
+            safeClose(_duoRemoteWs, 'duo_remote_resume_reconnect');
+
+            setTimeout(() => {
+                try {
+                    _connectDuoRemoteHost(langA, langB);
+                } finally {
+                    repairing = false;
+                }
+            }, 150);
+        }
+
+        function repairRoom(reason) {
+            console.log('[VOX resume guard] room reconnect:', reason);
+            safeClose(roomWs, 'room_resume_reconnect');
+
+            setTimeout(() => {
+                try {
+                    connectRoomWS();
+                } finally {
+                    repairing = false;
+                }
+            }, 150);
+        }
+
+        function maybeRepair(reason) {
+            if (repairing) return;
+            if (document.visibilityState === 'hidden') return;
+
+            const awayMs = hiddenAt ? (Date.now() - hiddenAt) : 0;
+            const staleAfterBackground = awayMs > RESUME_AFTER_MS;
+
+            const soloActive = !!soloListening;
+            const duoLocalActive = curScreen === 'screenDuo' && (!!_duoWs || !!_duoListening);
+            const duoRemoteActive = curScreen === 'screenDuoRemote' && (!!_duoId || !!_duoRemoteWs || !!_duoRemoteListening);
+            const roomActive = !!roomId;
+
+            const soloBroken = soloActive && wsClosedOrBroken(soloWs);
+            const duoLocalBroken = duoLocalActive && wsClosedOrBroken(_duoWs);
+            const duoRemoteBroken = duoRemoteActive && wsClosedOrBroken(_duoRemoteWs);
+            const roomBroken = roomActive && wsClosedOrBroken(roomWs);
+
+            const mustRepairSolo = soloActive && (soloBroken || staleAfterBackground);
+            const mustRepairDuoLocal = duoLocalActive && (duoLocalBroken || staleAfterBackground);
+            const mustRepairDuoRemote = duoRemoteActive && (duoRemoteBroken || staleAfterBackground);
+            const mustRepairRoom = roomActive && (roomBroken || staleAfterBackground);
+
+            if (!mustRepairSolo && !mustRepairDuoLocal && !mustRepairDuoRemote && !mustRepairRoom) {
+                return;
+            }
+
+            repairing = true;
+            clearAllPingIntervals();
+
+            if (mustRepairRoom) {
+                repairRoom(`${reason}; away=${awayMs}`);
+                return;
+            }
+
+            if (mustRepairDuoRemote) {
+                repairDuoRemote(`${reason}; away=${awayMs}`);
+                return;
+            }
+
+            if (mustRepairDuoLocal) {
+                repairDuoLocal(`${reason}; away=${awayMs}`);
+                return;
+            }
+
+            if (mustRepairSolo) {
+                repairSolo(`${reason}; away=${awayMs}`);
+                return;
+            }
+
+            repairing = false;
+            reloadFresh(`${reason}; fallback`);
+        }
+
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                scheduleRepair('pageshow.persisted', 80);
+            } else {
+                scheduleRepair('pageshow', 180);
+            }
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                hiddenAt = Date.now();
+                return;
+            }
+            scheduleRepair('visibilitychange.visible', 400);
+        });
+
+        window.addEventListener('focus', () => {
+            scheduleRepair('focus', 450);
+        });
+
+        window.addEventListener('online', () => {
+            scheduleRepair('online', 900);
+        });
+    })();
+    </script>
     <!-- ── Review FAB Button ── -->
 <a class="review-fab" href="/review?source=host" target="_blank">
     <span>⭐</span>
