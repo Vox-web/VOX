@@ -2088,15 +2088,36 @@
         if (_duoListening) {
             _duoListening = false;
             document.getElementById('duoBtn').textContent = t('duoBtnStart');
+            document.getElementById('duoBtn').classList.remove('active');
             document.getElementById('duoStatusText').textContent = t('soloStatusStopped');
-            _duoMic?.stop(); _duoMic = null; _duoMicPaused = false;
-        } else {
-            _duoListening = true;
-            document.getElementById('duoBtn').textContent = t('duoBtnStop');
+            _duoMic?.stop();
+            _duoMic = null;
+            _duoMicPaused = false;
+            return;
+        }
+
+        if (!_duoWs || _duoWs.readyState !== WebSocket.OPEN) {
+            document.getElementById('duoStatusText').textContent = t('soloStatusError');
+            return;
+        }
+
+        _duoListening = true;
+        document.getElementById('duoBtn').textContent = t('duoBtnStop');
+        document.getElementById('duoBtn').classList.add('active');
+        document.getElementById('duoStatusText').textContent = t('duoStatusConnecting');
+
+        try {
+            _duoMic = await _startDuoMic('VoxDL', _duoWs);
             document.getElementById('duoStatusText').textContent = t('duoStatusListening');
-            try {
-                _duoMic = await _startDuoMic('VoxDL', _duoWs);
-            } catch(e) { console.error('Duo mic err:', e); }
+        } catch (e) {
+            console.error('Duo mic err:', e);
+            _duoListening = false;
+            document.getElementById('duoBtn').textContent = t('duoBtnStart');
+            document.getElementById('duoBtn').classList.remove('active');
+            document.getElementById('duoStatusText').textContent = t('soloStatusMicError');
+            _duoMic?.stop();
+            _duoMic = null;
+            _duoMicPaused = false;
         }
     }
 
