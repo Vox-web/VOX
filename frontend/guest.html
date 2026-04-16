@@ -1766,6 +1766,11 @@
                 opt.selected = d.deviceId === _selectedSpeakerId;
                 sel.appendChild(opt);
             });
+            if (_selectedSpeakerId && !outs.some(d => d.deviceId === _selectedSpeakerId)) {
+                _selectedSpeakerId = '';
+                localStorage.removeItem('vox_speaker_id');
+                sel.value = '';
+            }
         } catch (e) { console.warn('populateSpeakerDevices failed:', e); }
     }
     function onSpeakerDeviceChange(deviceId) {

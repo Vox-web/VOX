@@ -3037,10 +3037,10 @@
             const duoRemoteBroken = duoRemoteActive && wsClosedOrBroken(_duoRemoteWs);
             const roomBroken = roomActive && wsClosedOrBroken(roomWs);
 
-            const mustRepairSolo = soloActive && (soloBroken || staleAfterBackground);
-            const mustRepairDuoLocal = duoLocalActive && (duoLocalBroken || staleAfterBackground);
-            const mustRepairDuoRemote = duoRemoteActive && (duoRemoteBroken || staleAfterBackground);
-            const mustRepairRoom = roomActive && (roomBroken || staleAfterBackground);
+            const mustRepairSolo = soloActive && soloBroken;
+            const mustRepairDuoLocal = duoLocalActive && duoLocalBroken;
+            const mustRepairDuoRemote = duoRemoteActive && duoRemoteBroken;
+            const mustRepairRoom = roomActive && roomBroken;
 
             if (!mustRepairSolo && !mustRepairDuoLocal && !mustRepairDuoRemote && !mustRepairRoom) {
                 return;
@@ -3073,7 +3073,10 @@
             reloadFresh(`${reason}; fallback`);
         }
 
-        window.addEventListener('pageshow', (event) => {
+        window.addEventListener('pageshow', async (event) => {
+            await populateMicDevices();
+            await populateSpeakerDevices();
+
             if (event.persisted) {
                 scheduleRepair('pageshow.persisted', 80);
             } else {
@@ -3081,19 +3084,26 @@
             }
         });
 
-        document.addEventListener('visibilitychange', () => {
+        document.addEventListener('visibilitychange', async () => {
             if (document.visibilityState === 'hidden') {
                 hiddenAt = Date.now();
                 return;
             }
+
+            await populateMicDevices();
+            await populateSpeakerDevices();
             scheduleRepair('visibilitychange.visible', 400);
         });
 
-        window.addEventListener('focus', () => {
+        window.addEventListener('focus', async () => {
+            await populateMicDevices();
+            await populateSpeakerDevices();
             scheduleRepair('focus', 450);
         });
 
-        window.addEventListener('online', () => {
+        window.addEventListener('online', async () => {
+            await populateMicDevices();
+            await populateSpeakerDevices();
             scheduleRepair('online', 900);
         });
     })();
