@@ -1432,6 +1432,11 @@ async def websocket_solo(ws: WebSocket):
 
     except WebSocketDisconnect:
         logger.info("🔌 WebSocket відключено (Solo)")
+    except RuntimeError as e:
+        if "disconnect" in str(e).lower():
+            logger.info("🔌 WebSocket відключено (Solo)")
+        else:
+            logger.error(f"❌ Помилка WebSocket Solo: {e}", exc_info=True)
     except Exception as e:
         logger.error(f"❌ Помилка WebSocket Solo: {e}", exc_info=True)
     finally:
