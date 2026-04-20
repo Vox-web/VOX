@@ -1974,6 +1974,11 @@
     let _duoAudioPlaying = false;
     let _duoPingInterval = null;
     let _duoRemotePingInterval = null;
+    // UI-защита: помним что по текущей реплике уже был показан перевод.
+    // Когда приходит interim новой реплики — чистим поле перевода, чтобы
+    // старый перевод не "смешивался" визуально с новым оригиналом.
+    let _duoLastHadTranslation = false;
+    let _duoRemoteLastHadTranslation = false;
     const _duoVadEl = document.getElementById('duoVad');
     const _duoRemoteVadEl = document.getElementById('duoRemoteVad');
 
@@ -2075,10 +2080,17 @@
             const m = JSON.parse(e.data);
             _handleBillingWsMsg(m);
             if (m.type === 'transcript') {
+                // Новая реплика началась — стираем старый перевод,
+                // чтобы он не висел поверх нового оригинала.
+                if (!m.is_final && _duoLastHadTranslation) {
+                    document.getElementById('duoTranslation').textContent = '—';
+                    _duoLastHadTranslation = false;
+                }
                 document.getElementById('duoOriginal').textContent =
                     m.is_final ? (m.text || '—') : '🎤 ' + m.text;
             } else if (m.type === 'translation') {
                 document.getElementById('duoTranslation').textContent = m.text || '—';
+                _duoLastHadTranslation = true;
                 _hist(document.getElementById('duoHistory'), document.getElementById('duoOriginal').textContent, m.text);
             }
         };
@@ -2191,10 +2203,15 @@
                 document.getElementById('duoRemoteBtn').disabled = true;
                 _duoRemoteListening = false; _duoRemoteMic?.stop(); _duoRemoteMic = null;
             } else if (m.type === 'transcript') {
+                if (!m.is_final && _duoRemoteLastHadTranslation) {
+                    document.getElementById('duoRemoteTranslation').textContent = '—';
+                    _duoRemoteLastHadTranslation = false;
+                }
                 document.getElementById('duoRemoteOriginal').textContent =
                     m.is_final ? (m.text || '—') : '🎤 ' + m.text;
             } else if (m.type === 'translation') {
                 document.getElementById('duoRemoteTranslation').textContent = m.text || '—';
+                _duoRemoteLastHadTranslation = true;
                 _hist(document.getElementById('duoRemoteHistory'),
                     document.getElementById('duoRemoteOriginal').textContent, m.text);
             }
@@ -2995,10 +3012,15 @@
                         const m = JSON.parse(e.data);
                         _handleBillingWsMsg(m);
                         if (m.type === 'transcript') {
+                            if (!m.is_final && _duoLastHadTranslation) {
+                                document.getElementById('duoTranslation').textContent = '—';
+                                _duoLastHadTranslation = false;
+                            }
                             document.getElementById('duoOriginal').textContent =
                                 m.is_final ? (m.text || '—') : '🎤 ' + m.text;
                         } else if (m.type === 'translation') {
                             document.getElementById('duoTranslation').textContent = m.text || '—';
+                            _duoLastHadTranslation = true;
                             _hist(
                                 document.getElementById('duoHistory'),
                                 document.getElementById('duoOriginal').textContent,

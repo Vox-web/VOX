@@ -123,6 +123,10 @@ let langB = 'en';
 let _pingInterval = null;
 let _wsRetries = 0;
 let _terminated = false;  // host_left / session_ended — не реконнектимся
+// UI-защита: помним что по текущей реплике уже был показан перевод.
+// Когда приходит interim новой реплики — чистим поле перевода, чтобы
+// старый перевод не висел поверх нового оригинала.
+let _lastHadTranslation = false;
 let selectedMicId = localStorage.getItem('vox_guest_mic_id') || '';
 let selectedSpkId = localStorage.getItem('vox_speaker_id') || '';
 
@@ -224,9 +228,16 @@ function connectWS() {
     }
     const m = JSON.parse(e.data);
     if (m.type === 'transcript') {
+      // Новая реплика — стираем старый перевод, чтобы он не висел
+      // поверх нового оригинала
+      if (!m.is_final && _lastHadTranslation) {
+        transText.textContent = '—';
+        _lastHadTranslation = false;
+      }
       origText.textContent = m.is_final ? (m.text || '—') : '🎤 ' + m.text;
     } else if (m.type === 'translation') {
       transText.textContent = m.text || '—';
+      _lastHadTranslation = true;
       addHistory(origText.textContent, m.text);
     } else if (m.type === 'host_left') {
       _terminated = true;

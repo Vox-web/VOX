@@ -817,7 +817,7 @@ async def websocket_duo(ws: WebSocket):
     billing_task = asyncio.create_task(billing_tick())
 
     dg = DeepgramTranscriber()
-    await dg.start(language="multi", model="nova-3", endpointing=700)
+    await dg.start(language="multi", model="nova-3", endpointing=1000, utterance_end_ms=2000, commit_mode="lazy")
 
     async def handle_results():
         while True:
@@ -905,7 +905,7 @@ async def websocket_duo(ws: WebSocket):
 
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
-                    await dg.start(language="multi", model="nova-3", endpointing=700)
+                    await dg.start(language="multi", model="nova-3", endpointing=1000, utterance_end_ms=2000, commit_mode="lazy")
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
@@ -935,7 +935,7 @@ async def websocket_duo(ws: WebSocket):
                                 return
 
                             await dg.stop()
-                            await dg.start(language="multi", model="nova-3", endpointing=700)
+                            await dg.start(language="multi", model="nova-3", endpointing=1000, utterance_end_ms=2000, commit_mode="lazy")
 
                     elif msg_type == "ping":
                         await ws.send_json({"type": "pong"})
@@ -1002,7 +1002,7 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
     await ws.send_json({"type": "duo_ready", "lang_a": session.lang_a, "lang_b": session.lang_b})
 
     dg = DeepgramTranscriber()
-    await dg.start(language=session.lang_a, endpointing=700)
+    await dg.start(language=session.lang_a, endpointing=1000, utterance_end_ms=2000, commit_mode="lazy")
 
     async def handle_results():
         while True:
@@ -1050,7 +1050,7 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
                 break
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
-                    await dg.start(language=session.lang_a, endpointing=700)
+                    await dg.start(language=session.lang_a, endpointing=1000, utterance_end_ms=2000, commit_mode="lazy")
                 await dg.send_audio(message["bytes"])
             elif "text" in message and message["text"]:
                 try:
@@ -1100,7 +1100,7 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
             pass
 
     dg = DeepgramTranscriber()
-    await dg.start(language=session.lang_b, endpointing=700)
+    await dg.start(language=session.lang_b, endpointing=1000, utterance_end_ms=2000, commit_mode="lazy")
 
     async def handle_results():
         while True:
@@ -1167,7 +1167,7 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
 
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
-                    await dg.start(language=session.lang_b, endpointing=700)
+                    await dg.start(language=session.lang_b, endpointing=1000, utterance_end_ms=2000, commit_mode="lazy")
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:

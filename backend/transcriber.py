@@ -95,6 +95,12 @@ class DeepgramTranscriber:
         self._debug_results_seen: int = 0
         self._debug_empty_results_seen: int = 0
 
+        # Режим коммита:
+        #   "eager" — Solo: synthetic-commit по таймеру _delayed_flush (отзывчивость)
+        #   "lazy"  — Duo/Room: коммит только по speech_final от Deepgram или по UtteranceEnd
+        #             (не режем живую речь на микропаузах)
+        self._commit_mode: str = "eager"
+
         # Очередь результатов — читается обработчиком в main.py
         self.results: asyncio.Queue[TranscriptResult] = asyncio.Queue()
 
@@ -355,15 +361,22 @@ class DeepgramTranscriber:
         input_sample_rate: Optional[int] = None,
         model: Optional[str] = None,
         endpointing: int = 300,
+        utterance_end_ms: int = 1500,
+        commit_mode: str = "eager",
     ):
         """
         Открыть новую сессию транскрипции.
 
         Args:
-            language:    Код языка ("en", "ru", ...) или None для автоопределения
-            endpointing: Пауза (мс) для определения конца фразы.
-                         Solo: 300ms (быстрый отклик).
-                         Duo/Room: 700ms (не режет речь на коротких паузах).
+            language:         Код языка ("en", "ru", ...) или None для автоопределения
+            endpointing:      Пауза (мс) для определения конца фразы внутри utterance.
+                              Solo: 300ms (быстрый отклик).
+                              Duo/Room: 1000ms (не режет речь на вдохах).
+            utterance_end_ms: Тишина (мс) после utterance, после которой Deepgram
+                              шлёт UtteranceEnd. Solo: 1500ms. Duo/Room: 2000ms.
+            commit_mode:      "eager" (Solo) — synthetic-commit по таймеру разрешён.
+                              "lazy"  (Duo/Room) — коммит только по speech_final
+                              или UtteranceEnd от Deepgram (реальная тишина).
         """
         await self.stop()
 
@@ -391,13 +404,16 @@ class DeepgramTranscriber:
             self.set_input_sample_rate(input_sample_rate)
         self._debug_audio_chunks_seen = 0
 
+        # Режим коммита (валидация)
+        self._commit_mode = commit_mode if commit_mode in ("eager", "lazy") else "eager"
+
         # Параметры Deepgram
         selected_model = model or ("nova-3" if language == "multi" else "nova-2")
 
         params = [
             f"model={selected_model}",
             "interim_results=true",
-            "utterance_end_ms=1500",
+            f"utterance_end_ms={max(1000, int(utterance_end_ms))}",
             f"endpointing={endpointing}",
             "encoding=linear16",
             f"sample_rate={SAMPLE_RATE}",
@@ -779,11 +795,22 @@ class DeepgramTranscriber:
                     logger.info("🧭 [DG TRACE] cancel previous delayed flush timer")
                     self._flush_task.cancel()
 
-                logger.info(
-                    "🧭 [DG TRACE] schedule delayed flush 1.2s buffer=%r",
-                    full_text[:120],
-                )
-                self._flush_task = asyncio.create_task(self._delayed_flush(1.2))
+                if self._commit_mode == "lazy":
+                    # Duo/Room: synthetic-commit по таймеру ОТКЛЮЧЁН.
+                    # Коммит только по speech_final от Deepgram или по UtteranceEnd
+                    # (реальная тишина utterance_end_ms). Живая речь с вдохами не режется.
+                    logger.info(
+                        "🧭 [DG TRACE] lazy mode: skip delayed flush, "
+                        "wait speech_final/UtteranceEnd buffer=%r",
+                        full_text[:120],
+                    )
+                    self._flush_task = None
+                else:
+                    logger.info(
+                        "🧭 [DG TRACE] schedule delayed flush 1.2s buffer=%r",
+                        full_text[:120],
+                    )
+                    self._flush_task = asyncio.create_task(self._delayed_flush(1.2))
 
         except websockets.ConnectionClosed:
             logger.info("🔇 Deepgram соединение закрыто")
