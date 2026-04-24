@@ -600,7 +600,7 @@ class RoomManager:
             if not self._is_ws_open(participant.websocket):
                 continue
 
-            lang = participant.language
+            lang = (participant.language or "").split("-")[0].lower()
             translated_text = translations.get(lang)
             # Если перевода нет (участник говорит на том же языке) — только transcript, без translation/audio
             if translated_text is None:
@@ -621,7 +621,7 @@ class RoomManager:
 
         # Отправляем хосту перевод на его язык (если говорит участник)
         if speaker_guest_id and self._is_ws_open(room.host_websocket):
-            host_lang = room.host_language
+            host_lang = (room.host_language or "").split("-")[0].lower()
             host_translated = translations.get(host_lang)
             # Если перевода нет — только transcript, без translation/audio
             if host_translated is None:

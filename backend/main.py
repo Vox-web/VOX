@@ -1476,7 +1476,12 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
     _user_id = None
 
     dg = DeepgramTranscriber()
-    await dg.start(language=room.host_language, endpointing=700)
+    await dg.start(
+        language=room.host_language,
+        endpointing=1000,
+        utterance_end_ms=2000,
+        commit_mode="lazy",
+    )
 
     await ws.send_json({"type": "room_state", "room": room.to_dict()})
 
@@ -1584,7 +1589,12 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                 if room.active_speaker is not None:
                     continue
                 if not dg.is_active:
-                    await dg.start(room.host_language, endpointing=700)
+                    await dg.start(
+                        room.host_language,
+                        endpointing=1000,
+                        utterance_end_ms=2000,
+                        commit_mode="lazy",
+                    )
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
@@ -1621,7 +1631,12 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                 elif action == "revoke_speak":
                     await room_manager.revoke_speak(room_id, guest_id)
                     translator.clear_context()
-                    await dg.start(room.host_language, endpointing=700)
+                    await dg.start(
+                        room.host_language,
+                        endpointing=1000,
+                        utterance_end_ms=2000,
+                        commit_mode="lazy",
+                    )
                 elif action == "deny_speak":
                     await room_manager.deny_speak(room_id, guest_id)
                 elif action == "mute":
@@ -1796,7 +1811,13 @@ async def websocket_room_guest(ws: WebSocket, room_id: str, guest_id: str):
                     _audio_chunk_count = 0
                     dg.set_input_sample_rate(guest_input_sample_rate)
                     _log_guest_trace(participant.display_name, room_id, 'deepgram_start', lang=participant.language, input_sr=guest_input_sample_rate, guest_speaking=guest_speaking, dg_active=dg.is_active)
-                    await dg.start(participant.language, input_sample_rate=guest_input_sample_rate, endpointing=700)
+                    await dg.start(
+                        participant.language,
+                        input_sample_rate=guest_input_sample_rate,
+                        endpointing=1000,
+                        utterance_end_ms=2000,
+                        commit_mode="lazy",
+                    )
                     guest_speaking = True
                     _log_guest_trace(participant.display_name, room_id, 'deepgram_started', lang=participant.language, input_sr=guest_input_sample_rate)
 
