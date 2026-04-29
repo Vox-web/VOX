@@ -130,6 +130,26 @@
         .vox-toast.toast-warning { border-color: var(--yellow); color: var(--yellow); }
         .vox-toast.toast-error { border-color: var(--red); color: var(--red); }
 
+        /* Headphone auto-detect banner */
+        .headphone-suggest {
+            position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px);
+            background: var(--surface); border: 1px solid var(--accent);
+            color: var(--text); font-size: 13px; font-weight: 500;
+            padding: 12px 16px; border-radius: 14px; z-index: 2001;
+            box-shadow: 0 8px 24px rgba(0,0,0,.3);
+            opacity: 0; transition: all 0.3s; pointer-events: none;
+            max-width: 300px; text-align: center;
+        }
+        .headphone-suggest.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+        .headphone-suggest-btns { margin-top: 10px; display: flex; gap: 8px; justify-content: center; }
+        .headphone-suggest-btns button {
+            padding: 6px 18px; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px;
+        }
+        .headphone-suggest-btns .hs-yes {
+            background: var(--accent); color: #fff; border-color: var(--accent);
+        }
+
         /* ======== Header ======== */
         .header {
             text-align: center; padding: 8px 0 4px;
@@ -729,6 +749,13 @@
         </div>
     </div>
     <div class="vox-toast" id="voxToast"></div>
+    <div class="headphone-suggest" id="headphoneSuggest">
+        <div id="headphoneSuggestMsg"></div>
+        <div class="headphone-suggest-btns">
+            <button class="hs-yes" onclick="_applyHeadphoneSuggest()"><span id="headphoneSuggestYes">Так</span></button>
+            <button onclick="_dismissHeadphoneSuggest()"><span id="headphoneSuggestNo">Ні</span></button>
+        </div>
+    </div>
 
 
     <div class="container">
@@ -1139,6 +1166,7 @@
             micUnknown: 'Мікрофон',
             speakerLabel: '🔊 Навушники:', speakerDefault: 'За замовчуванням', speakerRefreshTitle: 'Оновити список', speakerUnknown: 'Вивід', speakerNoSupport: 'Окремий вибір навушників не підтримується. Використовується системний аудіовихід.',
             hybridOff: '📱🎧 Гібридний мік (телефон)', hybridOn: '📱✅ Мікрофон телефону активний', hybridWarn: '⚠️ Вбудований мік не знайдено',
+            headphonesMsg: '🎧 Виявлено навушники. Надіслати звук у навушники, а мікрофон залишити на телефоні?', headphonesYes: 'Так', headphonesNo: 'Ні',
             roomSetupTitle: 'Налаштування кімнати', roomHostLangLabel: 'Ваша мова:',
             btnCreateRoom: 'Створити кімнату', roomQrLabel: 'Скануйте для входу',
             roomCostNote: 'Вартість: {PPM}/хв × кількість гостей',
@@ -1198,6 +1226,7 @@
             micUnknown: 'Microphone',
             speakerLabel: '🔊 Headphones:', speakerDefault: 'System default', speakerRefreshTitle: 'Refresh list', speakerUnknown: 'Output', speakerNoSupport: 'Output device selection is not supported by this browser',
             hybridOff: '📱🎧 Hybrid mic (phone)', hybridOn: '📱✅ Phone mic active', hybridWarn: '⚠️ Built-in mic not found',
+            headphonesMsg: '🎧 Headphones detected. Route audio to headphones, keep mic on phone?', headphonesYes: 'Yes', headphonesNo: 'No',
             roomSetupTitle: 'Room Settings', roomHostLangLabel: 'Your language:',
             btnCreateRoom: 'Create Room', roomQrLabel: 'Scan to join',
             roomCostNote: 'Cost: {PPM}/min × number of guests',
@@ -1257,6 +1286,7 @@
             micUnknown: 'Mikrofon',
             speakerLabel: '🔊 Kopfhörer:', speakerDefault: 'Systemstandard', speakerRefreshTitle: 'Liste aktualisieren', speakerUnknown: 'Ausgabe', speakerNoSupport: 'Ausgabegerät-Auswahl wird von diesem Browser nicht unterstützt',
             hybridOff: '📱🎧 Hybrid-Mikrofon (Telefon)', hybridOn: '📱✅ Telefonmikrofon aktiv', hybridWarn: '⚠️ Eingebautes Mikrofon nicht gefunden',
+            headphonesMsg: '🎧 Kopfhörer erkannt. Audio zu Kopfhörern, Mikrofon beim Telefon lassen?', headphonesYes: 'Ja', headphonesNo: 'Nein',
             roomSetupTitle: 'Raumeinstellungen', roomHostLangLabel: 'Ihre Sprache:',
             btnCreateRoom: 'Raum erstellen', roomQrLabel: 'Scannen zum Beitreten',
             roomCostNote: 'Kosten: {PPM}/Min × Anzahl der Gäste',
@@ -2932,10 +2962,87 @@
         box.classList.toggle('open');
     }
 
-    populateMicDevices();
+    // ======== HEADPHONE AUTO-DETECT ========
+    let _knownSpeakerIds = new Set();
+    let _headphoneSuggestPending = { spkId: '', micId: '' };
+    let _headphoneSuggestTimer = null;
+
+    function _showHeadphoneSuggest(spkId, micId) {
+        const lastDismiss = parseInt(localStorage.getItem('vox_hp_dismissed_at') || '0');
+        if (Date.now() - lastDismiss < 30 * 60 * 1000) return;
+        _headphoneSuggestPending = { spkId, micId };
+        const el = document.getElementById('headphoneSuggest');
+        const msgEl = document.getElementById('headphoneSuggestMsg');
+        if (!el || !msgEl) return;
+        msgEl.textContent = t('headphonesMsg');
+        const yesEl = document.getElementById('headphoneSuggestYes');
+        const noEl = document.getElementById('headphoneSuggestNo');
+        if (yesEl) yesEl.textContent = t('headphonesYes');
+        if (noEl) noEl.textContent = t('headphonesNo');
+        el.classList.add('show');
+        clearTimeout(_headphoneSuggestTimer);
+        _headphoneSuggestTimer = setTimeout(_dismissHeadphoneSuggest, 15000);
+    }
+
+    function _dismissHeadphoneSuggest() {
+        clearTimeout(_headphoneSuggestTimer);
+        if (_headphoneSuggestPending.spkId) {
+            localStorage.setItem('vox_hp_dismissed_at', Date.now().toString());
+        }
+        _headphoneSuggestPending = { spkId: '', micId: '' };
+        const el = document.getElementById('headphoneSuggest');
+        if (el) el.classList.remove('show');
+    }
+
+    function _applyHeadphoneSuggest() {
+        const { spkId, micId } = _headphoneSuggestPending;
+        _dismissHeadphoneSuggest();
+        if (spkId) {
+            onSpeakerDeviceChange(spkId);
+            ['speakerDeviceSelect', 'roomSpeakerDeviceSelect', 'duoRemoteSpkSelect'].forEach(id => {
+                const sel = document.getElementById(id);
+                if (sel) sel.value = spkId;
+            });
+        }
+        if (micId) {
+            onMicDeviceChange(micId);
+            ['micDeviceSelect', 'roomMicDeviceSelect', 'duoRemoteMicSelect'].forEach(id => {
+                const sel = document.getElementById(id);
+                if (sel) sel.value = micId;
+            });
+            if (_duoRemoteListening) { duoRemoteToggle(); setTimeout(() => duoRemoteToggle(), 200); }
+            else if (_duoListening) { duoToggle(); setTimeout(() => duoToggle(), 200); }
+            else if (soloListening) { soloStop(); setTimeout(() => soloToggle(), 200); }
+            else if (roomMicActive) { roomToggleMic(); setTimeout(() => roomToggleMic(), 200); }
+        }
+    }
+
+    populateMicDevices().then(() => {
+        navigator.mediaDevices.enumerateDevices().then(devs => {
+            _knownSpeakerIds = new Set(devs.filter(d => d.kind === 'audiooutput').map(d => d.deviceId));
+        });
+    });
     populateSpeakerDevices();
     _updateHybridBtn(_hybridMode ? !!_selectedMicId : false);
-    navigator.mediaDevices.addEventListener('devicechange', async () => { await populateMicDevices(); await populateSpeakerDevices(); });
+    navigator.mediaDevices.addEventListener('devicechange', async () => {
+        await populateMicDevices();
+        await populateSpeakerDevices();
+        if (!_speakerSupported()) return;
+        try {
+            const devs = await navigator.mediaDevices.enumerateDevices();
+            const speakers = devs.filter(d => d.kind === 'audiooutput');
+            const _HP_RE = /headphone|airpod|bluetooth|buds|headset|wireless|kopfh|sco|hands-?free|earpod|earbud|gaming|beats/i;
+            const newHeadphone = speakers.find(d =>
+                !_knownSpeakerIds.has(d.deviceId) &&
+                (_HP_RE.test(d.label || '') || !d.label)
+            );
+            _knownSpeakerIds = new Set(speakers.map(d => d.deviceId));
+            if (newHeadphone) {
+                const builtInMicId = await _findBuiltInMicId();
+                if (builtInMicId) _showHeadphoneSuggest(newHeadphone.deviceId, builtInMicId);
+            }
+        } catch(e) { console.warn('headphone detect failed:', e); }
+    });
 
     </script>
     <script>

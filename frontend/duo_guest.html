@@ -58,6 +58,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
 .history-original{color:var(--text2);}
 .history-translation{color:var(--accent);margin-top:2px;}
 .divider{height:1px;background:var(--surface2);margin:2px 0;}
+.headphone-suggest{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--surface);border:1px solid var(--accent);color:var(--text);font-size:13px;font-weight:500;
+  padding:12px 16px;border-radius:14px;z-index:2001;box-shadow:0 8px 24px rgba(0,0,0,.3);
+  opacity:0;transition:all 0.3s;pointer-events:none;max-width:300px;text-align:center;}
+.headphone-suggest.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+.headphone-suggest-btns{margin-top:10px;display:flex;gap:8px;justify-content:center;}
+.headphone-suggest-btns button{padding:6px 18px;border-radius:8px;border:1px solid var(--border);
+  background:var(--surface);color:var(--text);cursor:pointer;font-size:13px;}
+.headphone-suggest-btns .hs-yes{background:var(--accent);color:#fff;border-color:var(--accent);}
 .error-overlay{display:none;position:fixed;inset:0;background:rgba(9,8,15,0.92);
   z-index:100;align-items:center;justify-content:center;flex-direction:column;
   gap:16px;text-align:center;padding:24px;}
@@ -103,6 +112,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   <div class="divider"></div>
   <div class="card-label" style="padding:0 4px;">Історія</div>
   <div class="history" id="histDiv"></div>
+</div>
+
+<div class="headphone-suggest" id="headphoneSuggest">
+  <div id="headphoneSuggestMsg">🎧 Виявлено навушники. Надіслати звук у навушники, а мікрофон залишити на телефоні?</div>
+  <div class="headphone-suggest-btns">
+    <button class="hs-yes" onclick="_applyHeadphoneSuggest()">Так</button>
+    <button onclick="_dismissHeadphoneSuggest()">Ні</button>
+  </div>
 </div>
 
 <div class="error-overlay" id="errorOverlay">
@@ -183,6 +200,8 @@ async function _applySinkId() {
     return;
   }
   await populateMic();
+  _knownSpeakerIds = new Set((await navigator.mediaDevices.enumerateDevices())
+    .filter(d => d.kind === 'audiooutput').map(d => d.deviceId));
   await populateSpk();
   connectWS();
 })();
@@ -346,6 +365,84 @@ document.addEventListener('click',()=>{
   _audioPlayer.src='data:audio/mpeg;base64,/+MYxAAAAANIAAAAAExBTUUzLjk4LjIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
   _audioPlayer.play().catch(()=>{});
 },{once:true});
+
+// ======== HEADPHONE AUTO-DETECT ========
+let _knownSpeakerIds = new Set();
+let _headphonePending = { spkId:'', micId:'' };
+let _headphoneTimer = null;
+
+async function _findBuiltInMicId() {
+  try {
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const mics = devs.filter(d => d.kind === 'audioinput');
+    const rank = s => {
+      const x = (s||'').toLowerCase();
+      if (!x) return 0;
+      if (/(bluetooth|headset|headphone|buds|airpods|hands-free|handsfree|wireless|usb)/.test(x)) return -10;
+      if (/(built-?in|internal|phone|handset|default)/.test(x)) return 5;
+      return 1;
+    };
+    mics.sort((a,b)=>rank(b.label)-rank(a.label));
+    const best = mics.find(m=>rank(m.label)>1);
+    return best?.deviceId||'';
+  } catch { return ''; }
+}
+
+function _showHeadphoneSuggest(spkId, micId) {
+  const lastDismiss = parseInt(localStorage.getItem('vox_hp_dismissed_at') || '0');
+  if (Date.now() - lastDismiss < 30 * 60 * 1000) return;
+  _headphonePending = { spkId, micId };
+  const el = document.getElementById('headphoneSuggest');
+  if (!el) return;
+  el.classList.add('show');
+  clearTimeout(_headphoneTimer);
+  _headphoneTimer = setTimeout(_dismissHeadphoneSuggest, 15000);
+}
+
+function _dismissHeadphoneSuggest() {
+  clearTimeout(_headphoneTimer);
+  if (_headphonePending.spkId) {
+    localStorage.setItem('vox_hp_dismissed_at', Date.now().toString());
+  }
+  _headphonePending = { spkId:'', micId:'' };
+  const el = document.getElementById('headphoneSuggest');
+  if (el) el.classList.remove('show');
+}
+
+async function _applyHeadphoneSuggest() {
+  const { spkId, micId } = _headphonePending;
+  _dismissHeadphoneSuggest();
+  if (spkId) {
+    onSpkChange(spkId);
+    const s=document.getElementById('spkSelect'); if(s) s.value=spkId;
+    if (_audioPlayer.setSinkId) try { await _audioPlayer.setSinkId(spkId); } catch(_){}
+  }
+  if (micId) {
+    onMicChange(micId);
+    const s=document.getElementById('micSelect'); if(s) s.value=micId;
+    if (listening) { toggle(); setTimeout(() => toggle(), 200); }
+  }
+}
+
+navigator.mediaDevices.addEventListener('devicechange', async () => {
+  await populateMic();
+  await populateSpk();
+  if (!HTMLMediaElement.prototype.setSinkId) return;
+  try {
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const speakers = devs.filter(d=>d.kind==='audiooutput');
+    const _HP_RE = /headphone|airpod|bluetooth|buds|headset|wireless|sco|hands-?free|earpod|earbud|gaming|beats/i;
+    const newSpk = speakers.find(d =>
+      !_knownSpeakerIds.has(d.deviceId) &&
+      (_HP_RE.test(d.label || '') || !d.label)
+    );
+    _knownSpeakerIds = new Set(speakers.map(d=>d.deviceId));
+    if (newSpk) {
+      const micId = await _findBuiltInMicId();
+      if (micId) _showHeadphoneSuggest(newSpk.deviceId, micId);
+    }
+  } catch(e) { console.warn('headphone detect:', e); }
+});
 </script>
 </body>
 </html>

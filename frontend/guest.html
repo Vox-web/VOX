@@ -286,6 +286,21 @@
             .top-nav-btn span.nav-label { display: none; }
             .top-nav-btn { padding: 6px 9px; }
         }
+        /* Headphone auto-detect banner */
+        .headphone-suggest {
+            position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px);
+            background: var(--surface); border: 1px solid var(--accent); color: var(--text);
+            font-size: 13px; font-weight: 500; padding: 12px 16px; border-radius: 14px;
+            z-index: 2001; box-shadow: 0 8px 24px rgba(0,0,0,.15);
+            opacity: 0; transition: all 0.3s; pointer-events: none; max-width: 300px; text-align: center;
+        }
+        .headphone-suggest.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+        .headphone-suggest-btns { margin-top: 10px; display: flex; gap: 8px; justify-content: center; }
+        .headphone-suggest-btns button {
+            padding: 6px 18px; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px;
+        }
+        .headphone-suggest-btns .hs-yes { background: var(--accent); color: #fff; border-color: var(--accent); }
     </style>
 </head>
 <body>
@@ -420,6 +435,15 @@
         </div>
     </div>
 
+    <!-- Headphone auto-detect banner -->
+    <div class="headphone-suggest" id="headphoneSuggest">
+        <div id="headphoneSuggestMsg"></div>
+        <div class="headphone-suggest-btns">
+            <button class="hs-yes" onclick="_applyHeadphoneSuggest()"><span id="headphoneSuggestYes">Yes</span></button>
+            <button onclick="_dismissHeadphoneSuggest()"><span id="headphoneSuggestNo">No</span></button>
+        </div>
+    </div>
+
     <!-- Overlays -->
     <div class="overlay" id="overlayMuted">
         <h2>🔇</h2>
@@ -470,6 +494,7 @@
             closedMsg: 'The room has been closed',
             micLabel: '🎤 Microphone:', micDefault: 'Default', micUnknown: 'Microphone',
             speakerLabel: '🔊 Headphones:', speakerDefault: 'System default', speakerRefreshTitle: 'Refresh list', speakerUnknown: 'Output', speakerNoSupport: 'Output device selection is not supported by this browser',
+            headphonesMsg: '🎧 Headphones detected. Route audio to headphones, keep mic on phone?', headphonesYes: 'Yes', headphonesNo: 'No',
             deniedMsg: 'Your request was denied',
             recording: 'Recording',
             speaking: 'is speaking...',
@@ -491,6 +516,7 @@
             closedMsg: 'Кімнату закрито',
             micLabel: '🎤 Мікрофон:', micDefault: 'За замовчуванням', micUnknown: 'Мікрофон',
             speakerLabel: '🔊 Навушники:', speakerDefault: 'За замовчуванням', speakerRefreshTitle: 'Оновити список', speakerUnknown: 'Вивід', speakerNoSupport: 'Вибір пристрою виводу не підтримується цим браузером',
+            headphonesMsg: '🎧 Виявлено навушники. Надіслати звук у навушники, а мікрофон залишити на телефоні?', headphonesYes: 'Так', headphonesNo: 'Ні',
             deniedMsg: 'Ваш запит відхилено',
             recording: 'Записую',
             speaking: 'говорить...',
@@ -512,6 +538,7 @@
             closedMsg: 'Der Raum wurde geschlossen',
             micLabel: '🎤 Mikrofon:', micDefault: 'Standard', micUnknown: 'Mikrofon',
             speakerLabel: '🔊 Kopfhörer:', speakerDefault: 'Systemstandard', speakerRefreshTitle: 'Liste aktualisieren', speakerUnknown: 'Ausgabe', speakerNoSupport: 'Ausgabegerät-Auswahl wird von diesem Browser nicht unterstützt',
+            headphonesMsg: '🎧 Kopfhörer erkannt. Audio zu Kopfhörern, Mikrofon beim Telefon lassen?', headphonesYes: 'Ja', headphonesNo: 'Nein',
             deniedMsg: 'Ihre Anfrage wurde abgelehnt',
             recording: 'Aufnahme',
             speaking: 'spricht...',
@@ -1908,10 +1935,97 @@
 
     function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 
+    // ======== HEADPHONE AUTO-DETECT ========
+    let _knownSpeakerIds = new Set();
+    let _headphoneSuggestPending = { spkId: '', micId: '' };
+    let _headphoneSuggestTimer = null;
+
+    async function _findBuiltInMicId() {
+        try {
+            const devs = await navigator.mediaDevices.enumerateDevices();
+            const mics = devs.filter(d => d.kind === 'audioinput');
+            const rank = s => {
+                const x = (s || '').toLowerCase();
+                if (!x) return 0;
+                if (/(bluetooth|headset|headphone|buds|airpods|hands-free|handsfree|wireless|usb)/.test(x)) return -10;
+                if (/(built-?in|internal|phone|handset|default)/.test(x)) return 5;
+                return 1;
+            };
+            mics.sort((a, b) => rank(b.label) - rank(a.label));
+            const best = mics.find(m => rank(m.label) > 1);
+            return best?.deviceId || '';
+        } catch { return ''; }
+    }
+
+    function _showHeadphoneSuggest(spkId, micId) {
+        const lastDismiss = parseInt(localStorage.getItem('vox_hp_dismissed_at') || '0');
+        if (Date.now() - lastDismiss < 30 * 60 * 1000) return;
+        _headphoneSuggestPending = { spkId, micId };
+        const el = document.getElementById('headphoneSuggest');
+        const msgEl = document.getElementById('headphoneSuggestMsg');
+        if (!el || !msgEl) return;
+        msgEl.textContent = t('headphonesMsg');
+        const yesEl = document.getElementById('headphoneSuggestYes');
+        const noEl = document.getElementById('headphoneSuggestNo');
+        if (yesEl) yesEl.textContent = t('headphonesYes');
+        if (noEl) noEl.textContent = t('headphonesNo');
+        el.classList.add('show');
+        clearTimeout(_headphoneSuggestTimer);
+        _headphoneSuggestTimer = setTimeout(_dismissHeadphoneSuggest, 15000);
+    }
+
+    function _dismissHeadphoneSuggest() {
+        clearTimeout(_headphoneSuggestTimer);
+        if (_headphoneSuggestPending.spkId) {
+            localStorage.setItem('vox_hp_dismissed_at', Date.now().toString());
+        }
+        _headphoneSuggestPending = { spkId: '', micId: '' };
+        const el = document.getElementById('headphoneSuggest');
+        if (el) el.classList.remove('show');
+    }
+
+    async function _applyHeadphoneSuggest() {
+        const { spkId, micId } = _headphoneSuggestPending;
+        _dismissHeadphoneSuggest();
+        if (spkId) {
+            onSpeakerDeviceChange(spkId);
+            const sel = document.getElementById('speakerDeviceSelect');
+            if (sel) sel.value = spkId;
+        }
+        if (micId) {
+            onGuestMicDeviceChange(micId);
+            const sel = document.getElementById('guestMicDeviceSelect');
+            if (sel) sel.value = micId;
+        }
+    }
+
     // Init i18n
     applyI18n();
     populateSpeakerDevices();
-    populateGuestMicDevices();
+    populateGuestMicDevices().then(() => {
+        navigator.mediaDevices.enumerateDevices().then(devs => {
+            _knownSpeakerIds = new Set(devs.filter(d => d.kind === 'audiooutput').map(d => d.deviceId));
+        });
+    });
+    navigator.mediaDevices.addEventListener('devicechange', async () => {
+        await populateGuestMicDevices();
+        await populateSpeakerDevices();
+        if (!_speakerSupported()) return;
+        try {
+            const devs = await navigator.mediaDevices.enumerateDevices();
+            const speakers = devs.filter(d => d.kind === 'audiooutput');
+            const _HP_RE = /headphone|airpod|bluetooth|buds|headset|wireless|sco|hands-?free|earpod|earbud|gaming|beats/i;
+            const newSpk = speakers.find(d =>
+                !_knownSpeakerIds.has(d.deviceId) &&
+                (_HP_RE.test(d.label || '') || !d.label)
+            );
+            _knownSpeakerIds = new Set(speakers.map(d => d.deviceId));
+            if (newSpk) {
+                const micId = await _findBuiltInMicId();
+                if (micId) _showHeadphoneSuggest(newSpk.deviceId, micId);
+            }
+        } catch(e) { console.warn('headphone detect:', e); }
+    });
     // Один глобальный listener — не дублируется при реконнектах
     window.addEventListener('online', () => {
         if (guestId && !_wasKicked && (!ws || ws.readyState === WebSocket.CLOSED)) connectGuestWS();
