@@ -966,6 +966,11 @@
                 <div class="card-label i18n" id="duoQrLabel">Покажіть QR партнеру</div>
                 <img id="duoQrImg" src="" alt="QR" style="width:160px;height:160px;margin:8px auto;display:block;">
                 <div class="room-code" id="duoCode"></div>
+                <div class="room-url" id="duoGuestUrl"></div>
+                <div class="room-share-row">
+                    <button class="room-share-btn" id="btnDuoCopyUrl" onclick="copyDuoUrl()">📋 <span id="duoCopyUrlLabel">Копіювати</span></button>
+                    <button class="room-share-btn" id="btnDuoShareUrl" onclick="shareDuoUrl()">↗ <span id="duoShareUrlLabel">Поділитися</span></button>
+                </div>
                 <div id="duoGuestStatus" style="font-size:12px;color:var(--text2);text-align:center;margin-top:4px;">⏳ Очікуємо партнера...</div>
             </div>
             <!-- Mic/speaker selector for remote -->
@@ -1340,6 +1345,10 @@
             const sh = document.getElementById('shareUrlLabel');
             if(cp) cp.textContent = t('btnCopy');
             if(sh) sh.textContent = t('btnShare');
+            const duoCp = document.getElementById('duoCopyUrlLabel');
+            const duoSh = document.getElementById('duoShareUrlLabel');
+            if(duoCp) duoCp.textContent = t('btnCopy');
+            if(duoSh) duoSh.textContent = t('btnShare');
             const topupTitleEl = document.getElementById('topupTitle');
             const topupBalLabelEl = document.getElementById('topupBalLabel');
             const topupCloseEl = document.getElementById('topupClose');
@@ -1961,6 +1970,7 @@
         sessionStorage.removeItem('vox_hist_room_full');
         sessionStorage.removeItem('vox_hist_duo');
         sessionStorage.removeItem('vox_hist_duo_full');
+        if (_duoId) fetch(`/duo/${_duoId}`, { method: 'DELETE', keepalive: true }).catch(() => {});
     });
 
     document.getElementById('soloLangSelect').addEventListener('change', syncSoloConfig);
@@ -2161,6 +2171,7 @@
             showScreen('screenDuoRemote');
             if (d.qr_code) document.getElementById('duoQrImg').src = d.qr_code;
             document.getElementById('duoCode').textContent = d.duo_id;
+            document.getElementById('duoGuestUrl').textContent = `${location.origin}/duo/${d.duo_id}`;
             document.getElementById('duoRemoteBtn').disabled = true;
             document.getElementById('duoRemoteBtn').textContent = t('duoBtnStart');
             document.getElementById('duoGuestStatus').textContent = t('duoGuestWaiting');
@@ -2179,6 +2190,7 @@
             _duoRemoteWs.send(JSON.stringify({type: 'auth', token: _tok}));
             document.getElementById('duoRemoteStatusDot').className = 'status-dot connected';
             document.getElementById('duoRemoteStatusText').textContent = t('duoGuestWaiting');
+            document.getElementById('duoRemoteBtn').disabled = true;
             clearInterval(_duoRemotePingInterval);
             _duoRemotePingInterval = setInterval(() => {
                 if (_duoRemoteWs?.readyState === WebSocket.OPEN) _duoRemoteWs.send(JSON.stringify({type:'ping'}));
@@ -2237,6 +2249,9 @@
     function closeDuoRemote() {
         _duoRemoteListening = false;
         _duoRemoteMic?.stop(); _duoRemoteMic = null;
+        if (_duoId) {
+            fetch(`/duo/${_duoId}`, { method: 'DELETE' }).catch(() => {});
+        }
         _duoRemoteWs?.close(); _duoRemoteWs = null;
         _duoId = null; _duoMicPaused = false;
         // Stop dedicated duo audio player
@@ -2284,6 +2299,28 @@
             navigator.share({ title: 'VOX Room', url });
         } else {
             copyRoomUrl();
+        }
+    }
+
+    function copyDuoUrl() {
+        const url = document.getElementById('duoGuestUrl').textContent;
+        if (!url) return;
+        navigator.clipboard.writeText(url).then(() => {
+            const btn = document.getElementById('btnDuoCopyUrl');
+            const lbl = document.getElementById('duoCopyUrlLabel');
+            lbl.textContent = t('btnCopied');
+            btn.classList.add('copied');
+            setTimeout(() => { lbl.textContent = t('btnCopy'); btn.classList.remove('copied'); }, 2000);
+        });
+    }
+
+    function shareDuoUrl() {
+        const url = document.getElementById('duoGuestUrl').textContent;
+        if (!url) return;
+        if (navigator.share) {
+            navigator.share({ title: 'VOX Duo', url });
+        } else {
+            copyDuoUrl();
         }
     }
 

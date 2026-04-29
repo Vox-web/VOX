@@ -11,6 +11,7 @@ VOX — Real-Time AI Translation Platform
 import os
 import re
 import json
+import time
 import asyncio
 import logging
 from pathlib import Path
@@ -91,9 +92,27 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("⚠️ BUILD INFO log failed: %r", e)
 
+    async def _duo_ttl_cleanup():
+        while True:
+            await asyncio.sleep(120)
+            now = time.time()
+            for duo_id in list(_duo_sessions):
+                s = _duo_sessions.get(duo_id)
+                if not s:
+                    continue
+                both_gone = s.host_ws is None and s.guest_ws is None
+                host_away_long = s.host_disconnected_at and (now - s.host_disconnected_at) > 300
+                too_old = (now - s.created_at) > 3600
+                never_used = s.host_disconnected_at is None and (now - s.created_at) > 600
+                if both_gone and (host_away_long or too_old or never_used):
+                    _duo_sessions.pop(duo_id, None)
+                    logger.info(f"🧹 TTL: удалена мёртвая Duo-сессия {duo_id}")
+
+    app.state.duo_cleanup_task = asyncio.create_task(_duo_ttl_cleanup())
     logger.info("🟢 VOX сервер готов к работе!")
     yield
 
+    app.state.duo_cleanup_task.cancel()
     if room_manager:
         for room_id in list(room_manager.rooms.keys()):
             await room_manager.close_room(room_id)
@@ -549,6 +568,8 @@ class DuoSession:
         self.lang_b = lang_b
         self.host_ws: Optional[WebSocket] = None
         self.guest_ws: Optional[WebSocket] = None
+        self.created_at: float = time.time()
+        self.host_disconnected_at: Optional[float] = None
 
 _duo_sessions: dict[str, "DuoSession"] = {}
 
@@ -571,6 +592,18 @@ async def create_duo(body: dict):
     except Exception as e:
         logger.warning(f"Duo QR failed: {e}"); qr_b64 = ""
     return JSONResponse({"duo_id": duo_id, "qr_code": qr_b64, "guest_url": guest_url})
+
+
+@app.delete("/duo/{duo_id}")
+async def delete_duo(duo_id: str):
+    """Явное завершение сессии хостом. Уведомляет гостя и удаляет сессию."""
+    session = _duo_sessions.pop(duo_id, None)
+    if session and session.guest_ws:
+        try:
+            await session.guest_ws.send_json({"type": "host_left"})
+        except Exception:
+            pass
+    return JSONResponse({"ok": True})
 
 
 @app.get("/duo/{duo_id}")
@@ -970,6 +1003,7 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
         await ws.close(); return
 
     session.host_ws = ws
+    session.host_disconnected_at = None
     from billing_db import deduct_session_cost as _deduct
     _user_id = None
 
@@ -1000,6 +1034,11 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
 
     billing_task = asyncio.create_task(billing_tick())
     await ws.send_json({"type": "duo_ready", "lang_a": session.lang_a, "lang_b": session.lang_b})
+    if session.guest_ws is not None:
+        try:
+            await ws.send_json({"type": "guest_connected"})
+        except Exception:
+            pass
 
     dg = DeepgramTranscriber()
     await dg.start(language=session.lang_a, endpointing=1000, utterance_end_ms=2000, commit_mode="lazy")
@@ -1064,17 +1103,14 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
     finally:
         result_task.cancel(); billing_task.cancel()
         session.host_ws = None
+        session.host_disconnected_at = time.time()
         try:
             await result_task
         except (asyncio.CancelledError, Exception):
             pass
         await dg.stop()
-        if session.guest_ws:
-            try:
-                await session.guest_ws.send_json({"type": "host_left"})
-            except Exception:
-                pass
-        _duo_sessions.pop(duo_id, None)
+        # Сессию НЕ удаляем — даём окно для переподключения хоста.
+        # Гостю НЕ шлём host_left — временный обрыв, не явное завершение.
 
 
 # ===========================================================================
@@ -1193,6 +1229,9 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
                 await session.host_ws.send_json({"type": "guest_left"})
             except Exception:
                 pass
+        # Если хост тоже не подключён — сессия мертва, удаляем.
+        if session.host_ws is None:
+            _duo_sessions.pop(duo_id, None)
 
 # ===========================================================================
 # WebSocket: Solo режим (Phase 3 proxy: аудіо → Railway → Deepgram)
