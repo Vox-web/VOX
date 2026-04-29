@@ -91,16 +91,19 @@ class SoloSemanticBuffer:
             return False
 
         words = text.split()
-        if len(words) < 4:
+        # Повышен порог: короткая фраза с точкой не должна обходить gate
+        if len(words) < 8:
             return False
 
-        # Явно законченная реплика
-        if re.search(r'[.!?…]["»)\]]*\s*$', text):
+        has_terminal = bool(re.search(r'[.!?…]["»)\]]*\s*$', text))
+        strong_count = len(re.findall(r'[.!?…]["»)\]]*(?:\s+|$)', text))
+
+        # 3+ завершённых предложения — однозначно дозрело, независимо от прочего
+        if strong_count >= 3:
             return True
 
-        # Или уже накопилось хотя бы 2 законченных предложения
-        strong_count = len(re.findall(r'[.!?…]["»)\]]*(?:\s+|$)', text))
-        if strong_count >= 2:
+        # Конечный знак + 2+ предложений + достаточная длина
+        if has_terminal and strong_count >= 2 and len(words) >= 8:
             return True
 
         return False
@@ -188,6 +191,10 @@ class SoloSemanticBuffer:
 
     def _flush(self, source_lang: str, target_lang: str, force: bool) -> list[dict[str, str]]:
         full = self._normalize(" ".join(part for part in [self._carry, *self._parts] if part))
+        logger.info(
+            "🧠 SoloSemanticBuffer._flush: force=%s full_words=%d",
+            force, len(full.split()) if full else 0,
+        )
         self._parts = []
         # ВАЖНО: _opened_at НЕ сбрасываем безусловно. Если flush ничего не выпустил
         # (carry остался), таймер должен продолжать тикать от исходного момента,
@@ -211,23 +218,40 @@ class SoloSemanticBuffer:
                     self._carry_started_at = time.monotonic()
                 break
 
-            # На force gate не спрашиваем — переводим напрямую и эмитим.
-            # force=True означает: мысль уже дозрела (looks_complete_now)
-            # ИЛИ сработал аварийный клапан. В обоих случаях gate не нужен.
+            # При force всё равно прогоняем через gate — он может отполировать фразу.
+            # Но игнорируем emit_now=False: у нас таймаут или аварийный клапан,
+            # держать дольше нельзя. Ориентировочная стоимость: ~+150-300 токенов/force-flush.
             if force:
                 try:
-                    if source_lang == target_lang:
-                        spoken = self.translator.correct_asr(ready, source_lang)
-                    else:
-                        spoken = self.translator.translate(ready, source_lang, target_lang)
+                    gate = self._translate_ready(ready, source_lang, target_lang)
+                    if not gate.get("emit_now", False):
+                        # Gate хочет подождать, но мы не можем — берём его spoken_text
+                        # или падаем обратно на прямой перевод.
+                        polished = (gate.get("spoken_text") or "").strip()
+                        if not polished:
+                            if source_lang == target_lang:
+                                polished = self.translator.correct_asr(ready, source_lang)
+                            else:
+                                polished = self.translator.translate(ready, source_lang, target_lang)
+                        gate = {
+                            "emit_now": True,
+                            "spoken_text": polished,
+                            "reason": f"force_override:{gate.get('reason', 'hold')}",
+                        }
                 except Exception as e:
                     logger.warning("⚠️ force translate failed: %r", e)
-                    spoken = ready
-                gate = {
-                    "emit_now": True,
-                    "spoken_text": spoken,
-                    "reason": "force_bypass_gate",
-                }
+                    try:
+                        if source_lang == target_lang:
+                            spoken = self.translator.correct_asr(ready, source_lang)
+                        else:
+                            spoken = self.translator.translate(ready, source_lang, target_lang)
+                    except Exception:
+                        spoken = ready
+                    gate = {
+                        "emit_now": True,
+                        "spoken_text": spoken,
+                        "reason": "force_fallback_after_gate_error",
+                    }
             else:
                 gate = self._translate_ready(ready, source_lang, target_lang)
 

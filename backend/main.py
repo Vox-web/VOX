@@ -1249,8 +1249,8 @@ async def websocket_solo(ws: WebSocket):
     solo_translator = Translator(context_size=10)
     solo_buffer = SoloSemanticBuffer(
         translator=solo_translator,
-        flush_after_sec=5.0,
-        hard_flush_sec=8.0,
+        flush_after_sec=7.0,
+        hard_flush_sec=12.0,
         idle_reset_sec=30.0,
         min_ready_words=4,
         keep_tail_words=6,
@@ -1351,7 +1351,7 @@ async def websocket_solo(ws: WebSocket):
                     continue
 
                 if last_solo_seen_final_text and text.startswith(last_solo_seen_final_text):
-                    incremental_text = text[len(last_solo_seen_final_text):].strip(" ,.!?;:-–—")
+                    incremental_text = text[len(last_solo_seen_final_text):].lstrip()
                 else:
                     incremental_text = text
 
@@ -1370,11 +1370,29 @@ async def websocket_solo(ws: WebSocket):
                     target_lang,
                 )
 
+                # Если Deepgram сообщил, что фраза завершена (speech_final / UtteranceEnd) —
+                # дожимаем буфер немедленно, не ждём таймера flush_after_sec.
+                if result.commit_final:
+                    extra = await asyncio.to_thread(
+                        solo_buffer.flush_all,
+                        source_lang,
+                        target_lang,
+                    )
+                    if extra:
+                        packets = list(packets) + list(extra)
+                        logger.info(
+                            "🧠 [SOLO_SEMANTIC] commit_final → flush_all добавил %d пакетов",
+                            len(extra),
+                        )
+
                 logger.info(
-                    "🧠 [SOLO_SEMANTIC] final text=%r incremental=%r packets=%d src=%s tgt=%s commit=%s",
+                    "🧠 [SOLO_SEMANTIC] final text=%r incremental=%r packets=%d "
+                    "carry_words=%d parts=%d src=%s tgt=%s commit=%s",
                     text[:160],
                     incremental_text[:160],
                     len(packets),
+                    len(solo_buffer._carry.split()) if solo_buffer._carry else 0,
+                    len(solo_buffer._parts),
                     source_lang,
                     target_lang,
                     result.commit_final,
