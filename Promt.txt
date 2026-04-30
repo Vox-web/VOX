@@ -1,0 +1,498 @@
+# Промпт для Claude Code: улучшение семантической сборки речи в SOLO режиме VOX
+
+## 0. Контекст проекта
+
+VOX — это сервис live-перевода речи. Пользователь говорит → Deepgram стримит транскрипт → GPT-4o-mini переводит → edge-tts/OpenAI TTS озвучивает на целевом языке → слушатель слышит перевод.
+
+В проекте **три режима**:
+- **SOLO** — один спикер, перевод стримится одному или нескольким слушателям
+- **Duo** — двое говорят по очереди
+- **Room** — host говорит, гости слушают на разных языках
+
+**В этом задании трогаем ТОЛЬКО SOLO режим.** Duo и Room не трогаем — они работают через свою логику.
+
+### Структура проекта (что важно для задания)
+
+```
+main.py                  ← FastAPI, WS-эндпоинт /ws/solo (≈ строки 1237-1480)
+transcriber.py           ← обёртка над Deepgram, отдаёт TranscriptionResult с полями
+                            text, is_final, commit_final, language, confidence
+solo_semantic.py         ← SoloSemanticBuffer — копит ASR-куски, режет на готовые
+                            части и хвосты, вызывает translator с semantic gate
+translator.py            ← Translator с translate(), correct_asr() и
+                            translate_with_semantic_gate() — последний возвращает
+                            {"emit_now": bool, "spoken_text": str, "reason": str}
+tts_engine.py            ← синтез речи (edge-tts → OpenAI TTS fallback)
+solo.html                ← фронт SOLO режима (НЕ ТРОГАТЬ)
+```
+
+### Проблема, которую решаем
+
+Слушатель слышит **обрывочный, негармоничный перевод**: иногда обрывается на полуслове, иногда вставляются междометия не к месту, иногда озвучивается короткий кусок до того, как мысль закончена.
+
+Архитектура для решения этого **уже заложена** (см. ниже), но недостаточно строго применяется. Несколько мест в коде слишком агрессивно "обходят" семантический gate и шлют недозревшие куски в TTS. Их и затягиваем.
+
+---
+
+## 1. Как сейчас работает SOLO (важно понять, прежде чем менять)
+
+### Поток данных
+
+```
+Микрофон клиента (PCM) 
+    ↓ WebSocket /ws/solo (бинарные кадры)
+main.py: websocket_solo() → dg.send_audio(bytes)
+    ↓
+transcriber.py: DeepgramTranscriber → стримит к Deepgram → отдаёт результаты
+    ↓ через dg.results.get()
+main.py: handle_results() в /ws/solo
+    ↓ для каждого is_final куска: вычислить incremental_text 
+    ↓ и вызвать solo_buffer.push_and_maybe_flush(...)
+solo_semantic.py: SoloSemanticBuffer
+    ↓ копит куски, через 5 сек пытается отрезать "ready" от "carry"
+    ↓ ready → translator.translate_with_semantic_gate(...)
+translator.py: GPT-4o-mini
+    ↓ решает emit_now: true/false
+    ↓ если true — возвращает spoken_text (отполированный перевод)
+    ↓ если false — кусок остаётся в carry, ждёт следующего push
+main.py: получает packets, шлёт ws.send_json({"type":"translation",...})
+    ↓ если TTS включён — синтезирует и шлёт b"AUDIO:" + mp3_bytes
+```
+
+### Ключевые поля Deepgram-результата (см. `transcriber.py`, dataclass `TranscriptionResult`)
+
+- `is_final: bool` — Deepgram считает текущий сегмент финальным (включая таймер-flush на нашей стороне)
+- `commit_final: bool` — это **сильный** сигнал конца фразы: либо `speech_final` от Deepgram, либо `UtteranceEnd` (тишина после фразы), либо stop-flush. **Если True — мысль реально закончилась.** Если False, но `is_final=True` — это просто пауза.
+
+### Текущие "обходы" gate в `solo_semantic.py`
+
+Buffer вызывает `translator.translate_with_semantic_gate(...)` (т.е. реально просит GPT решить, отдавать или ждать) **только в одном случае**: когда `_flush(force=False)`.
+
+В трёх других случаях gate **полностью пропускается** — текст просто переводится через `translator.translate()` или `correct_asr()` и сразу эмитится:
+
+1. **`hard_flush_sec=8.0`** — если за 8 секунд не выпустили, force-flush без gate
+2. **`_looks_complete_now()`** — если в накопленном тексте есть `.!?…` в конце или 2+ предложений → force-flush без gate
+3. **`MAX_CARRY_WORDS=70` / `MAX_CARRY_AGE_SEC=20`** — аварийный клапан, force без gate
+
+Плюс в `main.py` на строке ~1354 при вычислении `incremental_text` **обрезается финальная пунктуация**: `.strip(" ,.!?;:-–—")`. Это вредит сразу всем эвристикам, потому что и `_looks_complete_now`, и сам gate смотрят на пунктуацию как на сигнал завершённости мысли.
+
+Плюс `commit_final` от Deepgram (реальный сигнал "вот сейчас точно конец фразы") **никак не используется** в SOLO. Все `is_final` обрабатываются одинаково.
+
+---
+
+## 2. Цели задания
+
+Сделать так, чтобы:
+
+1. Семантический gate (GPT) видел больше информации (пунктуация, контекст) и реально получал шанс работать.
+2. `commit_final` от Deepgram использовался как сильный сигнал "конец мысли — пора отдавать".
+3. Force-flush'ы (по таймеру, по эвристике, по overflow) **всё равно проходили через gate** для лёгкой полировки, а не уходили в эфир сырыми.
+4. Латентность увеличилась контролируемо — не больше +3-5 секунд в типичном случае.
+5. Поведение оставалось безопасным: ни одна мысль не должна потеряться или зависнуть навечно.
+
+**НЕ цели:**
+- Переписывать архитектуру SoloSemanticBuffer — она правильная.
+- Менять промпты в `translator.py` (`SYSTEM_PROMPT`, `ASR_CORRECTION_PROMPT`, `SEMANTIC_GATE_PROMPT`) — они работают.
+- Трогать Duo, Room, billing, frontend.
+
+---
+
+## 3. Задачи (в порядке выполнения)
+
+> ⚠️ **Важно:** делай задачи **по очереди**, не пакетом. После каждой задачи — проверь что код синтаксически валиден (компилируется), не сломал ничего в связанных файлах, и **зафиксируй коммит** или хотя бы отдельный логически законченный diff. Если в процессе нашёл что-то не описанное здесь, что явно противоречит цели задания — спроси, не делай молча.
+
+---
+
+### Задача 1. Убрать срез пунктуации в `incremental_text`
+
+**Файл:** `main.py`  
+**Функция:** `handle_results()` внутри `websocket_solo()` (≈ строка 1321)  
+**Строка:** ≈ 1354
+
+**Что есть сейчас:**
+
+```python
+if last_solo_seen_final_text and text.startswith(last_solo_seen_final_text):
+    incremental_text = text[len(last_solo_seen_final_text):].strip(" ,.!?;:-–—")
+else:
+    incremental_text = text
+```
+
+**Что надо сделать:**
+
+Убрать срез финальной пунктуации. Оставить только обычный `.strip()` (пробелы) — потому что ведущие пробелы реально надо снимать, а пунктуация — это **сигнал**, она нужна и gate'у, и эвристике `_looks_complete_now`.
+
+**Псевдокод:**
+
+```python
+if last_solo_seen_final_text and text.startswith(last_solo_seen_final_text):
+    incremental_text = text[len(last_solo_seen_final_text):].lstrip()
+else:
+    incremental_text = text
+```
+
+**Почему:** Если Deepgram прислал `"Я думаю это сработает."` — мы хотим, чтобы в buffer попало именно с точкой. Иначе `_looks_complete_now` не сработает, gate тоже получит фразу без интонационного сигнала, и всё будет хуже.
+
+**Тест:** в логах после изменения видно, что `incremental_text` содержит финальные точки/вопросительные знаки.
+
+---
+
+### Задача 2. Использовать `commit_final` как принудительный flush
+
+**Файл:** `main.py`  
+**Функция:** `handle_results()` внутри `websocket_solo()`  
+**Контекст:** ≈ строки 1346-1371
+
+**Что есть сейчас:**
+
+`is_final` и `commit_final` от Deepgram приходят, но в логике `solo_buffer` обрабатываются одинаково: всё что `is_final=True` → `push_and_maybe_flush(...)`. `commit_final` нигде не учитывается, кроме как для логирования.
+
+**Что надо сделать:**
+
+После обычного `push_and_maybe_flush(incremental_text, source_lang, target_lang)`, **если `result.commit_final == True`** — вызвать дополнительно `solo_buffer.flush_all(source_lang, target_lang)` и собрать получившиеся пакеты вместе с уже полученными.
+
+**Логика:**
+
+- `commit_final=True` означает "Deepgram уверен, что фраза закончилась". Это сильнее любого нашего таймера.
+- `flush_all` принудительно дожимает carry+parts через gate (gate всё равно вызовется, см. Задача 5 — но даже сейчас, в режиме `force=True`, он отдаст содержимое наружу).
+- Это не нарушает текущую семантику: `flush_all` уже существует и используется как "выгребай всё что есть".
+
+**Псевдокод:**
+
+```python
+packets = await asyncio.to_thread(
+    solo_buffer.push_and_maybe_flush,
+    incremental_text,
+    source_lang,
+    target_lang,
+)
+
+# Если Deepgram сказал, что фраза закончилась (speech_final / UtteranceEnd) —
+# дожать буфер до конца, не ждать таймера 5 секунд.
+if result.commit_final:
+    extra = await asyncio.to_thread(
+        solo_buffer.flush_all,
+        source_lang,
+        target_lang,
+    )
+    if extra:
+        packets = list(packets) + list(extra)
+        logger.info(
+            "🧠 [SOLO_SEMANTIC] commit_final → flush_all добавил %d пакетов",
+            len(extra),
+        )
+```
+
+**Почему:** Сейчас если человек закончил фразу и замолчал — мы всё равно ждём 5-8 секунд таймера, прежде чем отдать. С этим изменением — отдадим сразу, как только Deepgram скажет "фраза кончилась".
+
+**Тест:** говоришь короткую завершённую фразу ("Привет, как дела?") и замолкаешь. В логах видно `commit_final=True`, сразу после этого — `flush_all`, и перевод приходит **до того**, как истёк бы таймер 5 сек.
+
+---
+
+### Задача 3. Поднять таймеры в `SoloSemanticBuffer`
+
+**Файл:** `main.py`  
+**Место:** инициализация `solo_buffer` в `websocket_solo()` (≈ строки 1250-1257)
+
+**Что есть сейчас:**
+
+```python
+solo_buffer = SoloSemanticBuffer(
+    translator=solo_translator,
+    flush_after_sec=5.0,
+    hard_flush_sec=8.0,
+    idle_reset_sec=30.0,
+    min_ready_words=4,
+    keep_tail_words=6,
+)
+```
+
+**Что надо сделать:**
+
+```python
+solo_buffer = SoloSemanticBuffer(
+    translator=solo_translator,
+    flush_after_sec=7.0,        # было 5.0
+    hard_flush_sec=12.0,        # было 8.0
+    idle_reset_sec=30.0,
+    min_ready_words=4,
+    keep_tail_words=6,
+)
+```
+
+**Почему:** При сочетании с Задачей 2 (`commit_final` дожимает сразу) повышение таймеров **не увеличит латентность для законченных фраз** — они уйдут по `commit_final`. Но для длинных, тягучих, с паузами фраз даст gate'у больше времени дождаться смысловой границы.
+
+**Тест:** короткие фразы озвучиваются так же быстро как раньше (благодаря Задаче 2). Длинные — связнее, без обрывов.
+
+---
+
+### Задача 4. Ослабить эвристику `_looks_complete_now`
+
+**Файл:** `solo_semantic.py`  
+**Метод:** `SoloSemanticBuffer._looks_complete_now()` (≈ строки 87-106)
+
+**Что есть сейчас:**
+
+```python
+@classmethod
+def _looks_complete_now(cls, text: str) -> bool:
+    text = cls._normalize(text)
+    if not text:
+        return False
+
+    words = text.split()
+    if len(words) < 4:
+        return False
+
+    # Явно законченная реплика
+    if re.search(r'[.!?…]["»)\]]*\s*$', text):
+        return True
+
+    # Или уже накопилось хотя бы 2 законченных предложения
+    strong_count = len(re.findall(r'[.!?…]["»)\]]*(?:\s+|$)', text))
+    if strong_count >= 2:
+        return True
+
+    return False
+```
+
+**Проблема:** Deepgram со `smart_format=true` ставит точки довольно щедро. Фраза `"Я думаю."` с точкой посреди мысли (когда человек на самом деле сделал паузу и сейчас продолжит "...что нам надо это сделать") сейчас триггерит этот метод и заставляет force-flush в обход gate.
+
+**Что надо сделать:**
+
+Сделать эвристику строже: для срабатывания нужны **И** точка/восклицательный/вопросительный знак в конце, **И** минимум **8 слов** в накопленном тексте, **И** минимум **2 завершённых предложения**. Или альтернативно — просто 3 завершённых предложения без условия по длине.
+
+**Псевдокод:**
+
+```python
+@classmethod
+def _looks_complete_now(cls, text: str) -> bool:
+    text = cls._normalize(text)
+    if not text:
+        return False
+
+    words = text.split()
+    if len(words) < 8:
+        return False
+
+    has_terminal = bool(re.search(r'[.!?…]["»)\]]*\s*$', text))
+    strong_count = len(re.findall(r'[.!?…]["»)\]]*(?:\s+|$)', text))
+
+    # Очень длинная завершённая мысль: 3+ предложения — однозначно отдаём.
+    if strong_count >= 3:
+        return True
+
+    # Иначе — нужно И конечный знак, И минимум 2 законченных предложения,
+    # И достаточная длина. Это снижает ложные срабатывания на интонационные
+    # точки Deepgram посреди мысли.
+    if has_terminal and strong_count >= 2 and len(words) >= 8:
+        return True
+
+    return False
+```
+
+**Почему:** Это аварийный клапан. Раньше он стрелял слишком часто и обходил gate. Теперь — стреляет реже, и только когда мысль реально объёмная и завершённая.
+
+**Тест:** короткая фраза с точкой посреди ("Хм. И вот тогда я подумал...") **больше не** триггерит немедленный flush. А длинная завершённая ("Я считаю, что нам надо переехать. Это будет правильно. И вот почему.") — триггерит.
+
+---
+
+### Задача 5. В force-flush всё равно вызывать gate (опционально, см. ниже)
+
+**Файл:** `solo_semantic.py`  
+**Метод:** `SoloSemanticBuffer._flush()` (≈ строки 189-280)
+
+**Что есть сейчас:**
+
+```python
+if force:
+    try:
+        if source_lang == target_lang:
+            spoken = self.translator.correct_asr(ready, source_lang)
+        else:
+            spoken = self.translator.translate(ready, source_lang, target_lang)
+    except Exception as e:
+        logger.warning("⚠️ force translate failed: %r", e)
+        spoken = ready
+    gate = {
+        "emit_now": True,
+        "spoken_text": spoken,
+        "reason": "force_bypass_gate",
+    }
+else:
+    gate = self._translate_ready(ready, source_lang, target_lang)
+```
+
+**Что надо сделать:**
+
+Заменить безусловный bypass на "вызови gate, но если он сказал hold — всё равно эмить, потому что у нас тайм-аут или другой force-сигнал". То есть gate получает шанс **полировать** текст, но не получает права **держать** его дальше.
+
+**Псевдокод:**
+
+```python
+if force:
+    # При force всё равно прогоняем через gate — он может полирнуть фразу
+    # в красивую разговорную форму. Но игнорируем emit_now=False:
+    # у нас тайм-аут или другой аварийный сигнал, держать дальше нельзя.
+    try:
+        gate = self._translate_ready(ready, source_lang, target_lang)
+        if not gate.get("emit_now", False):
+            # gate хотел подержать ещё, но мы не можем. Берём spoken_text
+            # если есть, иначе — обычный перевод.
+            polished = (gate.get("spoken_text") or "").strip()
+            if not polished:
+                if source_lang == target_lang:
+                    polished = self.translator.correct_asr(ready, source_lang)
+                else:
+                    polished = self.translator.translate(ready, source_lang, target_lang)
+            gate = {
+                "emit_now": True,
+                "spoken_text": polished,
+                "reason": f"force_override:{gate.get('reason', 'hold')}",
+            }
+    except Exception as e:
+        logger.warning("⚠️ force translate failed: %r", e)
+        try:
+            if source_lang == target_lang:
+                spoken = self.translator.correct_asr(ready, source_lang)
+            else:
+                spoken = self.translator.translate(ready, source_lang, target_lang)
+        except Exception:
+            spoken = ready
+        gate = {
+            "emit_now": True,
+            "spoken_text": spoken,
+            "reason": "force_fallback_after_gate_error",
+        }
+else:
+    gate = self._translate_ready(ready, source_lang, target_lang)
+```
+
+**Почему:** Сейчас, когда срабатывает `hard_flush_sec` (тайм-аут 8/12 сек), мы шлём в TTS просто результат `translator.translate()` — без полировки. С этим изменением gate всё равно увидит фразу и сможет дополировать её до приличной разговорной формы (gate может вернуть `spoken_text` даже при `emit_now=False` — некоторые промпты так и делают, но даже если нет — мы fallback'немся на обычный translate).
+
+**Это самое спорное изменение из всех.** Оно стоит **+1 вызов GPT** на каждый force-flush. Если ты не хочешь сейчас платить эту цену — пропусти Задачу 5, остальные 4 уже дадут существенное улучшение.
+
+> Если решишь делать Задачу 5 — добавь в коммите комментарий "может стоить +N токенов на сессию" с грубой оценкой.
+
+---
+
+### Задача 6. Расширенное логирование (для дебага после деплоя)
+
+**Файлы:** `main.py`, `solo_semantic.py`
+
+**Что добавить:**
+
+В `main.py` в `handle_results()` уже есть лог `[SOLO_SEMANTIC] final text=...`. Добавь туда ещё одно поле — длину `solo_buffer._carry` и `len(solo_buffer._parts)` **после** вызова `push_and_maybe_flush`. Это позволит видеть насколько раздут buffer в моменте.
+
+```python
+logger.info(
+    "🧠 [SOLO_SEMANTIC] final text=%r incremental=%r packets=%d "
+    "carry_words=%d parts=%d src=%s tgt=%s commit=%s",
+    text[:160],
+    incremental_text[:160],
+    len(packets),
+    len(solo_buffer._carry.split()) if solo_buffer._carry else 0,
+    len(solo_buffer._parts),
+    source_lang,
+    target_lang,
+    result.commit_final,
+)
+```
+
+В `solo_semantic.py` в `_flush()` — добавь лог при входе с указанием `force` флага и длины входного `full`:
+
+```python
+logger.info(
+    "🧠 SoloSemanticBuffer._flush: force=%s full_words=%d",
+    force, len(full.split()) if full else 0,
+)
+```
+
+Это поможет тебе самому позже увидеть, как часто срабатывает force и какой объём он выгребает.
+
+---
+
+## 4. Что **НЕ** трогать
+
+- `Translator.SYSTEM_PROMPT`, `Translator.ASR_CORRECTION_PROMPT`, `Translator.SEMANTIC_GATE_PROMPT` — промпты не менять.
+- Сама структура `SoloSemanticBuffer` (методы, поля) — не реорганизовывать. Только точечные правки внутри `_flush()` и `_looks_complete_now()`.
+- `transcriber.py` — не менять (commit_final там уже есть, нужно просто использовать).
+- `tts_engine.py` — не менять.
+- WS-эндпоинты Duo, Room — не менять.
+- Frontend (`solo.html`, `host.html`, `guest.html`, `duo_guest.html`) — не менять.
+- Биллинг, аутентификация, БД — не менять.
+- Зависимости (`requirements.txt`) — не менять.
+
+---
+
+## 5. Стиль кода и коммиты
+
+- Комментарии и логи — **на русском**, в стиле существующего кода (см. как написано в `solo_semantic.py` и `main.py`).
+- Сохраняй существующие emoji в логах (🧠, 🚨, 🔌, 💸 и т.д.).
+- Не переформатируй код, который не трогаешь. Никаких массовых reformat'ов, isort, black.
+- Не добавляй новых зависимостей.
+- Не вводи новые типы / dataclasses, если можно обойтись существующими.
+
+---
+
+## 6. Критерии приёмки
+
+После всех изменений запусти проект (или хотя бы `python -c "import main"` чтобы убедиться что импорты валидны) и проверь:
+
+1. ✅ `main.py` импортируется без ошибок.
+2. ✅ `solo_semantic.py` импортируется без ошибок.
+3. ✅ `incremental_text` сохраняет финальную пунктуацию (логи).
+4. ✅ При `commit_final=True` в логе видно строку про `flush_all добавил N пакетов`.
+5. ✅ Таймеры `flush_after_sec=7.0`, `hard_flush_sec=12.0` в инициализации `solo_buffer`.
+6. ✅ `_looks_complete_now` теперь требует ≥8 слов и (≥3 предложений ИЛИ конечный знак + ≥2 предложений).
+7. ✅ (Если делал Задачу 5) В логах при force-flush видно `reason=force_override:...` или `reason=force_fallback_after_gate_error`.
+8. ✅ В логах появилось поле `carry_words=...` после `push_and_maybe_flush`.
+9. ✅ Никаких изменений в Duo, Room, billing, frontend.
+
+---
+
+## 7. Что делать в случае проблем
+
+- Если что-то в коде не сходится с описанием в этом промпте (например, номера строк сдвинулись, или функция выглядит иначе) — **доверяй коду, а не описанию**. Описание могло устареть. Найди логически правильное место для правки.
+- Если нашёл баг в коде, не относящийся к задаче — **не чини его в этом же коммите**. Отметь его отдельно в комментарии или сообщении и продолжай задачу.
+- Если задача 5 кажется тебе рискованной (например, может уронить latency или цену) — пропусти её и явно скажи "Задачу 5 пропустил, причина: ...". Лучше частичное правильное решение, чем полное сомнительное.
+- Если есть выбор между "минимальное вмешательство" и "красиво переписать" — выбирай минимальное вмешательство.
+
+---
+
+## 8. Финальный отчёт
+
+После всех правок дай короткий отчёт в формате:
+
+```
+ВЫПОЛНЕНО:
+- [x] Задача 1: убран срез пунктуации в main.py:1354
+- [x] Задача 2: commit_final → flush_all
+- [x] Задача 3: таймеры подняты до 7/12
+- [x] Задача 4: _looks_complete_now ужесточён
+- [ ] Задача 5: пропущена, причина: ...
+- [x] Задача 6: расширено логирование
+
+ИЗМЕНЁННЫЕ ФАЙЛЫ:
+- main.py (3 места)
+- solo_semantic.py (2 места)
+
+НЕ ТРОНУТО:
+- transcriber.py, translator.py, tts_engine.py, frontend, billing
+
+ТЕСТ:
+- python -c "import main, solo_semantic" → OK
+- (если запускал руками) — что слышал
+```
+
+---
+
+## 9. Краткое резюме идеи (TL;DR для самого Claude Code)
+
+В SOLO режиме перевод сейчас идёт обрывками, потому что:
+1. Срезается пунктуация → gate теряет сигнал → шлёт сырое
+2. Эвристика по точке слишком жадная → bypass gate → шлёт сырое
+3. `commit_final` от Deepgram игнорируется → ждём таймера зря
+4. Force-flush не использует gate → шлёт сырое
+
+Затягиваем все четыре винта + добавляем логи. Архитектуру не меняем. Промпты не меняем. Ничего кроме SOLO не трогаем.

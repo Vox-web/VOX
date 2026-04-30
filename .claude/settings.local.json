@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep -E \"\\\\.py$\")"
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(python -c \"import solo_semantic; print\\('solo_semantic OK'\\)\")",
+      "Bash(python -c \"import ast, sys; ast.parse\\(open\\('main.py'\\).read\\(\\)\\); print\\('main.py AST OK'\\)\")",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
