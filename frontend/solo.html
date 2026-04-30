@@ -437,12 +437,6 @@
             min-height: 24px;
             word-wrap: break-word;
         }
-        .card-text:empty::before {
-            content: attr(data-placeholder);
-            opacity: 0.45;
-            font-style: italic;
-            font-size: 14px;
-        }
         .card.translation {
             border-left: 3px solid #7c6aff;
         }
@@ -467,12 +461,10 @@
             height: 8px;
             background: var(--border-strong);
             border-radius: 2px;
-            opacity: 0.35;
-            transition: height 0.1s, background 0.1s, opacity 0.2s;
+            transition: height 0.1s, background 0.1s;
         }
         .vad-bar.active {
             background: #7c6aff;
-            opacity: 1;
         }
 
         /* --- История --- */
@@ -485,17 +477,6 @@
             scrollbar-width: thin;
             scrollbar-color: #333 transparent;
         }
-        .history:empty::before {
-            content: attr(data-placeholder);
-            display: block;
-            text-align: center;
-            padding: 24px 12px;
-            color: var(--text2);
-            font-size: 13px;
-            font-style: italic;
-            opacity: 0.7;
-        }
-        .history-actions:has(+ .history:empty) { display: none; }
         .history-item {
             background: var(--surface3);
             border-radius: 8px;
@@ -580,15 +561,6 @@
             .top-nav-btn span.nav-label { display: none; }
             .top-nav-btn { padding: 6px 9px; }
         }
-
-        /* === Focus mode (distraction-free recording) === */
-        .dim-on-record { transition: opacity 0.4s ease; }
-        body.is-recording .dim-on-record { opacity: 0.25; pointer-events: none; }
-        body.is-recording .mic-selector.dim-on-record,
-        body.is-recording .speaker-selector.dim-on-record,
-        body.is-recording .speaker-no-support.dim-on-record { pointer-events: auto; }
-        body.is-recording .dim-on-record:hover,
-        body.is-recording .dim-on-record:focus-within { opacity: 0.7; pointer-events: auto; }
     </style>
 </head>
 <body>
@@ -621,7 +593,7 @@
         </div>
 
         <!-- Выбор языков -->
-        <div class="lang-controls dim-on-record">
+        <div class="lang-controls">
             <div class="lang-pair">
                 <div class="lang-field">
                     <label class="i18n-fade" id="sourceLangLabel">Мова оригіналу:</label>
@@ -670,20 +642,20 @@
         </div>
 
         <!-- Вибір мікрофону -->
-        <div class="mic-selector dim-on-record">
+        <div class="mic-selector">
             <label id="micSelectorLabel">🎤</label>
             <select id="micDeviceSelect" onchange="onMicDeviceChange(this.value)"></select>
             <button class="mic-hint-btn" id="micHintBtn" onclick="toggleMicHint()" title="?">ⓘ</button>
             <button class="mic-refresh-btn" onclick="populateMicDevices()" title="Оновити список">↺</button>
         </div>
-        <div class="mic-hint-box dim-on-record" id="micHintBox"></div>
+        <div class="mic-hint-box" id="micHintBox"></div>
 
-        <div class="speaker-selector dim-on-record" id="speakerSelectorRow">
+        <div class="speaker-selector" id="speakerSelectorRow">
             <label id="speakerSelectorLabel">🔊</label>
             <select id="speakerDeviceSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
             <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Refresh">↺</button>
         </div>
-        <div class="speaker-no-support dim-on-record" id="speakerNoSupport"></div>
+        <div class="speaker-no-support" id="speakerNoSupport"></div>
 
         <!-- VAD індикатор -->
         <div class="vad-indicator" id="vadIndicator">
@@ -716,13 +688,13 @@
         <!-- Оригинал -->
         <div class="card original">
             <div class="card-label i18n-fade" id="labelOriginal">Оригінал</div>
-            <div class="card-text" id="originalText" data-placeholder="Натисніть СЛУХАТИ і почніть говорити"></div>
+            <div class="card-text" id="originalText">—</div>
         </div>
 
         <!-- Перевод -->
         <div class="card translation">
             <div class="card-label i18n-fade" id="labelTranslation">Переклад</div>
-            <div class="card-text" id="translationText" data-placeholder="Тут з'явиться переклад"></div>
+            <div class="card-text" id="translationText">—</div>
         </div>
 
         <div class="divider"></div>
@@ -732,7 +704,7 @@
         <div class="history-actions">
             <button class="history-btn i18n-fade" id="downloadPdfBtn" type="button" onclick="downloadHistoryPdf()">Завантажити PDF</button>
         </div>
-        <div class="history" id="history" data-placeholder="Історія порожня — почніть розмову"></div>
+        <div class="history" id="history"></div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
@@ -788,9 +760,6 @@
             hybridWarn:         '⚠️ Вбудований мік не знайдено',
             micHint:            '💡 «За замовчуванням» — браузер вибирає мікрофон сам. Якщо підключена гарнітура і хочете записувати зовнішній звук — виберіть «За замовчуванням» і вимкніть мікрофон гарнітури фізично. Вбудований мікрофон телефону краще чує дальні джерела звуку.',
             langTooltip:        (lang, conf) => `Мова: ${lang} (${conf}%)`,
-            phOrig: 'Натисніть СЛУХАТИ і почніть говорити',
-            phTrans: 'Тут з\'явиться переклад',
-            histEmpty: 'Історія порожня — почніть розмову',
         },
         en: {
             statusDisconnected: 'Disconnected',
@@ -834,9 +803,6 @@
             hybridWarn:         '⚠️ Built-in mic not found',
             micHint:            '💡 "Default" lets the browser pick the microphone automatically. If you wear headphones and want to capture external sound — choose "Default" and physically disable the headset mic. The phone\'s built-in mic generally picks up distant sound sources better.',
             langTooltip:        (lang, conf) => `Language: ${lang} (${conf}%)`,
-            phOrig: 'Press LISTEN and start speaking',
-            phTrans: 'Translation will appear here',
-            histEmpty: 'History is empty — start a conversation',
         },
         de: {
             statusDisconnected: 'Nicht verbunden',
@@ -880,9 +846,6 @@
             hybridWarn:         '⚠️ Eingebautes Mikrofon nicht gefunden',
             micHint:            '💡 „Standard" lässt den Browser das Mikrofon automatisch wählen. Wenn Sie Kopfhörer tragen und externen Ton aufnehmen möchten — wählen Sie „Standard" und deaktivieren Sie das Headset-Mikrofon physisch. Das eingebaute Telefonmikrofon erfasst entfernte Tonquellen in der Regel besser.',
             langTooltip:        (lang, conf) => `Sprache: ${lang} (${conf}%)`,
-            phOrig: 'Drücken Sie HÖREN und beginnen Sie zu sprechen',
-            phTrans: 'Die Übersetzung erscheint hier',
-            histEmpty: 'Verlauf ist leer — beginnen Sie ein Gespräch',
         },
     };
 
@@ -964,12 +927,6 @@
             if (navR) navR.textContent = t('navReview');
             if (navC) navC.textContent = t('navCabinet');
             if (navB) navB.textContent = t('navBack');
-            const _ph1 = document.getElementById('originalText');
-            const _ph2 = document.getElementById('translationText');
-            if (_ph1) _ph1.setAttribute('data-placeholder', t('phOrig'));
-            if (_ph2) _ph2.setAttribute('data-placeholder', t('phTrans'));
-            const _hist = document.getElementById('history');
-            if (_hist) _hist.setAttribute('data-placeholder', t('histEmpty'));
 
             const micLbl = document.getElementById('micSelectorLabel');
             const micRefBtn = document.querySelector('.mic-refresh-btn');
@@ -1022,7 +979,6 @@
     let audioContext = null;
     let audioWorkletNode = null;
     let hpFilter = null;
-    let captureGainNode = null;
     let mediaStream = null;
 
     // --- DOM ---
@@ -1046,8 +1002,6 @@
     let currentAudioUrl = null;
     let isPlaying = false;
     let _micPausedForTts = false;
-    let _micSilentRestartTried = false;
-    const MIC_CAPTURE_GAIN = 32;
 
     // =====================================================================
     // WebSocket
@@ -1447,20 +1401,7 @@
                 }
             }
 
-            const track = mediaStream.getAudioTracks()[0] || null;
-            const settings = track?.getSettings ? track.getSettings() : {};
-            console.info('[VOX solo mic]', {
-                selected_device: _selectedMicId || 'default',
-                track_label: track?.label || '',
-                track_muted: !!track?.muted,
-                track_enabled: track ? track.enabled : null,
-                settings
-            });
-
             audioContext = new AudioContext({ sampleRate: 16000 });
-            if (audioContext.state === 'suspended') {
-                await audioContext.resume();
-            }
 
             const workletCode = `
                 class VoxProcessor extends AudioWorkletProcessor {
@@ -1498,54 +1439,22 @@
             // Wind-noise reduction: highpass filter cuts low-frequency rumble (<250 Hz)
             hpFilter = audioContext.createBiquadFilter();
             hpFilter.type = 'highpass'; hpFilter.frequency.value = 250; hpFilter.Q.value = 0.7;
-            captureGainNode = audioContext.createGain();
-            captureGainNode.gain.value = MIC_CAPTURE_GAIN;
             audioWorkletNode = new AudioWorkletNode(audioContext, 'vox-processor');
-            let chunksSeen = 0;
-            let silentChunksSeen = 0;
 
             audioWorkletNode.port.onmessage = (event) => {
-                chunksSeen += 1;
-                const chunk = new Float32Array(event.data);
-                let peak = 0;
-                for (let i = 0; i < chunk.length; i++) {
-                    const abs = Math.abs(chunk[i]);
-                    if (abs > peak) peak = abs;
-                }
-                if (peak < 0.00001) silentChunksSeen += 1;
-
-                if (
-                    !_micSilentRestartTried &&
-                    _selectedMicId &&
-                    chunksSeen >= 80 &&
-                    silentChunksSeen === chunksSeen &&
-                    isListening
-                ) {
-                    console.warn('[VOX solo mic] selected microphone is sending digital silence; retrying with default input');
-                    _micSilentRestartTried = true;
-                    _selectedMicId = '';
-                    localStorage.removeItem('vox_mic_id');
-                    const sel = document.getElementById('micDeviceSelect');
-                    if (sel) sel.value = '';
-                    stopMicrophone();
-                    setTimeout(() => { if (isListening && !isPlaying) startMicrophone(); }, 100);
-                    return;
-                }
-
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(event.data);
                 }
+                const chunk = new Float32Array(event.data);
                 animateVAD(chunk);
             };
 
             source.connect(hpFilter);
-            hpFilter.connect(captureGainNode);
-            captureGainNode.connect(audioWorkletNode);
+            hpFilter.connect(audioWorkletNode);
         } catch (e) {
             console.error('Microphone error:', e);
             setStatus('disconnected', 'mic_error');
             isListening = false;
-            document.body.classList.remove('is-recording');
             mainBtn.classList.remove('active');
             mainBtn.textContent = t('btnListen');
         }
@@ -1559,10 +1468,6 @@
         if (hpFilter) {
             hpFilter.disconnect();
             hpFilter = null;
-        }
-        if (captureGainNode) {
-            captureGainNode.disconnect();
-            captureGainNode = null;
         }
         if (audioContext) {
             audioContext.close();
@@ -1580,7 +1485,6 @@
     async function toggleListening() {
         if (isListening) {
             isListening = false;
-            document.body.classList.remove('is-recording');
             mainBtn.classList.remove('active');
             mainBtn.textContent = t('btnListen');
 
@@ -1603,7 +1507,6 @@
             mainBtn.classList.add('active');
             mainBtn.textContent = t('btnStop');
             setStatus('connected', 'connecting');
-            _micSilentRestartTried = false;
 
             connectWebSocket();
 
@@ -1614,7 +1517,6 @@
             }
 
             if (isListening) {
-                document.body.classList.add('is-recording');
                 setStatus('listening', 'listening');
             }
         }
@@ -1635,13 +1537,13 @@
             sum += chunk[i] * chunk[i];
         }
         const rms = Math.sqrt(sum / chunk.length);
-        const level = Math.min(rms * 80, 1.0);
+        const level = Math.min(rms * 10, 1.0);
 
         vadBars.forEach((bar, i) => {
             const barLevel = Math.random() * level;
             const height = 4 + barLevel * 22;
             bar.style.height = height + 'px';
-            bar.classList.toggle('active', level > 0.005);
+            bar.classList.toggle('active', level > 0.02);
         });
     }
 

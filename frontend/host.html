@@ -253,12 +253,6 @@
         .card.translation { border-left: 3px solid var(--accent); }
         .card.translation .card-text { color: var(--accent); font-size: 18px; }
         .card.original .card-text { color: var(--text2); }
-        .card-text:empty::before {
-            content: attr(data-placeholder);
-            opacity: 0.45;
-            font-style: italic;
-            font-size: 14px;
-        }
 
         .btn {
             padding: 12px 24px; border-radius: 10px; border: none;
@@ -307,28 +301,15 @@
         }
         .vad-bar {
             width: 3px; height: 6px; background: var(--border);
-            border-radius: 2px;
-            opacity: 0.35;
-            transition: height 0.1s, background 0.1s, opacity 0.2s;
+            border-radius: 2px; transition: height 0.1s, background 0.1s;
         }
-        .vad-bar.active { background: var(--accent); opacity: 1; }
+        .vad-bar.active { background: var(--accent); }
 
         .history {
             display: flex; flex-direction: column; gap: 6px;
             max-height: 240px; overflow-y: auto;
             scrollbar-width: thin; scrollbar-color: var(--border) transparent;
         }
-        .history:empty::before {
-            content: attr(data-placeholder);
-            display: block;
-            text-align: center;
-            padding: 24px 12px;
-            color: var(--text2);
-            font-size: 13px;
-            font-style: italic;
-            opacity: 0.7;
-        }
-        .history-pdf-wrap:has(+ .history:empty) { display: none; }
         .history-item { background: var(--surface2); border-radius: 8px; padding: 8px 10px; font-size: 12px; }
         .history-time { color: var(--text2); font-size: 11px; }
         .history-original { color: var(--text2); }
@@ -395,13 +376,9 @@
         }
         .pwa-btn.installed {
             border-style: solid;
-            border-color: var(--border);
-            color: var(--text2);
-            background: transparent;
-        }
-        .pwa-btn.installed:hover {
-            background: var(--surface2);
-            border-color: var(--border);
+            border-color: var(--green);
+            color: var(--green);
+            background: rgba(46,204,113,0.08);
         }
 
         .pwa-modal-overlay {
@@ -742,15 +719,6 @@
             .top-nav-btn span.nav-label { display: none; }
             .top-nav-btn { padding: 6px 9px; }
         }
-
-        /* === Focus mode (distraction-free recording) === */
-        .dim-on-record { transition: opacity 0.4s ease; }
-        body.is-recording .dim-on-record { opacity: 0.25; pointer-events: none; }
-        body.is-recording .mic-selector.dim-on-record,
-        body.is-recording .speaker-selector.dim-on-record,
-        body.is-recording .speaker-no-support.dim-on-record { pointer-events: auto; }
-        body.is-recording .dim-on-record:hover,
-        body.is-recording .dim-on-record:focus-within { opacity: 0.7; pointer-events: auto; }
     </style>
 </head>
 <body>
@@ -762,8 +730,8 @@
                 <span id="balanceAmount">$0.00</span>
                 <span class="bal-min" id="balanceMinutes">· ~0 хв</span>
             </button>
-            <a href="javascript:void(0)" onclick="window.open('/review?source=host&lang='+uiLang,'_blank')" class="top-nav-btn review-btn" id="navReviewBtn" title="Залишити відгук">⭐ <span class="nav-label" id="navReviewLabel">Відгук</span></a>
-            <a href="/cabinet" class="top-nav-btn" id="navCabinetBtn" title="Особистий кабінет">👤 <span class="nav-label" id="navCabinetLabel">Кабінет</span></a>
+            <a href="javascript:void(0)" onclick="window.open('/review?source=host&lang='+uiLang,'_blank')" class="top-nav-btn review-btn">⭐ <span class="nav-label" id="navReviewLabel">Відгук</span></a>
+            <a href="/cabinet" class="top-nav-btn">👤 <span class="nav-label" id="navCabinetLabel">Кабінет</span></a>
             <button class="theme-toggle-btn" id="themeToggleBtn" type="button" onclick="toggleTheme()" aria-label="Switch theme" title="Switch theme">🌙</button>
         </div>
     </nav>
@@ -848,7 +816,7 @@
                 <div class="status-dot" id="soloStatusDot"></div>
                 <span class="i18n" id="soloStatusText">Не підключено</span>
             </div>
-            <div class="lang-row dim-on-record">
+            <div class="lang-row">
                 <label class="i18n" id="soloSrcLangLabel">Ваша мова:</label>
                 <select id="soloSrcLangSelect">
                     <option value="auto">🌐 Auto</option>
@@ -869,7 +837,7 @@
                     <option value="hi">🇮🇳 हिन्दी</option>
                 </select>
             </div>
-            <div class="lang-row dim-on-record">
+            <div class="lang-row">
                 <label class="i18n" id="soloLangLabel">Мова перекладу:</label>
                 <select id="soloLangSelect">
                     <option value="uk" selected>🇺🇦 Українська</option>
@@ -889,25 +857,25 @@
                     <option value="hi">🇮🇳 हिन्दी</option>
                 </select>
             </div>
-            <div class="dim-on-record" style="display:flex;justify-content:center;margin-top:-4px;">
+            <div style="display:flex;justify-content:center;margin-top:-4px;">
                 <button class="room-share-btn i18n" id="soloSwapBtn" type="button" onclick="swapSoloLanguages()">⇄ Поміняти мови</button>
             </div>
 
             <!-- Вибір мікрофону -->
-            <div class="mic-selector dim-on-record">
+            <div class="mic-selector">
                 <label id="micSelectorLabel">🎤</label>
                 <select id="micDeviceSelect" onchange="onMicDeviceChange(this.value)"></select>
                 <button class="mic-hint-btn" id="micHintBtn" onclick="toggleMicHint()" title="?">ⓘ</button>
                 <button class="mic-refresh-btn" onclick="populateMicDevices()" title="Оновити список">↺</button>
             </div>
-            <div class="mic-hint-box dim-on-record" id="micHintBox"></div>
+            <div class="mic-hint-box" id="micHintBox"></div>
 
-            <div class="speaker-selector dim-on-record" id="speakerSelectorRow">
+            <div class="speaker-selector" id="speakerSelectorRow">
                 <label id="speakerSelectorLabel">🔊</label>
                 <select id="speakerDeviceSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
                 <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Refresh">↺</button>
             </div>
-            <div class="speaker-no-support dim-on-record" id="speakerNoSupport"></div>
+            <div class="speaker-no-support" id="speakerNoSupport"></div>
 
             <div class="vad-indicator" id="soloVad">
                 <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
@@ -924,18 +892,18 @@
             </button>
             <div class="card original">
                 <div class="card-label i18n" id="soloLabelOrig">Оригінал</div>
-                <div class="card-text" id="soloOriginal" data-placeholder="Натисніть СЛУХАТИ і почніть говорити"></div>
+                <div class="card-text" id="soloOriginal">—</div>
             </div>
             <div class="card translation">
                 <div class="card-label i18n" id="soloLabelTrans">Переклад</div>
-                <div class="card-text" id="soloTranslation" data-placeholder="Тут з'явиться переклад"></div>
+                <div class="card-text" id="soloTranslation">—</div>
             </div>
             <div class="divider"></div>
             <div class="card-label i18n" style="padding:0 4px;" id="soloLabelHist">Історія</div>
-            <div class="history-pdf-wrap" style="display:flex;justify-content:flex-end;padding:0 4px 8px;">
+            <div style="display:flex;justify-content:flex-end;padding:0 4px 8px;">
                 <button class="room-share-btn i18n" id="soloDownloadPdfBtn" type="button" onclick="downloadHistoryPdf('solo')">⬇ PDF</button>
             </div>
-            <div class="history" id="soloHistory" data-placeholder="Історія порожня — почніть розмову"></div>
+            <div class="history" id="soloHistory"></div>
         </div>
 
         <!-- SCREEN: DUO SETUP -->
@@ -1001,18 +969,18 @@
             <button class="solo-btn i18n" id="duoBtn" onclick="duoToggle()">СТАРТ</button>
             <div class="card original">
                 <div class="card-label i18n" id="duoLabelOrig">Оригінал</div>
-                <div class="card-text" id="duoOriginal" data-placeholder="Натисніть СЛУХАТИ і почніть говорити"></div>
+                <div class="card-text" id="duoOriginal">—</div>
             </div>
             <div class="card translation">
                 <div class="card-label i18n" id="duoLabelTrans">Переклад</div>
-                <div class="card-text" id="duoTranslation" data-placeholder="Тут з'явиться переклад"></div>
+                <div class="card-text" id="duoTranslation">—</div>
             </div>
             <div class="divider"></div>
             <div class="card-label i18n" style="padding:0 4px;" id="duoLabelHist">Історія</div>
-            <div class="history-pdf-wrap" style="display:flex;justify-content:flex-end;padding:0 4px 8px;">
+            <div style="display:flex;justify-content:flex-end;padding:0 4px 8px;">
                 <button class="room-share-btn i18n" id="duoDownloadPdfBtn" type="button" onclick="downloadHistoryPdf('duo')">⬇ PDF</button>
             </div>
-            <div class="history" id="duoHistory" data-placeholder="Історія порожня — почніть розмову"></div>
+            <div class="history" id="duoHistory"></div>
         </div>
 
         <!-- SCREEN: DUO REMOTE (HOST SIDE) -->
@@ -1033,17 +1001,17 @@
                 <div id="duoGuestStatus" style="font-size:12px;color:var(--text2);text-align:center;margin-top:4px;">⏳ Очікуємо партнера...</div>
             </div>
             <!-- Mic/speaker selector for remote -->
-            <div class="mic-selector dim-on-record" id="duoRemoteMicRow">
+            <div class="mic-selector" id="duoRemoteMicRow">
                 <label id="duoRemoteMicLabel">🎤</label>
                 <select id="duoRemoteMicSelect" onchange="onMicDeviceChange(this.value)"></select>
                 <button class="mic-refresh-btn" onclick="populateMicDevices()">↺</button>
             </div>
-            <div class="speaker-selector dim-on-record" id="duoRemoteSpkRow">
+            <div class="speaker-selector" id="duoRemoteSpkRow">
                 <label id="duoRemoteSpkLabel">🔊</label>
                 <select id="duoRemoteSpkSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
                 <button class="spk-refresh-btn" onclick="populateSpeakerDevices()">↺</button>
             </div>
-            <div class="speaker-no-support dim-on-record" id="duoRemoteSpkNoSup"></div>
+            <div class="speaker-no-support" id="duoRemoteSpkNoSup"></div>
             <div class="vad-indicator" id="duoRemoteVad">
                 <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
                 <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
@@ -1139,19 +1107,19 @@
                 </div>
             </div>
             <!-- Вибір мікрофону (Room) -->
-            <div class="mic-selector dim-on-record" id="roomMicSelectorRow">
+            <div class="mic-selector" id="roomMicSelectorRow">
                 <label id="roomMicSelectorLabel">🎤</label>
                 <select id="roomMicDeviceSelect" onchange="onMicDeviceChange(this.value)"></select>
                 <button class="mic-refresh-btn" onclick="populateMicDevices()" title="Оновити">↺</button>
             </div>
 
             <!-- Вибір динаміка (Room) -->
-            <div class="speaker-selector dim-on-record" id="roomSpeakerSelectorRow">
+            <div class="speaker-selector" id="roomSpeakerSelectorRow">
                 <label id="roomSpeakerSelectorLabel">🔊</label>
                 <select id="roomSpeakerDeviceSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
                 <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Оновити">↺</button>
             </div>
-            <div class="speaker-no-support dim-on-record" id="roomSpeakerNoSupport"></div>
+            <div class="speaker-no-support" id="roomSpeakerNoSupport"></div>
 
             <div class="card original">
                 <div class="card-label i18n" id="roomLabelOrig">Оригінал</div>
@@ -1238,11 +1206,6 @@
             warnCritical: '🔶 Критичний баланс {BAL}! Поповніть зараз{GUESTS}',
             warnZero: '🔴 Баланс вичерпано. Сесію зупинено.',
             warnGuests: ' · {N} уч.',
-            phOrig: 'Натисніть СЛУХАТИ і почніть говорити',
-            phTrans: 'Тут з\'явиться переклад',
-            histEmpty: 'Історія порожня — почніть розмову',
-            navReviewTitle: 'Залишити відгук',
-            navCabinetTitle: 'Особистий кабінет',
         },
         en: {
             subtitle: 'Real-time AI Translation',
@@ -1303,11 +1266,6 @@
             warnCritical: '🔶 Critical balance {BAL}! Top up now{GUESTS}',
             warnZero: '🔴 Balance exhausted. Session stopped.',
             warnGuests: ' · {N} participants',
-            phOrig: 'Press LISTEN and start speaking',
-            phTrans: 'Translation will appear here',
-            histEmpty: 'History is empty — start a conversation',
-            navReviewTitle: 'Leave a review',
-            navCabinetTitle: 'Personal cabinet',
         },
         de: {
             subtitle: 'KI-Übersetzung in Echtzeit',
@@ -1368,11 +1326,6 @@
             warnCritical: '🔶 Kritisches Guthaben {BAL}! Jetzt aufladen{GUESTS}',
             warnZero: '🔴 Guthaben aufgebraucht. Sitzung beendet.',
             warnGuests: ' · {N} Teiln.',
-            phOrig: 'Drücken Sie HÖREN und beginnen Sie zu sprechen',
-            phTrans: 'Die Übersetzung erscheint hier',
-            histEmpty: 'Verlauf ist leer — beginnen Sie ein Gespräch',
-            navReviewTitle: 'Bewertung abgeben',
-            navCabinetTitle: 'Persönliches Kabinett',
         },
     };
 
@@ -1418,19 +1371,6 @@
             const cab = document.getElementById('navCabinetLabel');
             if(r) r.textContent = I18N[uiLang].navReview;
             if(cab) cab.textContent = I18N[uiLang].navCabinet;
-            const rBtn = document.getElementById('navReviewBtn');
-            const cabBtn = document.getElementById('navCabinetBtn');
-            if(rBtn) rBtn.setAttribute('title', I18N[uiLang].navReviewTitle);
-            if(cabBtn) cabBtn.setAttribute('title', I18N[uiLang].navCabinetTitle);
-            const _ph1 = document.getElementById('soloOriginal');
-            const _ph2 = document.getElementById('soloTranslation');
-            const _ph3 = document.getElementById('duoOriginal');
-            const _ph4 = document.getElementById('duoTranslation');
-            if(_ph1) _ph1.setAttribute('data-placeholder', I18N[uiLang].phOrig);
-            if(_ph2) _ph2.setAttribute('data-placeholder', I18N[uiLang].phTrans);
-            if(_ph3) _ph3.setAttribute('data-placeholder', I18N[uiLang].phOrig);
-            if(_ph4) _ph4.setAttribute('data-placeholder', I18N[uiLang].phTrans);
-            document.querySelectorAll('#soloHistory, #duoHistory').forEach(el => el.setAttribute('data-placeholder', I18N[uiLang].histEmpty));
             const cp = document.getElementById('copyUrlLabel');
             const sh = document.getElementById('shareUrlLabel');
             if(cp) cp.textContent = t('btnCopy');
@@ -1543,7 +1483,6 @@
     const navStack = [];
 
     function showScreen(id) {
-        document.body.classList.remove('is-recording');
         navStack.push(curScreen);
         document.getElementById(curScreen).classList.remove('active');
         document.getElementById(id).classList.add('active');
@@ -1552,7 +1491,6 @@
     }
 
     function goBack() {
-        document.body.classList.remove('is-recording');
         if (curScreen === 'screenSolo') soloStop();
         if (curScreen === 'screenDuo') duoStop();
         if (curScreen === 'screenDuoRemote') closeDuoRemote();
@@ -1569,8 +1507,8 @@
     function _vad(vadEl, chunk) {
         const bars = vadEl.querySelectorAll('.vad-bar');
         let s = 0; for (let i = 0; i < chunk.length; i++) s += chunk[i]*chunk[i];
-        const lv = Math.min(Math.sqrt(s/chunk.length)*80, 1);
-        bars.forEach(b => { b.style.height = (4+Math.random()*lv*20)+'px'; b.classList.toggle('active', lv>0.005); });
+        const lv = Math.min(Math.sqrt(s/chunk.length)*10, 1);
+        bars.forEach(b => { b.style.height = (4+Math.random()*lv*20)+'px'; b.classList.toggle('active', lv>0.02); });
     }
     function _resetV(vadEl) { vadEl.querySelectorAll('.vad-bar').forEach(b => { b.style.height='6px'; b.classList.remove('active'); }); }
     function _esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
@@ -1685,31 +1623,17 @@
                 throw devErr;
             }
         }
-        const track = st.getAudioTracks()[0] || null;
-        const settings = track?.getSettings ? track.getSettings() : {};
-        console.info('[VOX mic]', {
-            processor: name,
-            selected_device: _selectedMicId || 'default',
-            track_label: track?.label || '',
-            track_muted: !!track?.muted,
-            track_enabled: track ? track.enabled : null,
-            settings
-        });
         const cx = new AudioContext({sampleRate:16000});
-        if (cx.state === 'suspended') {
-            await cx.resume();
-        }
         const code = `class ${name} extends AudioWorkletProcessor{constructor(){super();this.b=[];}process(i){const c=i[0]?.[0];if(!c)return true;this.b.push(...c);while(this.b.length>=2048){const ch=new Float32Array(this.b.splice(0,2048));this.port.postMessage(ch.buffer,[ch.buffer]);}return true;}}registerProcessor('${name}',${name});`;
         const bl = new Blob([code],{type:'application/javascript'}); const u = URL.createObjectURL(bl);
         await cx.audioWorklet.addModule(u); URL.revokeObjectURL(u);
         const src = cx.createMediaStreamSource(st);
         // Wind-noise reduction: highpass filter cuts low-frequency rumble (<250 Hz)
         const hp = cx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 250; hp.Q.value = 0.7;
-        const gain = cx.createGain(); gain.gain.value = 32;
         const nd = new AudioWorkletNode(cx, name);
         nd.port.onmessage = e => onChunk(e.data);
-        src.connect(hp); hp.connect(gain); gain.connect(nd); // nd НЕ подключается к cx.destination — иначе аудио-петля и баг маршрутизации на Android
-        return { stop(){ try{nd.disconnect();}catch(_){} try{gain.disconnect();}catch(_){} try{hp.disconnect();}catch(_){} try{src.disconnect();}catch(_){} try{cx.close();}catch(_){} st.getTracks().forEach(t=>t.stop()); } };
+        src.connect(hp); hp.connect(nd); // nd НЕ подключается к cx.destination — иначе аудио-петля и баг маршрутизации на Android
+        return { stop(){ try{nd.disconnect();}catch(_){} try{hp.disconnect();}catch(_){} try{src.disconnect();}catch(_){} try{cx.close();}catch(_){} st.getTracks().forEach(t=>t.stop()); } };
     }
 
     // =====================================================================
@@ -1909,7 +1833,6 @@
     async function soloToggle() {
         if (soloListening) return soloStop();
         soloListening = true;
-        document.body.classList.add('is-recording');
         document.getElementById('soloBtn').classList.add('active');
         document.getElementById('soloBtn').textContent = t('soloBtnStop');
         soloSetStatus('soloStatusConnecting');
@@ -1925,7 +1848,6 @@
 
     function soloStop() {
         soloListening = false;
-        document.body.classList.remove('is-recording');
         _emptyFinalCount = 0;
         _wsRetries = 0;
         soloStopFallback();
@@ -2217,7 +2139,6 @@
     async function duoToggle() {
         if (_duoListening) {
             _duoListening = false;
-            document.body.classList.remove('is-recording');
             document.getElementById('duoBtn').textContent = t('duoBtnStart');
             document.getElementById('duoBtn').classList.remove('active');
             document.getElementById('duoStatusText').textContent = t('soloStatusStopped');
@@ -2233,7 +2154,6 @@
         }
 
         _duoListening = true;
-        document.body.classList.add('is-recording');
         document.getElementById('duoBtn').textContent = t('duoBtnStop');
         document.getElementById('duoBtn').classList.add('active');
         document.getElementById('duoStatusText').textContent = t('duoStatusConnecting');
@@ -2244,7 +2164,6 @@
         } catch (e) {
             console.error('Duo mic err:', e);
             _duoListening = false;
-            document.body.classList.remove('is-recording');
             document.getElementById('duoBtn').textContent = t('duoBtnStart');
             document.getElementById('duoBtn').classList.remove('active');
             document.getElementById('duoStatusText').textContent = t('soloStatusMicError');
@@ -2256,7 +2175,6 @@
 
     function duoStop() {
         _duoListening = false; _duoRemoteListening = false;
-        document.body.classList.remove('is-recording');
         _duoMic?.stop(); _duoMic = null;
         clearInterval(_duoPingInterval); _duoPingInterval = null;
         _duoWs?.close(); _duoWs = null;
@@ -2345,28 +2263,21 @@
     async function duoRemoteToggle() {
         if (_duoRemoteListening) {
             _duoRemoteListening = false;
-            document.body.classList.remove('is-recording');
             document.getElementById('duoRemoteBtn').textContent = t('duoBtnStart');
             document.getElementById('duoRemoteStatusText').textContent = t('duoStatusReady');
             _duoRemoteMic?.stop(); _duoRemoteMic = null; _duoMicPaused = false;
         } else {
             _duoRemoteListening = true;
-            document.body.classList.add('is-recording');
             document.getElementById('duoRemoteBtn').textContent = t('duoBtnStop');
             document.getElementById('duoRemoteStatusText').textContent = t('duoStatusListening');
             try {
                 _duoRemoteMic = await _startDuoMic('VoxDR', _duoRemoteWs);
-            } catch(e) {
-                console.error('Duo remote mic err:', e);
-                _duoRemoteListening = false;
-                document.body.classList.remove('is-recording');
-            }
+            } catch(e) { console.error('Duo remote mic err:', e); }
         }
     }
 
     function closeDuoRemote() {
         _duoRemoteListening = false;
-        document.body.classList.remove('is-recording');
         _duoRemoteMic?.stop(); _duoRemoteMic = null;
         if (_duoId) {
             fetch(`/duo/${_duoId}`, { method: 'DELETE' }).catch(() => {});
@@ -2607,7 +2518,6 @@
     async function roomToggleMic() {
         if (roomMicActive) {
             roomMicObj?.stop(); roomMicObj = null; roomMicActive = false;
-            document.body.classList.remove('is-recording');
             document.getElementById('roomMicBtn').classList.remove('active');
             roomSetStatus('roomStatusMicOff'); _resetV(roomVadEl);
         } else {
@@ -2617,7 +2527,6 @@
                     _vad(roomVadEl, new Float32Array(buf));
                 });
                 roomMicActive = true;
-                document.body.classList.add('is-recording');
                 document.getElementById('roomMicBtn').classList.add('active');
                 roomSetStatus('roomStatusSpeaking');
             } catch(e) { console.error('Room mic err:',e); }
@@ -2629,7 +2538,6 @@
         if (!confirm(t('confirmClose'))) return;
         try { await fetch(`/room/${roomId}`,{method:'DELETE'}); } catch(e){}
         roomMicObj?.stop(); roomMicObj=null; roomMicActive=false;
-        document.body.classList.remove('is-recording');
         document.getElementById('roomMicBtn').classList.remove('active');
         clearInterval(_roomPingInterval); _roomPingInterval = null;
         roomWs?.close(); roomWs=null; roomId=null; participants={};

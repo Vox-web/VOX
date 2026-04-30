@@ -67,12 +67,6 @@
         .card-text {
             font-size: 15px; line-height: 1.5; min-height: 20px; word-wrap: break-word;
         }
-        .card-text:empty::before {
-            content: attr(data-placeholder);
-            opacity: 0.45;
-            font-style: italic;
-            font-size: 14px;
-        }
         .card.translation { border-left: 3px solid var(--accent); }
         .card.translation .card-text { color: var(--accent); font-size: 18px; }
         .card.original .card-text { color: var(--text2); }
@@ -148,11 +142,9 @@
         }
         .vad-bar {
             width: 3px; height: 8px; background: var(--border);
-            border-radius: 2px;
-            opacity: 0.35;
-            transition: height 0.1s, background 0.1s, opacity 0.2s;
+            border-radius: 2px; transition: height 0.1s, background 0.1s;
         }
-        .vad-bar.active { background: var(--accent); opacity: 1; }
+        .vad-bar.active { background: var(--accent); }
 
         /* Raise hand button */
         .hand-btn {
@@ -212,17 +204,6 @@
             max-height: 220px; overflow-y: auto;
             scrollbar-width: thin; scrollbar-color: var(--border) transparent;
         }
-        .history:empty::before {
-            content: attr(data-placeholder);
-            display: block;
-            text-align: center;
-            padding: 24px 12px;
-            color: var(--text2);
-            font-size: 13px;
-            font-style: italic;
-            opacity: 0.7;
-        }
-        .history-pdf-wrap:has(+ .history:empty) { display: none; }
         .history-item {
             background: var(--surface2); border-radius: 8px;
             padding: 8px 10px; font-size: 12px;
@@ -437,20 +418,20 @@
             <!-- Translation cards -->
             <div class="card original">
                 <div class="card-label" id="labelOrig">Original</div>
-                <div class="card-text" id="originalText" data-placeholder="Очікую початку розмови..."></div>
+                <div class="card-text" id="originalText">—</div>
             </div>
             <div class="card translation">
                 <div class="card-label" id="labelTrans">Translation</div>
-                <div class="card-text" id="translationText" data-placeholder="Тут з'явиться переклад"></div>
+                <div class="card-text" id="translationText">—</div>
             </div>
 
             <div class="divider"></div>
 
             <div class="card-label" style="padding:0 4px;" id="labelHist">History</div>
-            <div class="history-pdf-wrap" style="display:flex;justify-content:flex-end;padding:0 4px 8px;">
+            <div style="display:flex;justify-content:flex-end;padding:0 4px 8px;">
                 <button class="btn btn-ghost" id="downloadPdfBtn" type="button" onclick="downloadGuestHistoryPdf()" style="width:auto;">Download PDF</button>
             </div>
-            <div class="history" id="history" data-placeholder="Історія порожня"></div>
+            <div class="history" id="history"></div>
         </div>
     </div>
 
@@ -520,9 +501,6 @@
             hostSpeaking: 'Host is speaking...',
             downloadPdf: 'Download PDF', pdfTitleRoom: 'Translation history (Room)',
             pdfEmpty: 'History is empty', pdfOriginalLabel: 'Original', pdfTranslationLabel: 'Translation',
-            phOrig: 'Waiting for conversation to start...',
-            phTrans: 'Translation will appear here',
-            histEmpty: 'History is empty',
         },
         uk: {
             joinTitle: 'Приєднатися', langLabel: 'Ваша мова:', btnJoin: 'Увійти',
@@ -545,9 +523,6 @@
             hostSpeaking: 'Ведучий говорить...',
             downloadPdf: 'Завантажити PDF', pdfTitleRoom: 'Історія перекладу (Room)',
             pdfEmpty: 'Історія порожня', pdfOriginalLabel: 'Оригінал', pdfTranslationLabel: 'Переклад',
-            phOrig: 'Очікую початку розмови...',
-            phTrans: 'Тут з\'явиться переклад',
-            histEmpty: 'Історія порожня',
         },
         de: {
             joinTitle: 'Raum beitreten', langLabel: 'Ihre Sprache:', btnJoin: 'Beitreten',
@@ -570,9 +545,6 @@
             hostSpeaking: 'Moderator spricht...',
             downloadPdf: 'PDF herunterladen', pdfTitleRoom: 'Übersetzungsverlauf (Room)',
             pdfEmpty: 'Verlauf ist leer', pdfOriginalLabel: 'Original', pdfTranslationLabel: 'Übersetzung',
-            phOrig: 'Warte auf Beginn des Gesprächs...',
-            phTrans: 'Die Übersetzung erscheint hier',
-            histEmpty: 'Verlauf ist leer',
         },
         ru: {
             joinTitle: 'Присоединиться', langLabel: 'Ваш язык:', btnJoin: 'Войти',
@@ -884,12 +856,6 @@
         document.getElementById('closedMsg').textContent = t('closedMsg');
         const downloadPdfBtn = document.getElementById('downloadPdfBtn');
         if (downloadPdfBtn) downloadPdfBtn.textContent = t('downloadPdf');
-        const _ph1 = document.getElementById('originalText');
-        const _ph2 = document.getElementById('translationText');
-        if (_ph1) _ph1.setAttribute('data-placeholder', t('phOrig'));
-        if (_ph2) _ph2.setAttribute('data-placeholder', t('phTrans'));
-        const _hist = document.getElementById('history');
-        if (_hist) _hist.setAttribute('data-placeholder', t('histEmpty'));
         updateHandButton();
         const spkLbl = document.getElementById('speakerSelectorLabel');
         const spkRefBtn = document.querySelector('.spk-refresh-btn');
