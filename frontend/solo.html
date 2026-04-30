@@ -1022,6 +1022,7 @@
     let audioContext = null;
     let audioWorkletNode = null;
     let hpFilter = null;
+    let captureGainNode = null;
     let mediaStream = null;
 
     // --- DOM ---
@@ -1046,6 +1047,7 @@
     let isPlaying = false;
     let _micPausedForTts = false;
     let _micSilentRestartTried = false;
+    const MIC_CAPTURE_GAIN = 32;
 
     // =====================================================================
     // WebSocket
@@ -1496,6 +1498,8 @@
             // Wind-noise reduction: highpass filter cuts low-frequency rumble (<250 Hz)
             hpFilter = audioContext.createBiquadFilter();
             hpFilter.type = 'highpass'; hpFilter.frequency.value = 250; hpFilter.Q.value = 0.7;
+            captureGainNode = audioContext.createGain();
+            captureGainNode.gain.value = MIC_CAPTURE_GAIN;
             audioWorkletNode = new AudioWorkletNode(audioContext, 'vox-processor');
             let chunksSeen = 0;
             let silentChunksSeen = 0;
@@ -1535,7 +1539,8 @@
             };
 
             source.connect(hpFilter);
-            hpFilter.connect(audioWorkletNode);
+            hpFilter.connect(captureGainNode);
+            captureGainNode.connect(audioWorkletNode);
         } catch (e) {
             console.error('Microphone error:', e);
             setStatus('disconnected', 'mic_error');
@@ -1554,6 +1559,10 @@
         if (hpFilter) {
             hpFilter.disconnect();
             hpFilter = null;
+        }
+        if (captureGainNode) {
+            captureGainNode.disconnect();
+            captureGainNode = null;
         }
         if (audioContext) {
             audioContext.close();
@@ -1626,13 +1635,13 @@
             sum += chunk[i] * chunk[i];
         }
         const rms = Math.sqrt(sum / chunk.length);
-        const level = Math.min(rms * 10, 1.0);
+        const level = Math.min(rms * 80, 1.0);
 
         vadBars.forEach((bar, i) => {
             const barLevel = Math.random() * level;
             const height = 4 + barLevel * 22;
             bar.style.height = height + 'px';
-            bar.classList.toggle('active', level > 0.02);
+            bar.classList.toggle('active', level > 0.005);
         });
     }
 

@@ -328,19 +328,20 @@ async function startMic() {
   const src = cx.createMediaStreamSource(st);
   // Wind-noise reduction: highpass filter cuts low-frequency rumble (<250 Hz)
   const hp = cx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 250; hp.Q.value = 0.7;
+  const gain = cx.createGain(); gain.gain.value = 32;
   const nd = new AudioWorkletNode(cx,'VoxDG');
   nd.port.onmessage = ev => {
     if (ws?.readyState === WebSocket.OPEN) ws.send(ev.data);
     animateVAD(new Float32Array(ev.data));
   };
-  src.connect(hp); hp.connect(nd);
-  return {stop(){try{nd.disconnect();}catch(_){}try{hp.disconnect();}catch(_){}try{src.disconnect();}catch(_){}try{cx.close();}catch(_){}st.getTracks().forEach(t=>t.stop());}};
+  src.connect(hp); hp.connect(gain); gain.connect(nd);
+  return {stop(){try{nd.disconnect();}catch(_){}try{gain.disconnect();}catch(_){}try{hp.disconnect();}catch(_){}try{src.disconnect();}catch(_){}try{cx.close();}catch(_){}st.getTracks().forEach(t=>t.stop());}};
 }
 
 function animateVAD(chunk) {
   let s=0; for(let i=0;i<chunk.length;i++) s+=chunk[i]*chunk[i];
-  const lv = Math.min(Math.sqrt(s/chunk.length)*10,1);
-  vadBars.forEach(b=>{b.style.height=(4+Math.random()*lv*20)+'px';b.classList.toggle('active',lv>0.02);});
+  const lv = Math.min(Math.sqrt(s/chunk.length)*80,1);
+  vadBars.forEach(b=>{b.style.height=(4+Math.random()*lv*20)+'px';b.classList.toggle('active',lv>0.005);});
 }
 
 function addHistory(orig, trans) {
