@@ -584,6 +584,9 @@
         /* === Focus mode (distraction-free recording) === */
         .dim-on-record { transition: opacity 0.4s ease; }
         body.is-recording .dim-on-record { opacity: 0.25; pointer-events: none; }
+        body.is-recording .mic-selector.dim-on-record,
+        body.is-recording .speaker-selector.dim-on-record,
+        body.is-recording .speaker-no-support.dim-on-record { pointer-events: auto; }
         body.is-recording .dim-on-record:hover,
         body.is-recording .dim-on-record:focus-within { opacity: 0.7; pointer-events: auto; }
     </style>
@@ -1042,6 +1045,7 @@
     let currentAudioUrl = null;
     let isPlaying = false;
     let _micPausedForTts = false;
+    let _micSilentRestartTried = false;
 
     // =====================================================================
     // WebSocket
@@ -1441,7 +1445,20 @@
                 }
             }
 
+            const track = mediaStream.getAudioTracks()[0] || null;
+            const settings = track?.getSettings ? track.getSettings() : {};
+            console.info('[VOX solo mic]', {
+                selected_device: _selectedMicId || 'default',
+                track_label: track?.label || '',
+                track_muted: !!track?.muted,
+                track_enabled: track ? track.enabled : null,
+                settings
+            });
+
             audioContext = new AudioContext({ sampleRate: 16000 });
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
 
             const workletCode = `
                 class VoxProcessor extends AudioWorkletProcessor {
@@ -1480,12 +1497,40 @@
             hpFilter = audioContext.createBiquadFilter();
             hpFilter.type = 'highpass'; hpFilter.frequency.value = 250; hpFilter.Q.value = 0.7;
             audioWorkletNode = new AudioWorkletNode(audioContext, 'vox-processor');
+            let chunksSeen = 0;
+            let silentChunksSeen = 0;
 
             audioWorkletNode.port.onmessage = (event) => {
+                chunksSeen += 1;
+                const chunk = new Float32Array(event.data);
+                let peak = 0;
+                for (let i = 0; i < chunk.length; i++) {
+                    const abs = Math.abs(chunk[i]);
+                    if (abs > peak) peak = abs;
+                }
+                if (peak < 0.00001) silentChunksSeen += 1;
+
+                if (
+                    !_micSilentRestartTried &&
+                    _selectedMicId &&
+                    chunksSeen >= 80 &&
+                    silentChunksSeen === chunksSeen &&
+                    isListening
+                ) {
+                    console.warn('[VOX solo mic] selected microphone is sending digital silence; retrying with default input');
+                    _micSilentRestartTried = true;
+                    _selectedMicId = '';
+                    localStorage.removeItem('vox_mic_id');
+                    const sel = document.getElementById('micDeviceSelect');
+                    if (sel) sel.value = '';
+                    stopMicrophone();
+                    setTimeout(() => { if (isListening && !isPlaying) startMicrophone(); }, 100);
+                    return;
+                }
+
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(event.data);
                 }
-                const chunk = new Float32Array(event.data);
                 animateVAD(chunk);
             };
 
@@ -1495,6 +1540,7 @@
             console.error('Microphone error:', e);
             setStatus('disconnected', 'mic_error');
             isListening = false;
+            document.body.classList.remove('is-recording');
             mainBtn.classList.remove('active');
             mainBtn.textContent = t('btnListen');
         }
@@ -1545,10 +1591,10 @@
             resetVAD();
         } else {
             isListening = true;
-            document.body.classList.add('is-recording');
             mainBtn.classList.add('active');
             mainBtn.textContent = t('btnStop');
             setStatus('connected', 'connecting');
+            _micSilentRestartTried = false;
 
             connectWebSocket();
 
@@ -1559,6 +1605,7 @@
             }
 
             if (isListening) {
+                document.body.classList.add('is-recording');
                 setStatus('listening', 'listening');
             }
         }

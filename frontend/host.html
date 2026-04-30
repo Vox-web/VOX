@@ -746,6 +746,9 @@
         /* === Focus mode (distraction-free recording) === */
         .dim-on-record { transition: opacity 0.4s ease; }
         body.is-recording .dim-on-record { opacity: 0.25; pointer-events: none; }
+        body.is-recording .mic-selector.dim-on-record,
+        body.is-recording .speaker-selector.dim-on-record,
+        body.is-recording .speaker-no-support.dim-on-record { pointer-events: auto; }
         body.is-recording .dim-on-record:hover,
         body.is-recording .dim-on-record:focus-within { opacity: 0.7; pointer-events: auto; }
     </style>
@@ -1682,7 +1685,20 @@
                 throw devErr;
             }
         }
+        const track = st.getAudioTracks()[0] || null;
+        const settings = track?.getSettings ? track.getSettings() : {};
+        console.info('[VOX mic]', {
+            processor: name,
+            selected_device: _selectedMicId || 'default',
+            track_label: track?.label || '',
+            track_muted: !!track?.muted,
+            track_enabled: track ? track.enabled : null,
+            settings
+        });
         const cx = new AudioContext({sampleRate:16000});
+        if (cx.state === 'suspended') {
+            await cx.resume();
+        }
         const code = `class ${name} extends AudioWorkletProcessor{constructor(){super();this.b=[];}process(i){const c=i[0]?.[0];if(!c)return true;this.b.push(...c);while(this.b.length>=2048){const ch=new Float32Array(this.b.splice(0,2048));this.port.postMessage(ch.buffer,[ch.buffer]);}return true;}}registerProcessor('${name}',${name});`;
         const bl = new Blob([code],{type:'application/javascript'}); const u = URL.createObjectURL(bl);
         await cx.audioWorklet.addModule(u); URL.revokeObjectURL(u);
