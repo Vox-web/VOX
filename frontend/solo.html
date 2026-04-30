@@ -437,6 +437,12 @@
             min-height: 24px;
             word-wrap: break-word;
         }
+        .card-text:empty::before {
+            content: attr(data-placeholder);
+            opacity: 0.45;
+            font-style: italic;
+            font-size: 14px;
+        }
         .card.translation {
             border-left: 3px solid #7c6aff;
         }
@@ -461,10 +467,12 @@
             height: 8px;
             background: var(--border-strong);
             border-radius: 2px;
-            transition: height 0.1s, background 0.1s;
+            opacity: 0.35;
+            transition: height 0.1s, background 0.1s, opacity 0.2s;
         }
         .vad-bar.active {
             background: #7c6aff;
+            opacity: 1;
         }
 
         /* --- История --- */
@@ -477,6 +485,17 @@
             scrollbar-width: thin;
             scrollbar-color: #333 transparent;
         }
+        .history:empty::before {
+            content: attr(data-placeholder);
+            display: block;
+            text-align: center;
+            padding: 24px 12px;
+            color: var(--text2);
+            font-size: 13px;
+            font-style: italic;
+            opacity: 0.7;
+        }
+        .history-actions:has(+ .history:empty) { display: none; }
         .history-item {
             background: var(--surface3);
             border-radius: 8px;
@@ -688,13 +707,13 @@
         <!-- Оригинал -->
         <div class="card original">
             <div class="card-label i18n-fade" id="labelOriginal">Оригінал</div>
-            <div class="card-text" id="originalText">—</div>
+            <div class="card-text" id="originalText" data-placeholder="Натисніть СЛУХАТИ і почніть говорити"></div>
         </div>
 
         <!-- Перевод -->
         <div class="card translation">
             <div class="card-label i18n-fade" id="labelTranslation">Переклад</div>
-            <div class="card-text" id="translationText">—</div>
+            <div class="card-text" id="translationText" data-placeholder="Тут з'явиться переклад"></div>
         </div>
 
         <div class="divider"></div>
@@ -704,7 +723,7 @@
         <div class="history-actions">
             <button class="history-btn i18n-fade" id="downloadPdfBtn" type="button" onclick="downloadHistoryPdf()">Завантажити PDF</button>
         </div>
-        <div class="history" id="history"></div>
+        <div class="history" id="history" data-placeholder="Історія порожня — почніть розмову"></div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
@@ -760,6 +779,9 @@
             hybridWarn:         '⚠️ Вбудований мік не знайдено',
             micHint:            '💡 «За замовчуванням» — браузер вибирає мікрофон сам. Якщо підключена гарнітура і хочете записувати зовнішній звук — виберіть «За замовчуванням» і вимкніть мікрофон гарнітури фізично. Вбудований мікрофон телефону краще чує дальні джерела звуку.',
             langTooltip:        (lang, conf) => `Мова: ${lang} (${conf}%)`,
+            phOrig: 'Натисніть СЛУХАТИ і почніть говорити',
+            phTrans: 'Тут з\'явиться переклад',
+            histEmpty: 'Історія порожня — почніть розмову',
         },
         en: {
             statusDisconnected: 'Disconnected',
@@ -803,6 +825,9 @@
             hybridWarn:         '⚠️ Built-in mic not found',
             micHint:            '💡 "Default" lets the browser pick the microphone automatically. If you wear headphones and want to capture external sound — choose "Default" and physically disable the headset mic. The phone\'s built-in mic generally picks up distant sound sources better.',
             langTooltip:        (lang, conf) => `Language: ${lang} (${conf}%)`,
+            phOrig: 'Press LISTEN and start speaking',
+            phTrans: 'Translation will appear here',
+            histEmpty: 'History is empty — start a conversation',
         },
         de: {
             statusDisconnected: 'Nicht verbunden',
@@ -846,6 +871,9 @@
             hybridWarn:         '⚠️ Eingebautes Mikrofon nicht gefunden',
             micHint:            '💡 „Standard" lässt den Browser das Mikrofon automatisch wählen. Wenn Sie Kopfhörer tragen und externen Ton aufnehmen möchten — wählen Sie „Standard" und deaktivieren Sie das Headset-Mikrofon physisch. Das eingebaute Telefonmikrofon erfasst entfernte Tonquellen in der Regel besser.',
             langTooltip:        (lang, conf) => `Sprache: ${lang} (${conf}%)`,
+            phOrig: 'Drücken Sie HÖREN und beginnen Sie zu sprechen',
+            phTrans: 'Die Übersetzung erscheint hier',
+            histEmpty: 'Verlauf ist leer — beginnen Sie ein Gespräch',
         },
     };
 
@@ -927,6 +955,12 @@
             if (navR) navR.textContent = t('navReview');
             if (navC) navC.textContent = t('navCabinet');
             if (navB) navB.textContent = t('navBack');
+            const _ph1 = document.getElementById('originalText');
+            const _ph2 = document.getElementById('translationText');
+            if (_ph1) _ph1.setAttribute('data-placeholder', t('phOrig'));
+            if (_ph2) _ph2.setAttribute('data-placeholder', t('phTrans'));
+            const _hist = document.getElementById('history');
+            if (_hist) _hist.setAttribute('data-placeholder', t('histEmpty'));
 
             const micLbl = document.getElementById('micSelectorLabel');
             const micRefBtn = document.querySelector('.mic-refresh-btn');

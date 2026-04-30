@@ -27,11 +27,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
 .card.translation{border-left:3px solid var(--accent);}
 .card-label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:8px;}
 .card-text{font-size:16px;line-height:1.5;min-height:20px;word-wrap:break-word;}
+.card-text:empty::before{content:attr(data-placeholder);opacity:0.45;font-style:italic;font-size:14px;}
 .card.translation .card-text{color:var(--accent);font-size:18px;}
 .card.original .card-text{color:var(--text2);}
 .vad-indicator{display:flex;align-items:center;justify-content:center;gap:3px;height:30px;margin:4px 0;}
-.vad-bar{width:3px;height:6px;background:var(--border);border-radius:2px;transition:height 0.1s,background 0.1s;}
-.vad-bar.active{background:var(--accent);}
+.vad-bar{width:3px;height:6px;background:var(--border);border-radius:2px;opacity:0.35;transition:height 0.1s,background 0.1s,opacity 0.2s;}
+.vad-bar.active{background:var(--accent);opacity:1;}
 .main-btn{width:120px;height:120px;border-radius:50%;border:3px solid var(--accent);
   background:transparent;color:var(--text);font-size:14px;font-weight:700;
   cursor:pointer;transition:all 0.25s;margin:8px auto;display:block;letter-spacing:1px;}
@@ -53,6 +54,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   color:var(--text2);font-size:15px;padding:6px 8px;cursor:pointer;flex-shrink:0;}
 .mic-selector .mic-btn:hover{border-color:var(--accent);color:var(--accent);}
 .history{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;}
+.history:empty::before{content:attr(data-placeholder);display:block;text-align:center;padding:24px 12px;color:var(--text2);font-size:13px;font-style:italic;opacity:0.7;}
 .history-item{background:var(--surface2);border-radius:8px;padding:8px 10px;font-size:12px;}
 .history-time{color:var(--text2);font-size:11px;}
 .history-original{color:var(--text2);}
@@ -103,15 +105,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   <button class="main-btn" id="mainBtn" onclick="toggle()" disabled>СТАРТ</button>
   <div class="card original">
     <div class="card-label">Оригінал</div>
-    <div class="card-text" id="origText">—</div>
+    <div class="card-text" id="origText" data-placeholder="Очікую співрозмовника..."></div>
   </div>
   <div class="card translation">
     <div class="card-label">Переклад</div>
-    <div class="card-text" id="transText">—</div>
+    <div class="card-text" id="transText" data-placeholder="Тут з'явиться переклад"></div>
   </div>
   <div class="divider"></div>
   <div class="card-label" style="padding:0 4px;">Історія</div>
-  <div class="history" id="histDiv"></div>
+  <div class="history" id="histDiv" data-placeholder="Історія порожня"></div>
 </div>
 
 <div class="headphone-suggest" id="headphoneSuggest">
