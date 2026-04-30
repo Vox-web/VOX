@@ -742,6 +742,12 @@
             .top-nav-btn span.nav-label { display: none; }
             .top-nav-btn { padding: 6px 9px; }
         }
+
+        /* === Focus mode (distraction-free recording) === */
+        .dim-on-record { transition: opacity 0.4s ease; }
+        body.is-recording .dim-on-record { opacity: 0.25; pointer-events: none; }
+        body.is-recording .dim-on-record:hover,
+        body.is-recording .dim-on-record:focus-within { opacity: 0.7; pointer-events: auto; }
     </style>
 </head>
 <body>
@@ -839,7 +845,7 @@
                 <div class="status-dot" id="soloStatusDot"></div>
                 <span class="i18n" id="soloStatusText">Не підключено</span>
             </div>
-            <div class="lang-row">
+            <div class="lang-row dim-on-record">
                 <label class="i18n" id="soloSrcLangLabel">Ваша мова:</label>
                 <select id="soloSrcLangSelect">
                     <option value="auto">🌐 Auto</option>
@@ -860,7 +866,7 @@
                     <option value="hi">🇮🇳 हिन्दी</option>
                 </select>
             </div>
-            <div class="lang-row">
+            <div class="lang-row dim-on-record">
                 <label class="i18n" id="soloLangLabel">Мова перекладу:</label>
                 <select id="soloLangSelect">
                     <option value="uk" selected>🇺🇦 Українська</option>
@@ -880,25 +886,25 @@
                     <option value="hi">🇮🇳 हिन्दी</option>
                 </select>
             </div>
-            <div style="display:flex;justify-content:center;margin-top:-4px;">
+            <div class="dim-on-record" style="display:flex;justify-content:center;margin-top:-4px;">
                 <button class="room-share-btn i18n" id="soloSwapBtn" type="button" onclick="swapSoloLanguages()">⇄ Поміняти мови</button>
             </div>
 
             <!-- Вибір мікрофону -->
-            <div class="mic-selector">
+            <div class="mic-selector dim-on-record">
                 <label id="micSelectorLabel">🎤</label>
                 <select id="micDeviceSelect" onchange="onMicDeviceChange(this.value)"></select>
                 <button class="mic-hint-btn" id="micHintBtn" onclick="toggleMicHint()" title="?">ⓘ</button>
                 <button class="mic-refresh-btn" onclick="populateMicDevices()" title="Оновити список">↺</button>
             </div>
-            <div class="mic-hint-box" id="micHintBox"></div>
+            <div class="mic-hint-box dim-on-record" id="micHintBox"></div>
 
-            <div class="speaker-selector" id="speakerSelectorRow">
+            <div class="speaker-selector dim-on-record" id="speakerSelectorRow">
                 <label id="speakerSelectorLabel">🔊</label>
                 <select id="speakerDeviceSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
                 <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Refresh">↺</button>
             </div>
-            <div class="speaker-no-support" id="speakerNoSupport"></div>
+            <div class="speaker-no-support dim-on-record" id="speakerNoSupport"></div>
 
             <div class="vad-indicator" id="soloVad">
                 <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
@@ -1024,17 +1030,17 @@
                 <div id="duoGuestStatus" style="font-size:12px;color:var(--text2);text-align:center;margin-top:4px;">⏳ Очікуємо партнера...</div>
             </div>
             <!-- Mic/speaker selector for remote -->
-            <div class="mic-selector" id="duoRemoteMicRow">
+            <div class="mic-selector dim-on-record" id="duoRemoteMicRow">
                 <label id="duoRemoteMicLabel">🎤</label>
                 <select id="duoRemoteMicSelect" onchange="onMicDeviceChange(this.value)"></select>
                 <button class="mic-refresh-btn" onclick="populateMicDevices()">↺</button>
             </div>
-            <div class="speaker-selector" id="duoRemoteSpkRow">
+            <div class="speaker-selector dim-on-record" id="duoRemoteSpkRow">
                 <label id="duoRemoteSpkLabel">🔊</label>
                 <select id="duoRemoteSpkSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
                 <button class="spk-refresh-btn" onclick="populateSpeakerDevices()">↺</button>
             </div>
-            <div class="speaker-no-support" id="duoRemoteSpkNoSup"></div>
+            <div class="speaker-no-support dim-on-record" id="duoRemoteSpkNoSup"></div>
             <div class="vad-indicator" id="duoRemoteVad">
                 <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
                 <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
@@ -1130,19 +1136,19 @@
                 </div>
             </div>
             <!-- Вибір мікрофону (Room) -->
-            <div class="mic-selector" id="roomMicSelectorRow">
+            <div class="mic-selector dim-on-record" id="roomMicSelectorRow">
                 <label id="roomMicSelectorLabel">🎤</label>
                 <select id="roomMicDeviceSelect" onchange="onMicDeviceChange(this.value)"></select>
                 <button class="mic-refresh-btn" onclick="populateMicDevices()" title="Оновити">↺</button>
             </div>
 
             <!-- Вибір динаміка (Room) -->
-            <div class="speaker-selector" id="roomSpeakerSelectorRow">
+            <div class="speaker-selector dim-on-record" id="roomSpeakerSelectorRow">
                 <label id="roomSpeakerSelectorLabel">🔊</label>
                 <select id="roomSpeakerDeviceSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
                 <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Оновити">↺</button>
             </div>
-            <div class="speaker-no-support" id="roomSpeakerNoSupport"></div>
+            <div class="speaker-no-support dim-on-record" id="roomSpeakerNoSupport"></div>
 
             <div class="card original">
                 <div class="card-label i18n" id="roomLabelOrig">Оригінал</div>
@@ -1534,6 +1540,7 @@
     const navStack = [];
 
     function showScreen(id) {
+        document.body.classList.remove('is-recording');
         navStack.push(curScreen);
         document.getElementById(curScreen).classList.remove('active');
         document.getElementById(id).classList.add('active');
@@ -1542,6 +1549,7 @@
     }
 
     function goBack() {
+        document.body.classList.remove('is-recording');
         if (curScreen === 'screenSolo') soloStop();
         if (curScreen === 'screenDuo') duoStop();
         if (curScreen === 'screenDuoRemote') closeDuoRemote();
@@ -1884,6 +1892,7 @@
     async function soloToggle() {
         if (soloListening) return soloStop();
         soloListening = true;
+        document.body.classList.add('is-recording');
         document.getElementById('soloBtn').classList.add('active');
         document.getElementById('soloBtn').textContent = t('soloBtnStop');
         soloSetStatus('soloStatusConnecting');
@@ -1899,6 +1908,7 @@
 
     function soloStop() {
         soloListening = false;
+        document.body.classList.remove('is-recording');
         _emptyFinalCount = 0;
         _wsRetries = 0;
         soloStopFallback();
@@ -2190,6 +2200,7 @@
     async function duoToggle() {
         if (_duoListening) {
             _duoListening = false;
+            document.body.classList.remove('is-recording');
             document.getElementById('duoBtn').textContent = t('duoBtnStart');
             document.getElementById('duoBtn').classList.remove('active');
             document.getElementById('duoStatusText').textContent = t('soloStatusStopped');
@@ -2205,6 +2216,7 @@
         }
 
         _duoListening = true;
+        document.body.classList.add('is-recording');
         document.getElementById('duoBtn').textContent = t('duoBtnStop');
         document.getElementById('duoBtn').classList.add('active');
         document.getElementById('duoStatusText').textContent = t('duoStatusConnecting');
@@ -2215,6 +2227,7 @@
         } catch (e) {
             console.error('Duo mic err:', e);
             _duoListening = false;
+            document.body.classList.remove('is-recording');
             document.getElementById('duoBtn').textContent = t('duoBtnStart');
             document.getElementById('duoBtn').classList.remove('active');
             document.getElementById('duoStatusText').textContent = t('soloStatusMicError');
@@ -2226,6 +2239,7 @@
 
     function duoStop() {
         _duoListening = false; _duoRemoteListening = false;
+        document.body.classList.remove('is-recording');
         _duoMic?.stop(); _duoMic = null;
         clearInterval(_duoPingInterval); _duoPingInterval = null;
         _duoWs?.close(); _duoWs = null;
@@ -2314,21 +2328,28 @@
     async function duoRemoteToggle() {
         if (_duoRemoteListening) {
             _duoRemoteListening = false;
+            document.body.classList.remove('is-recording');
             document.getElementById('duoRemoteBtn').textContent = t('duoBtnStart');
             document.getElementById('duoRemoteStatusText').textContent = t('duoStatusReady');
             _duoRemoteMic?.stop(); _duoRemoteMic = null; _duoMicPaused = false;
         } else {
             _duoRemoteListening = true;
+            document.body.classList.add('is-recording');
             document.getElementById('duoRemoteBtn').textContent = t('duoBtnStop');
             document.getElementById('duoRemoteStatusText').textContent = t('duoStatusListening');
             try {
                 _duoRemoteMic = await _startDuoMic('VoxDR', _duoRemoteWs);
-            } catch(e) { console.error('Duo remote mic err:', e); }
+            } catch(e) {
+                console.error('Duo remote mic err:', e);
+                _duoRemoteListening = false;
+                document.body.classList.remove('is-recording');
+            }
         }
     }
 
     function closeDuoRemote() {
         _duoRemoteListening = false;
+        document.body.classList.remove('is-recording');
         _duoRemoteMic?.stop(); _duoRemoteMic = null;
         if (_duoId) {
             fetch(`/duo/${_duoId}`, { method: 'DELETE' }).catch(() => {});
@@ -2569,6 +2590,7 @@
     async function roomToggleMic() {
         if (roomMicActive) {
             roomMicObj?.stop(); roomMicObj = null; roomMicActive = false;
+            document.body.classList.remove('is-recording');
             document.getElementById('roomMicBtn').classList.remove('active');
             roomSetStatus('roomStatusMicOff'); _resetV(roomVadEl);
         } else {
@@ -2578,6 +2600,7 @@
                     _vad(roomVadEl, new Float32Array(buf));
                 });
                 roomMicActive = true;
+                document.body.classList.add('is-recording');
                 document.getElementById('roomMicBtn').classList.add('active');
                 roomSetStatus('roomStatusSpeaking');
             } catch(e) { console.error('Room mic err:',e); }
@@ -2589,6 +2612,7 @@
         if (!confirm(t('confirmClose'))) return;
         try { await fetch(`/room/${roomId}`,{method:'DELETE'}); } catch(e){}
         roomMicObj?.stop(); roomMicObj=null; roomMicActive=false;
+        document.body.classList.remove('is-recording');
         document.getElementById('roomMicBtn').classList.remove('active');
         clearInterval(_roomPingInterval); _roomPingInterval = null;
         roomWs?.close(); roomWs=null; roomId=null; participants={};

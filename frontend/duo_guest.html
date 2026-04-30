@@ -78,6 +78,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
 .back-link{display:inline-flex;align-items:center;gap:6px;background:var(--accent);
   color:#fff;text-decoration:none;font-size:14px;font-weight:600;
   padding:10px 20px;border-radius:10px;margin-top:8px;}
+/* === Focus mode (distraction-free recording) === */
+.dim-on-record{transition:opacity 0.4s ease;}
+body.is-recording .dim-on-record{opacity:0.25;pointer-events:none;}
+body.is-recording .dim-on-record:hover,
+body.is-recording .dim-on-record:focus-within{opacity:0.7;pointer-events:auto;}
 </style>
 </head>
 <body>
@@ -87,12 +92,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
     <div class="status-dot" id="statusDot"></div>
     <span id="statusText">Підключення...</span>
   </div>
-  <div class="mic-selector">
+  <div class="mic-selector dim-on-record">
     <label>🎤</label>
     <select id="micSelect" onchange="onMicChange(this.value)"></select>
     <button class="mic-btn" onclick="populateMic()">↺</button>
   </div>
-  <div class="speaker-selector">
+  <div class="speaker-selector dim-on-record">
     <label>🔊</label>
     <select id="spkSelect" onchange="onSpkChange(this.value)"></select>
     <button class="spk-btn" onclick="populateSpk()">↺</button>
@@ -235,6 +240,9 @@ function connectWS() {
       const delay = Math.min(1000 * Math.pow(2, _wsRetries - 1), 10000);
       console.log(`WS reconnect #${_wsRetries} in ${delay}ms`);
       setTimeout(connectWS, delay);
+    } else {
+      listening = false;
+      document.body.classList.remove('is-recording');
     }
   };
   ws.onerror = () => { statusText.textContent = 'Помилка з\'єднання'; };
@@ -276,16 +284,18 @@ function connectWS() {
 async function toggle() {
   if (listening) {
     listening = false;
+    document.body.classList.remove('is-recording');
     mainBtn.textContent = 'СТАРТ';
     mainBtn.classList.remove('active');
     mic?.stop(); mic = null; micPaused = false;
     statusText.textContent = 'Готово — говоріть!';
   } else {
     listening = true;
+    document.body.classList.add('is-recording');
     mainBtn.textContent = 'СТОП';
     mainBtn.classList.add('active');
     statusText.textContent = '🎤 Слухаю...';
-    try { mic = await startMic(); } catch(e) { console.error(e); }
+    try { mic = await startMic(); } catch(e) { console.error(e); listening = false; document.body.classList.remove('is-recording'); }
   }
 }
 

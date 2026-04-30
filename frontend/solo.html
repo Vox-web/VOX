@@ -580,6 +580,12 @@
             .top-nav-btn span.nav-label { display: none; }
             .top-nav-btn { padding: 6px 9px; }
         }
+
+        /* === Focus mode (distraction-free recording) === */
+        .dim-on-record { transition: opacity 0.4s ease; }
+        body.is-recording .dim-on-record { opacity: 0.25; pointer-events: none; }
+        body.is-recording .dim-on-record:hover,
+        body.is-recording .dim-on-record:focus-within { opacity: 0.7; pointer-events: auto; }
     </style>
 </head>
 <body>
@@ -612,7 +618,7 @@
         </div>
 
         <!-- Выбор языков -->
-        <div class="lang-controls">
+        <div class="lang-controls dim-on-record">
             <div class="lang-pair">
                 <div class="lang-field">
                     <label class="i18n-fade" id="sourceLangLabel">Мова оригіналу:</label>
@@ -661,20 +667,20 @@
         </div>
 
         <!-- Вибір мікрофону -->
-        <div class="mic-selector">
+        <div class="mic-selector dim-on-record">
             <label id="micSelectorLabel">🎤</label>
             <select id="micDeviceSelect" onchange="onMicDeviceChange(this.value)"></select>
             <button class="mic-hint-btn" id="micHintBtn" onclick="toggleMicHint()" title="?">ⓘ</button>
             <button class="mic-refresh-btn" onclick="populateMicDevices()" title="Оновити список">↺</button>
         </div>
-        <div class="mic-hint-box" id="micHintBox"></div>
+        <div class="mic-hint-box dim-on-record" id="micHintBox"></div>
 
-        <div class="speaker-selector" id="speakerSelectorRow">
+        <div class="speaker-selector dim-on-record" id="speakerSelectorRow">
             <label id="speakerSelectorLabel">🔊</label>
             <select id="speakerDeviceSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
             <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Refresh">↺</button>
         </div>
-        <div class="speaker-no-support" id="speakerNoSupport"></div>
+        <div class="speaker-no-support dim-on-record" id="speakerNoSupport"></div>
 
         <!-- VAD індикатор -->
         <div class="vad-indicator" id="vadIndicator">
@@ -1519,6 +1525,7 @@
     async function toggleListening() {
         if (isListening) {
             isListening = false;
+            document.body.classList.remove('is-recording');
             mainBtn.classList.remove('active');
             mainBtn.textContent = t('btnListen');
 
@@ -1538,6 +1545,7 @@
             resetVAD();
         } else {
             isListening = true;
+            document.body.classList.add('is-recording');
             mainBtn.classList.add('active');
             mainBtn.textContent = t('btnStop');
             setStatus('connected', 'connecting');
