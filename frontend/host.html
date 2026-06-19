@@ -1142,6 +1142,8 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js"></script>
+    <script src="/vox-connection.js"></script>
+    <script src="/vox-socket.js"></script>
     <script>
     // =====================================================================
     // i18n
@@ -1623,6 +1625,43 @@
                 throw devErr;
             }
         }
+        // ── Mic lifecycle: следим за состоянием дорожки микрофона ──
+        // На Android после фона трек может прийти в состояние 'ended'/'muted'.
+        // Тогда нужно пере-получить микрофон. Сообщаем об этом через repair.
+        const _track = st.getAudioTracks()[0];
+        function _updateMicState() {
+            try {
+                window._voxMicState = _track ? {
+                    readyState: _track.readyState, muted: _track.muted, enabled: _track.enabled,
+                    label: _track.label || null,
+                } : null;
+            } catch(_) {}
+        }
+        _updateMicState();
+        if (_track) {
+            _track.addEventListener('ended', () => {
+                _updateMicState();
+                console.warn('[VOX mic] track ended — запланирован repair');
+                if (typeof window._voxRecoverMic === 'function') {
+                    window._voxRecoverMic(name);
+                }
+                if (typeof window._voxScheduleRepair === 'function' &&
+                    (soloListening || roomId || _duoListening || _duoRemoteListening)) {
+                    window._voxScheduleRepair('mic_track_ended', 60);
+                }
+            });
+            _track.addEventListener('mute', () => {
+                _updateMicState();
+                if (name === 'VoxSP') soloSetStatus('soloStatusMicError');
+                else if (name === 'VoxRP') roomSetStatus('roomStatusDisconnected');
+            });
+            _track.addEventListener('unmute', () => {
+                _updateMicState();
+                if (name === 'VoxSP' && soloListening) soloSetStatus('soloStatusListening');
+                else if (name === 'VoxRP' && roomMicActive) roomSetStatus('roomStatusConnected');
+            });
+        }
+
         const cx = new AudioContext({sampleRate:16000});
         const code = `class ${name} extends AudioWorkletProcessor{constructor(){super();this.b=[];}process(i){const c=i[0]?.[0];if(!c)return true;this.b.push(...c);while(this.b.length>=2048){const ch=new Float32Array(this.b.splice(0,2048));this.port.postMessage(ch.buffer,[ch.buffer]);}return true;}}registerProcessor('${name}',${name});`;
         const bl = new Blob([code],{type:'application/javascript'}); const u = URL.createObjectURL(bl);
@@ -1633,7 +1672,24 @@
         const nd = new AudioWorkletNode(cx, name);
         nd.port.onmessage = e => onChunk(e.data);
         src.connect(hp); hp.connect(nd); // nd НЕ подключается к cx.destination — иначе аудио-петля и баг маршрутизации на Android
-        return { stop(){ try{nd.disconnect();}catch(_){} try{hp.disconnect();}catch(_){} try{src.disconnect();}catch(_){} try{cx.close();}catch(_){} st.getTracks().forEach(t=>t.stop()); } };
+        // Фактические параметры аудио. Браузер (особенно Android/Safari) может
+        // проигнорировать sampleRate:16000 — поэтому отдаём РЕАЛЬНЫЙ cx.sampleRate,
+        // чтобы сервер корректно ресэмплировал.
+        let _trackSr = null;
+        try { _trackSr = (st.getAudioTracks()[0]?.getSettings?.().sampleRate) || null; } catch(_) {}
+        const meta = {
+            requested_sample_rate: 16000,
+            context_sample_rate: Number(cx.sampleRate) || null,
+            track_sample_rate: _trackSr,
+            sample_format: 'float32',
+            channels: 1,
+            chunk_frames: 2048,
+        };
+        return {
+            meta,
+            sampleRate: Number(cx.sampleRate) || 16000,
+            stop(){ try{nd.disconnect();}catch(_){} try{hp.disconnect();}catch(_){} try{src.disconnect();}catch(_){} try{cx.close();}catch(_){} st.getTracks().forEach(t=>t.stop()); }
+        };
     }
 
     // =====================================================================
@@ -1641,6 +1697,40 @@
     // =====================================================================
     let soloListening=false, soloWs=null, soloMic=null, curSoloKey='soloStatusDisconnected', soloDetectedSourceLang=null;
     let _wsRetries=0, _fallbackActive=false, _fallbackRecognition=null;
+
+    // ── Watchdog активности соединения ──
+    // Любое сообщение от сервера (текст или аудио) обновляет метку. Если в
+    // активной сессии долго нет ни одного сообщения — сокет «полуоткрыт»
+    // (частый случай на Android после фона/смены сети): readyState=OPEN, но
+    // данные не идут. Тогда инициируем repair. Это лечит «перестало слышать».
+    let _voxLastActivityAt = Date.now();
+    const VOX_STALE_MS = 30000; // нет сообщений 30с при активной диктовке → реконнект
+    function _voxTouchActivity() { _voxLastActivityAt = Date.now(); }
+    window._voxConnDiag = function () {
+        const active = [soloWs, _duoWs, _duoRemoteWs, roomWs]
+            .find(socket => socket && typeof socket.getDiagnostics === 'function');
+        const managed = active ? active.getDiagnostics() : {};
+        return {
+            ...managed,
+            frontend: window.VOX_FRONTEND_VERSION || null,
+            sw: window.VOX_SW_VERSION || null,
+            lastActivityAgoMs: Date.now() - _voxLastActivityAt,
+            soloWs: soloWs?.readyState, duoWs: (typeof _duoWs!=='undefined'?_duoWs?.readyState:null),
+            duoRemoteWs: (typeof _duoRemoteWs!=='undefined'?_duoRemoteWs?.readyState:null),
+            roomWs: (typeof roomWs!=='undefined'?roomWs?.readyState:null),
+            online: navigator.onLine,
+        };
+    };
+
+    // Отправить реальные параметры аудио на сервер (Solo). Безопасно вызывать
+    // многократно: и после старта мика, и в onopen после reconnect.
+    function _sendSoloAudioMeta() {
+        try {
+            if (soloWs?.readyState === WebSocket.OPEN && soloMic?.meta) {
+                soloWs.send(JSON.stringify({ type: 'audio_meta', ...soloMic.meta }));
+            }
+        } catch (_) {}
+    }
 
     // Карта мов для Web Speech API
     const _speechLangMap = {
@@ -1774,7 +1864,7 @@
 
     function soloConnectWS() {
         const p = location.protocol==='https:'?'wss:':'ws:';
-        soloWs = new WebSocket(`${p}//${location.host}/ws/solo`);
+        soloWs = new VoxSocket(`${p}//${location.host}/ws/solo`);
         soloWs.binaryType = 'arraybuffer';
         soloWs.onopen = () => {
             _wsRetries = 0;
@@ -1789,6 +1879,8 @@
                 target_lang: tgtLang,
                 tts_enabled: _ttsEnabled,
             }));
+            // После reconnect мик уже существует — обязательно повторно шлём audio_meta.
+            _sendSoloAudioMeta();
             clearInterval(_soloPingInterval);
             _soloPingInterval = setInterval(() => {
                 if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(JSON.stringify({type:'ping'}));
@@ -1800,12 +1892,12 @@
             if (soloListening) {
                 soloSetStatus('soloStatusDisconnected');
                 _wsRetries = (_wsRetries||0) + 1;
-                if (_wsRetries <= 3) setTimeout(soloConnectWS, 500);
-                else soloStartFallback();
+                if (_wsRetries > 3) soloStartFallback();
             }
         };
         soloWs.onerror = () => soloSetStatus('soloStatusError');
         soloWs.onmessage = e => {
+            _voxTouchActivity();
             if (e.data instanceof ArrayBuffer) { _audioMsg(e.data); return; }
             try {
                 const m = JSON.parse(e.data);
@@ -1842,6 +1934,8 @@
                 if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(buf);
                 _vad(soloVadEl, new Float32Array(buf));
             });
+            // Сообщаем серверу реальную частоту дискретизации ДО потока аудио.
+            _sendSoloAudioMeta();
             if (soloListening) soloSetStatus('soloStatusListening');
         } catch(e) { console.error('Mic err:', e); soloSetStatus('soloStatusMicError'); soloStop(); }
     }
@@ -2083,15 +2177,60 @@
     }
 
     // ── One-device Duo ──
+    // ── Возможности языков с backend (единый источник правды) ──
+    // Не даём выбрать пару, которую Duo «на одному пристрої» не поддержит.
+    let _voxOneDeviceSet = null;
+    function _markOneDeviceOptions() {
+        if (!_voxOneDeviceSet) return;
+        ['duoLangASelect', 'duoLangBSelect'].forEach(id => {
+            const sel = document.getElementById(id);
+            if (!sel) return;
+            [...sel.options].forEach(o => {
+                const ok = _voxOneDeviceSet.has(o.value);
+                o.dataset.oneDevice = ok ? '1' : '0';
+                // Помечаем неподдерживаемые языки звёздочкой (для one-device).
+                if (!ok && !/\*$/.test(o.textContent)) o.textContent = o.textContent + ' *';
+            });
+        });
+    }
+    function _pairSupportsOneDevice(a, b) {
+        if (!_voxOneDeviceSet) return true; // caps не загрузились — не блокируем
+        return _voxOneDeviceSet.has(a) && _voxOneDeviceSet.has(b);
+    }
+    (async function _loadLangCaps() {
+        try {
+            const r = await fetch('/api/languages');
+            if (!r.ok) return;
+            const data = await r.json();
+            _voxOneDeviceSet = new Set((data.languages || [])
+                .filter(l => l.duo_one_device).map(l => l.code));
+            _markOneDeviceOptions();
+        } catch (_) { /* офлайн / ошибка — не блокируем UI */ }
+    })();
+    function _oneDeviceUnsupportedMsg() {
+        const lang = (window.uiLang || localStorage.getItem('vox_ui_lang') || 'uk').toLowerCase();
+        const m = {
+            uk: 'Режим «На одному пристрої» не підтримує цю пару мов. Скористайтесь режимом «Дистанційно (QR)».',
+            en: 'One-device mode does not support this language pair. Use “Remote (QR)” instead.',
+            de: 'Der Ein-Gerät-Modus unterstützt dieses Sprachpaar nicht. Nutzen Sie „Remote (QR)“.',
+        };
+        return m[lang] || m.en;
+    }
+
     function startDuoLocal() {
         const langA = document.getElementById('duoLangASelect').value;
         const langB = document.getElementById('duoLangBSelect').value;
+        // Гейт: one-device поддерживает только часть языков (см. /api/languages)
+        if (!_pairSupportsOneDevice(langA, langB)) {
+            alert(_oneDeviceUnsupportedMsg());
+            return;
+        }
         showScreen('screenDuo');
         document.getElementById('duoStatusDot').className = 'status-dot';
         document.getElementById('duoStatusText').textContent = t('duoStatusConnecting');
 
         const p = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        _duoWs = new WebSocket(`${p}//${location.host}/ws/duo`);
+        _duoWs = new VoxSocket(`${p}//${location.host}/ws/duo`);
         _duoWs.binaryType = 'arraybuffer';
 
         _duoWs.onopen = () => {
@@ -2114,6 +2253,7 @@
             document.getElementById('duoStatusText').textContent = t('soloStatusError');
         };
         _duoWs.onmessage = e => {
+            _voxTouchActivity();
             if (e.data instanceof ArrayBuffer) {
                 _duoPlayAudio(e.data); return;
             }
@@ -2213,7 +2353,7 @@
 
     function _connectDuoRemoteHost(langA, langB) {
         const p = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        _duoRemoteWs = new WebSocket(`${p}//${location.host}/ws/duo/${_duoId}/host`);
+        _duoRemoteWs = new VoxSocket(`${p}//${location.host}/ws/duo/${_duoId}/host`);
         _duoRemoteWs.binaryType = 'arraybuffer';
         _duoRemoteWs.onopen = () => {
             const _tok = localStorage.getItem('vox_token') || '';
@@ -2231,6 +2371,7 @@
             document.getElementById('duoRemoteStatusDot').className = 'status-dot';
         };
         _duoRemoteWs.onmessage = e => {
+            _voxTouchActivity();
             if (e.data instanceof ArrayBuffer) {
                 _playA(e.data.slice(6)); return; // всегда играть речь партнёра
             }
@@ -2299,6 +2440,43 @@
     // ROOM
     // =====================================================================
     let roomId=null, roomWs=null, roomMicObj=null, roomMicActive=false, participants={};
+    let _voxMicRecovering = false;
+
+    window._voxRecoverMic = async function (name) {
+        if (_voxMicRecovering) return;
+        _voxMicRecovering = true;
+        try {
+            if (name === 'VoxSP' && soloListening) {
+                soloMic?.stop();
+                soloMic = await _mic('VoxSP', buf => {
+                    if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(buf);
+                    _vad(soloVadEl, new Float32Array(buf));
+                });
+                _sendSoloAudioMeta();
+                soloSetStatus('soloStatusListening');
+            } else if (name === 'VoxDL' && _duoListening) {
+                _duoMic?.stop();
+                _duoMic = await _startDuoMic('VoxDL', _duoWs);
+            } else if (name === 'VoxDR' && _duoRemoteListening) {
+                _duoRemoteMic?.stop();
+                _duoRemoteMic = await _startDuoMic('VoxDR', _duoRemoteWs);
+            } else if (name === 'VoxRP' && roomMicActive) {
+                roomMicObj?.stop();
+                roomMicObj = await _mic('VoxRP', buf => {
+                    if (roomWs?.readyState === WebSocket.OPEN) roomWs.send(buf);
+                    _vad(roomVadEl, new Float32Array(buf));
+                });
+                roomSetStatus('roomStatusConnected');
+            }
+        } catch (error) {
+            console.error('[VOX mic] recovery failed:', error);
+            const socket = name === 'VoxSP' ? soloWs : name === 'VoxRP' ? roomWs
+                : name === 'VoxDL' ? _duoWs : _duoRemoteWs;
+            socket?.connection?.markMicrophoneError?.(String(error));
+        } finally {
+            _voxMicRecovering = false;
+        }
+    };
     const roomVadEl=document.getElementById('roomVad'), roomOrigEl=document.getElementById('roomOriginal'),
           roomTransEl=document.getElementById('roomTranslation'), roomHistEl=document.getElementById('roomHistory');
 
@@ -2408,7 +2586,7 @@
 
     function connectRoomWS() {
         const p = location.protocol==='https:'?'wss:':'ws:';
-        roomWs = new WebSocket(`${p}//${location.host}/ws/room/${roomId}/host`);
+        roomWs = new VoxSocket(`${p}//${location.host}/ws/room/${roomId}/host`);
         roomWs.binaryType = 'arraybuffer';
         roomWs.onopen = () => {
             _roomWsRetries = 0;
@@ -2437,19 +2615,12 @@
                 return;
             }
             if (!roomId) return;
-            // Ограниченный реконнект (макс 5 попыток)
             _roomWsRetries++;
-            if (_roomWsRetries <= 5) {
-                const delay = Math.min(500 * Math.pow(2, _roomWsRetries - 1), 5000);
-                setTimeout(connectRoomWS, delay);
-            } else {
-                console.warn('Room reconnect limit reached');
-                _cleanupDeadRoom();
-            }
         };
 
         roomWs.onerror = () => roomSetStatus('roomStatusDisconnected');
         roomWs.onmessage = e => {
+            _voxTouchActivity();
             if (e.data instanceof ArrayBuffer) _audioMsg(e.data);
             else handleRoomMsg(JSON.parse(e.data));
         };
@@ -2558,13 +2729,6 @@
 
     applyI18n(false);
     _updateTtsBtn();
-    // Единственные глобальные online-listeners — не дублируются при реконнектах
-    window.addEventListener('online', () => {
-        if (soloListening && (!soloWs || soloWs.readyState === WebSocket.CLOSED)) soloConnectWS();
-    });
-    window.addEventListener('online', () => {
-        if (roomId && (!roomWs || roomWs.readyState === WebSocket.CLOSED)) connectRoomWS();
-    });
     // Восстановление комнаты после рефреша (с TTL и проверкой на сервере)
     const ROOM_RESTORE_TTL_MS = 2 * 60 * 1000; // 2 минуты — если дольше, комната точно мёртва
     const savedRoom = sessionStorage.getItem('vox_host_room');
@@ -3085,6 +3249,8 @@
             clearTimeout(repairScheduled);
             repairScheduled = setTimeout(() => maybeRepair(reason), delay);
         }
+        // Доступ к repair из других областей (например из _mic при track 'ended').
+        window._voxScheduleRepair = scheduleRepair;
 
         function reloadFresh(reason) {
             console.log('[VOX resume guard] reload:', reason);
@@ -3114,7 +3280,7 @@
             setTimeout(() => {
                 try {
                     const p = location.protocol === 'https:' ? 'wss:' : 'ws:';
-                    _duoWs = new WebSocket(`${p}//${location.host}/ws/duo`);
+                    _duoWs.resume('legacy_repair_disabled');
                     _duoWs.binaryType = 'arraybuffer';
 
                     _duoWs.onopen = () => {
@@ -3211,6 +3377,15 @@
             if (repairing) return;
             if (document.visibilityState === 'hidden') return;
 
+            // VoxConnection owns reconnection and timer cleanup. Lifecycle repair
+            // only nudges the existing managed sockets; it never creates another.
+            repairing = true;
+            [soloWs, _duoWs, _duoRemoteWs, roomWs].forEach(socket => {
+                try { socket?.resume(reason); } catch (_) {}
+            });
+            repairing = false;
+            return;
+
             const awayMs = hiddenAt ? (Date.now() - hiddenAt) : 0;
             const staleAfterBackground = awayMs > RESUME_AFTER_MS;
 
@@ -3219,10 +3394,13 @@
             const duoRemoteActive = curScreen === 'screenDuoRemote' && (!!_duoId || !!_duoRemoteWs || !!_duoRemoteListening);
             const roomActive = !!roomId;
 
-            const soloBroken = soloActive && wsClosedOrBroken(soloWs);
-            const duoLocalBroken = duoLocalActive && wsClosedOrBroken(_duoWs);
-            const duoRemoteBroken = duoRemoteActive && wsClosedOrBroken(_duoRemoteWs);
-            const roomBroken = roomActive && wsClosedOrBroken(roomWs);
+            // «Полуоткрытый» сокет: OPEN, но давно нет сообщений от сервера.
+            const stale = (Date.now() - _voxLastActivityAt) > VOX_STALE_MS;
+
+            const soloBroken = soloActive && (wsClosedOrBroken(soloWs) || stale);
+            const duoLocalBroken = duoLocalActive && (wsClosedOrBroken(_duoWs) || stale);
+            const duoRemoteBroken = duoRemoteActive && (wsClosedOrBroken(_duoRemoteWs) || stale);
+            const roomBroken = roomActive && (wsClosedOrBroken(roomWs) || stale);
 
             const mustRepairSolo = soloActive && soloBroken;
             const mustRepairDuoLocal = duoLocalActive && duoLocalBroken;
@@ -3235,6 +3413,7 @@
 
             repairing = true;
             clearAllPingIntervals();
+            _voxTouchActivity(); // сбрасываем метку, чтобы watchdog не дёргал repair повторно
 
             if (mustRepairRoom) {
                 repairRoom(`${reason}; away=${awayMs}`);
@@ -3293,6 +3472,24 @@
             await populateSpeakerDevices();
             scheduleRepair('online', 900);
         });
+
+        window.addEventListener('offline', () => {
+            console.log('[VOX] offline');
+        });
+
+        // Периодический stale-watchdog: ловит «полуоткрытый» сокет даже когда
+        // приложение на переднем плане и lifecycle-события не приходят.
+        setInterval(() => {
+            if (document.visibilityState !== 'visible') return;
+            if (!navigator.onLine) return;
+            const active = !!soloListening || !!roomId ||
+                (curScreen === 'screenDuo' && (!!_duoWs || !!_duoListening)) ||
+                (curScreen === 'screenDuoRemote' && (!!_duoId || !!_duoRemoteWs));
+            if (!active) { _voxTouchActivity(); return; }
+            if ((Date.now() - _voxLastActivityAt) > VOX_STALE_MS) {
+                scheduleRepair('stale_watchdog', 50);
+            }
+        }, 10000);
     })();
     </script>
     <!-- ── Review FAB Button ── -->
@@ -3301,5 +3498,6 @@
     <span>Відгук</span>
 </a>
 <script src="/pwa-install.js"></script>
+<script src="/vox-diagnostics.js"></script>
 </body>
 </html>

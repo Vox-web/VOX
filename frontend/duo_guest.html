@@ -128,6 +128,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   <a href="/" class="back-link">← VOX</a>
 </div>
 
+<script src="/vox-connection.js"></script>
+<script src="/vox-socket.js"></script>
 <script>
 const pathParts = location.pathname.split('/');
 const duoId = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
@@ -208,7 +210,7 @@ async function _applySinkId() {
 
 function connectWS() {
   const p = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(`${p}//${location.host}/ws/duo/${duoId}/guest`);
+  ws = new VoxSocket(`${p}//${location.host}/ws/duo/${duoId}/guest`);
   ws.binaryType = 'arraybuffer';
 
   ws.onopen = () => {
@@ -232,7 +234,6 @@ function connectWS() {
       _wsRetries++;
       const delay = Math.min(1000 * Math.pow(2, _wsRetries - 1), 10000);
       console.log(`WS reconnect #${_wsRetries} in ${delay}ms`);
-      setTimeout(connectWS, delay);
     }
   };
   ws.onerror = () => { statusText.textContent = 'Помилка з\'єднання'; };
@@ -266,9 +267,6 @@ function connectWS() {
       showError('Баланс вичерпано');
     }
   };
-  window.addEventListener('online', () => {
-    if (!_terminated && (!ws || ws.readyState === WebSocket.CLOSED)) connectWS();
-  }, {once: true});
 }
 
 async function toggle() {

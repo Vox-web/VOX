@@ -68,6 +68,11 @@ async def lifespan(app: FastAPI):
 
     logger.info("🚀 VOX сервер запускается...")
 
+    # Единый путь к БД + проверка доступности каталога (см. db_config.py).
+    from db_config import DB_PATH, ensure_db_ready
+    ensure_db_ready()
+    logger.info("✅ База данных: единый путь %s", DB_PATH)
+
     dg_key = os.getenv("DEEPGRAM_API_KEY")
     if not dg_key:
         logger.error("❌ DEEPGRAM_API_KEY не задан! Добавьте в .env")
@@ -122,13 +127,19 @@ async def lifespan(app: FastAPI):
 # ---------------------------------------------------------------------------
 # FastAPI приложение
 # ---------------------------------------------------------------------------
+from version import __version__ as VOX_VERSION
+
 app = FastAPI(
     title="VOX",
-    version="0.3.0",
+    version=VOX_VERSION,
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url=None,
 )
+
+# Гарантируем, что каталог БД существует и доступен ДО первого подключения.
+from db_config import ensure_db_ready as _ensure_db_ready
+_ensure_db_ready()
 init_db()
 
 # ── Billing ──
@@ -254,32 +265,145 @@ def _build_info_payload() -> dict:
     }
 
 # ---------------------------------------------------------------------------
-# Конфигурация Solo-сессии
+# Дефолты Solo-сессии (read-only).
+# ВАЖНО: раньше это был МУТАБЕЛЬНЫЙ глобальный session_config, и /set-config
+# менял язык по умолчанию сразу ДЛЯ ВСЕХ пользователей (кросс-юзер баг).
+# Теперь это неизменяемые дефолты; язык каждой Solo-сессии задаётся через
+# WS-сообщение config (per-session). Алиас session_config оставлен для /status.
 # ---------------------------------------------------------------------------
-session_config = {
+SESSION_DEFAULTS = {
     "target_lang": os.getenv("DEFAULT_TARGET_LANG", "uk"),
     "source_lang": None,
     "is_listening": False,
 }
+# Обратная совместимость для /status (read-only снимок дефолтов).
+session_config = SESSION_DEFAULTS
 
 
-def _pick_client_sample_rate(meta: dict | None, default: int = 16000) -> int:
+# Единые аудио-хелперы вынесены в audio_utils (тестируются без зависимостей app).
+from audio_utils import (
+    pick_client_sample_rate as _pick_client_sample_rate,
+    validate_audio_meta as _validate_audio_meta,
+)
+from session_billing import (
+    billing_coordinator as _billing_coordinator,
+    count_billable_room_guests as _count_billable_room_guests,
+)
+
+
+async def _enforce_start_balance(ws, user_id) -> bool:
     """
-    Вытянуть фактическую частоту дискретизации из audio_meta клиента.
-    Предпочитаем sample rate AudioContext, потому что именно в нём работает Web Audio граф.
-    """
-    if not meta:
-        return default
+    Гейт минимального баланса ПЕРЕД стартом платной транскрипции.
 
-    for key in ("context_sample_rate", "sample_rate", "track_sample_rate", "requested_sample_rate"):
-        value = meta.get(key)
+    Возвращает True, если можно начинать (анонимная сессия или баланс
+    достаточен). Если баланса не хватает — отправляет клиенту
+    code=insufficient_balance и возвращает False (вызывающий обязан
+    закрыть соединение и не запускать Deepgram).
+    """
+    if not user_id:
+        return True  # анонимная сессия — без биллинга, как и раньше
+    try:
+        from billing_db import can_start_session, MIN_BALANCE_TO_START
+        if can_start_session(user_id):
+            return True
+        await ws.send_json({
+            "type": "session_ended",
+            "reason": "insufficient_balance",
+            "code": "insufficient_balance",
+            "min_balance": MIN_BALANCE_TO_START,
+            "message": "Недостатній баланс для запуску сесії. Поповніть рахунок.",
+        })
+    except Exception as exc:
+        logger.error("Billing balance check failed for user=%s: %s", user_id, exc)
+        await ws.send_json({
+            "type": "session_ended",
+            "reason": "billing_unavailable",
+            "code": "billing_unavailable",
+            "message": "Сервіс оплати тимчасово недоступний. Спробуйте ще раз пізніше.",
+        })
+    return False
+
+
+async def _resolve_session_user(ws, token):
+    """Resolve a supplied auth token without turning DB failures into anonymity."""
+    if not token:
+        return True, None
+    try:
+        user = get_user_by_token(token)
+    except Exception as exc:
+        logger.error("Session auth lookup failed: %s", exc)
+        await ws.send_json({
+            "type": "session_ended",
+            "reason": "billing_unavailable",
+            "code": "billing_unavailable",
+            "message": "Сервіс оплати тимчасово недоступний. Спробуйте ще раз пізніше.",
+        })
+        return False, None
+    if not user:
+        await ws.send_json({
+            "type": "session_ended",
+            "reason": "auth_required",
+            "code": "auth_required",
+            "message": "Сесія входу завершилась. Увійдіть знову.",
+        })
+        return False, None
+    return True, user["id"]
+
+
+async def _begin_session_billing(ws, key, user_id, mode, guest_count=lambda: 0):
+    """Start one postpaid billing loop for a logical session."""
+    if not user_id:
+        return None
+
+    from billing_db import deduct_session_cost, get_balance_warning
+
+    async def on_balance(new_balance, guests):
+        logger.info(
+            "Billing tick: mode=%s user=%s guests=%s balance=%.4f",
+            mode, user_id, guests, new_balance,
+        )
+        if new_balance <= 0:
+            await ws.send_json({
+                "type": "session_ended",
+                "reason": "no_balance",
+                "code": "insufficient_balance",
+                "message": "Баланс вичерпано. Поповніть рахунок, щоб продовжити.",
+            })
+            await ws.close()
+            return
+        warning = get_balance_warning(new_balance)
+        if warning:
+            payload = {
+                "type": "balance_warning",
+                "level": warning,
+                "balance": round(new_balance, 4),
+            }
+            if mode == "room":
+                payload["guests"] = guests
+            await ws.send_json(payload)
+
+    async def on_error(exc):
+        logger.error("Billing tick failed: mode=%s user=%s: %s", mode, user_id, exc)
         try:
-            rate = int(value)
-        except (TypeError, ValueError):
-            continue
-        if 8000 <= rate <= 192000:
-            return rate
-    return default
+            await ws.send_json({
+                "type": "session_ended",
+                "reason": "billing_unavailable",
+                "code": "billing_unavailable",
+                "message": "Сервіс оплати тимчасово недоступний. Спробуйте ще раз пізніше.",
+            })
+            await ws.close()
+        except Exception:
+            pass
+
+    return await _billing_coordinator.start(
+        key=key,
+        user_id=user_id,
+        mode=mode,
+        deduct=deduct_session_cost,
+        guest_count=guest_count,
+        on_balance=on_balance,
+        on_error=on_error,
+    )
 
 # ---------------------------------------------------------------------------
 # Pydantic модели
@@ -427,6 +551,21 @@ async def api_config():
         "landing_url": f"{base_url}/landing" if base_url else "/landing",
     })
 
+@app.get("/api/languages")
+async def api_languages():
+    """
+    Реальные возможности языков (единый источник — language_capabilities.py).
+    Фронтенд использует это, чтобы не предлагать пары, которые backend
+    отвергнет (например Duo one-device для uk/pl/zh/ko/ar/tr).
+    """
+    from language_capabilities import as_list, default_duo_one_device_pair
+    a, b = default_duo_one_device_pair()
+    return JSONResponse({
+        "languages": as_list(),
+        "duo_one_device_default": {"lang_a": a, "lang_b": b},
+    }, headers={"Cache-Control": "public, max-age=300"})
+
+
 @app.get("/api/build-info")
 async def api_build_info():
     return JSONResponse(
@@ -439,21 +578,23 @@ async def api_build_info():
 # ===========================================================================
 @app.post("/set-config")
 async def set_config(config: dict):
+    """
+    DEPRECATED. Язык Solo-сессии задаётся per-session через WS-сообщение config.
+    Этот эндпоинт больше НЕ меняет глобальные дефолты (раньше это был кросс-юзер
+    баг). Теперь он только валидирует переданные языки и эхо-возвращает их.
+    """
+    echo = {}
     if "target_lang" in config:
         lang = config["target_lang"]
-        if lang in Translator.SUPPORTED_LANGUAGES:
-            session_config["target_lang"] = lang
-            logger.info(f"🌐 Solo — язык перевода: {lang}")
-        else:
+        if lang not in Translator.SUPPORTED_LANGUAGES:
             raise HTTPException(status_code=400, detail=f"Unsupported language: {lang}")
+        echo["target_lang"] = lang
     if "source_lang" in config:
         lang = config["source_lang"]
-        if lang is None or lang in Translator.SUPPORTED_LANGUAGES:
-            session_config["source_lang"] = lang
-            logger.info(f"🎤 Solo — язык ввода: {lang or 'auto'}")
-        else:
+        if not (lang is None or lang in Translator.SUPPORTED_LANGUAGES):
             raise HTTPException(status_code=400, detail=f"Unsupported language: {lang}")
-    return JSONResponse({"status": "ok", "config": session_config})
+        echo["source_lang"] = lang
+    return JSONResponse({"status": "ok", "deprecated": True, "config": echo})
 
 
 # ===========================================================================
@@ -791,8 +932,8 @@ async def websocket_duo(ws: WebSocket):
     translator = Translator()
     logger.info("🔌 WebSocket підключено (Duo one-device)")
 
-    from billing_db import deduct_session_cost as _deduct
     _user_id = None
+    _auth_ok = True
     lang_a = "uk"
     lang_b = "en"
     session_tts_enabled = True
@@ -807,8 +948,7 @@ async def websocket_duo(ws: WebSocket):
             msg_type = msg.get("type")
 
             if msg_type == "auth":
-                _user = get_user_by_token(msg.get("token", ""))
-                _user_id = _user["id"] if _user else None
+                _auth_ok, _user_id = await _resolve_session_user(ws, msg.get("token", ""))
 
             elif msg_type == "config":
                 lang_a = msg.get("lang_a", lang_a)
@@ -817,12 +957,16 @@ async def websocket_duo(ws: WebSocket):
     except (asyncio.TimeoutError, Exception):
         pass
 
+    if not _auth_ok:
+        await ws.close()
+        return
+
     logger.info(f"🤝 Duo one-device pair: {lang_a}↔{lang_b} user={_user_id}")
 
-    # Пары, которые реально поддерживаются в nova-3 multi
-    MULTI_LANGS = {"en", "es", "fr", "de", "hi", "ru", "pt", "ja", "it", "nl"}
+    # Поддержка пары определяется единым источником (language_capabilities.py).
+    from language_capabilities import supports_duo_one_device
 
-    if lang_a not in MULTI_LANGS or lang_b not in MULTI_LANGS:
+    if not supports_duo_one_device(lang_a, lang_b):
         await ws.send_json({
             "type": "error",
             "message": f"One-device auto mode is not supported for pair {lang_a}↔{lang_b}.",
@@ -831,23 +975,14 @@ async def websocket_duo(ws: WebSocket):
         await ws.close()
         return
 
-    async def billing_tick():
-        if not _user_id:
-            return
-        while True:
-            await asyncio.sleep(60)
-            try:
-                new_balance = _deduct(_user_id, "duo", 0)
-                if new_balance <= 0:
-                    await ws.send_json({"type": "session_ended", "reason": "no_balance"})
-                    await ws.close()
-                    return
-            except asyncio.CancelledError:
-                return
-            except Exception as e:
-                logger.warning(f"Duo billing error: {e}")
+    # Гейт баланса ДО старта платной транскрипции.
+    if not await _enforce_start_balance(ws, _user_id):
+        await ws.close()
+        return
 
-    billing_task = asyncio.create_task(billing_tick())
+    billing_handle = await _begin_session_billing(
+        ws, ("duo-one-device", _user_id), _user_id, "duo"
+    )
 
     dg = DeepgramTranscriber()
     await dg.start(language="multi", model="nova-3", endpointing=1000, utterance_end_ms=2000, commit_mode="lazy")
@@ -958,7 +1093,7 @@ async def websocket_duo(ws: WebSocket):
                         if (new_a, new_b) != (lang_a, lang_b):
                             lang_a, lang_b = new_a, new_b
 
-                            if lang_a not in MULTI_LANGS or lang_b not in MULTI_LANGS:
+                            if not supports_duo_one_device(lang_a, lang_b):
                                 await ws.send_json({
                                     "type": "error",
                                     "message": f"One-device auto mode is not supported for pair {lang_a}↔{lang_b}.",
@@ -982,7 +1117,7 @@ async def websocket_duo(ws: WebSocket):
         logger.error(f"❌ Duo one-device error: {e}", exc_info=True)
     finally:
         result_task.cancel()
-        billing_task.cancel()
+        await _billing_coordinator.stop(billing_handle)
         try:
             await result_task
         except (asyncio.CancelledError, Exception):
@@ -1004,35 +1139,28 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
 
     session.host_ws = ws
     session.host_disconnected_at = None
-    from billing_db import deduct_session_cost as _deduct
     _user_id = None
+    _auth_ok = True
 
     try:
         first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
         if first_raw.get("text"):
             first = json.loads(first_raw["text"])
             if first.get("type") == "auth":
-                _user = get_user_by_token(first.get("token", ""))
-                _user_id = _user["id"] if _user else None
+                _auth_ok, _user_id = await _resolve_session_user(ws, first.get("token", ""))
     except (asyncio.TimeoutError, Exception):
         pass
 
-    async def billing_tick():
-        if not _user_id:
-            return
-        while True:
-            await asyncio.sleep(60)
-            try:
-                new_balance = _deduct(_user_id, "duo", 0)
-                if new_balance <= 0:
-                    await ws.send_json({"type": "session_ended", "reason": "no_balance"})
-                    await ws.close(); return
-            except asyncio.CancelledError:
-                return
-            except Exception as e:
-                logger.warning(f"Duo host billing error: {e}")
+    if not _auth_ok:
+        await ws.close(); return
 
-    billing_task = asyncio.create_task(billing_tick())
+    # Гейт баланса ДО старта платной транскрипции.
+    if not await _enforce_start_balance(ws, _user_id):
+        await ws.close(); return
+
+    billing_handle = await _begin_session_billing(
+        ws, ("duo-remote-host", duo_id), _user_id, "duo"
+    )
     await ws.send_json({"type": "duo_ready", "lang_a": session.lang_a, "lang_b": session.lang_b})
     if session.guest_ws is not None:
         try:
@@ -1101,7 +1229,8 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
     except WebSocketDisconnect:
         logger.info(f"🔌 Duo host відключився {duo_id}")
     finally:
-        result_task.cancel(); billing_task.cancel()
+        result_task.cancel()
+        await _billing_coordinator.stop(billing_handle)
         session.host_ws = None
         session.host_disconnected_at = time.time()
         try:
@@ -1256,11 +1385,11 @@ async def websocket_solo(ws: WebSocket):
         keep_tail_words=6,
     )
 
-    solo_source_lang: str | None = session_config.get("source_lang")
-    solo_target_lang: str = session_config.get("target_lang") or os.getenv("DEFAULT_TARGET_LANG", "uk")
+    solo_source_lang: str | None = SESSION_DEFAULTS.get("source_lang")
+    solo_target_lang: str = SESSION_DEFAULTS.get("target_lang") or os.getenv("DEFAULT_TARGET_LANG", "uk")
 
-    from billing_db import deduct_session_cost as _deduct
     _user_id = None
+    _auth_ok = True
 
     try:
         first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
@@ -1268,8 +1397,7 @@ async def websocket_solo(ws: WebSocket):
             first = json.loads(first_raw["text"])
 
             if first.get("type") == "auth":
-                _user = get_user_by_token(first.get("token", ""))
-                _user_id = _user["id"] if _user else None
+                _auth_ok, _user_id = await _resolve_session_user(ws, first.get("token", ""))
 
             elif first.get("type") == "config":
                 if first.get("source_lang"):
@@ -1281,42 +1409,32 @@ async def websocket_solo(ws: WebSocket):
     except (asyncio.TimeoutError, Exception):
         pass
 
+    if not _auth_ok:
+        await ws.close()
+        return
+
     if _user_id:
         logger.info(f"💳 Solo: user_id={_user_id} (billing active)")
     else:
         logger.info("💳 Solo: anonymous session (no billing)")
 
-    async def billing_tick():
-        if not _user_id:
-            return
-        while True:
-            await asyncio.sleep(60)
-            try:
-                new_balance = _deduct(_user_id, "solo", 0)
-                logger.info(f"💸 Solo billing tick: user={_user_id} balance={new_balance:.4f}")
-                if new_balance <= 0:
-                    await ws.send_json({"type": "session_ended", "reason": "no_balance"})
-                    await ws.close()
-                    return
-                else:
-                    from billing_db import get_balance_warning as _gbw
-                    _warn = _gbw(new_balance)
-                    if _warn:
-                        await ws.send_json({
-                            "type": "balance_warning",
-                            "level": _warn,
-                            "balance": round(new_balance, 4),
-                        })
-            except asyncio.CancelledError:
-                return
-            except Exception as e:
-                logger.warning(f"Solo billing tick error: {e}")
+    # Гейт баланса ДО старта платной транскрипции.
+    if not await _enforce_start_balance(ws, _user_id):
+        await ws.close()
+        return
 
-    billing_task = asyncio.create_task(billing_tick())
+    billing_handle = await _begin_session_billing(
+        ws, ("solo", _user_id), _user_id, "solo"
+    )
 
     dg = DeepgramTranscriber()
     await dg.start(language=solo_source_lang or "uk")
     last_solo_seen_final_text = ""
+    # Фактическая частота входного аудио из браузера. Раньше Solo полагался
+    # только на AudioContext(16000), но Android/Safari часто его игнорируют —
+    # тогда без ресэмплинга речь искажалась. Теперь клиент шлёт audio_meta.
+    solo_audio_meta: dict = {}
+    solo_input_sample_rate = 16000
 
     async def handle_results():
         nonlocal last_solo_seen_final_text
@@ -1442,7 +1560,9 @@ async def websocket_solo(ws: WebSocket):
 
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
-                    await dg.start(solo_source_lang or "uk")
+                    dg.set_input_sample_rate(solo_input_sample_rate)
+                    await dg.start(solo_source_lang or "uk",
+                                   input_sample_rate=solo_input_sample_rate)
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
@@ -1452,6 +1572,30 @@ async def websocket_solo(ws: WebSocket):
 
                     if msg_type == "ping":
                         await ws.send_json({"type": "pong"})
+
+                    elif msg_type == "audio_meta":
+                        # Тот же путь, что и у гостя: валидируем и используем
+                        # общий ресэмплинг в transcriber.send_audio.
+                        ok, reason = _validate_audio_meta(msg)
+                        if not ok:
+                            logger.warning(f"🎛️ [SOLO] невалидный audio_meta: {reason}")
+                            await ws.send_json({
+                                "type": "error",
+                                "code": "audio_meta_invalid",
+                                "message": f"Невалидные параметры аудио: {reason}",
+                            })
+                            continue
+                        solo_audio_meta = dict(msg)
+                        solo_input_sample_rate = _pick_client_sample_rate(solo_audio_meta)
+                        dg.set_input_sample_rate(solo_input_sample_rate)
+                        logger.info(
+                            "🎛️ [SOLO] audio_meta: context_sr=%s track_sr=%s picked_sr=%s format=%s",
+                            solo_audio_meta.get("context_sample_rate"),
+                            solo_audio_meta.get("track_sample_rate"),
+                            solo_input_sample_rate,
+                            solo_audio_meta.get("sample_format"),
+                        )
+                        continue
 
                     elif msg_type == "tts_done":
                         pass
@@ -1498,7 +1642,7 @@ async def websocket_solo(ws: WebSocket):
         logger.error(f"❌ Помилка WebSocket Solo: {e}", exc_info=True)
     finally:
         result_task.cancel()
-        billing_task.cancel()
+        await _billing_coordinator.stop(billing_handle)
         try:
             await result_task
         except (asyncio.CancelledError, Exception):
@@ -1528,9 +1672,34 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
         room.host_websocket = ws
         logger.info(f"🔌 Хост подключён к комнате '{room_id}'")
 
-    # Billing auth — токен може прийти як перше або будь-яке text-повідомлення
-    from billing_db import deduct_session_cost as _deduct
+    # Billing auth must be resolved before starting the paid Deepgram stream.
     _user_id = None
+    _auth_ok = True
+
+    try:
+        first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
+        if first_raw.get("text"):
+            first = json.loads(first_raw["text"])
+            if first.get("type") == "auth":
+                _auth_ok, _user_id = await _resolve_session_user(ws, first.get("token", ""))
+    except (asyncio.TimeoutError, json.JSONDecodeError):
+        pass
+
+    if not _auth_ok:
+        await ws.close()
+        return
+
+    if not await _enforce_start_balance(ws, _user_id):
+        await ws.close()
+        return
+
+    billing_handle = await _begin_session_billing(
+        ws,
+        ("room-host", room_id),
+        _user_id,
+        "room",
+        guest_count=lambda: _count_billable_room_guests(room),
+    )
 
     dg = DeepgramTranscriber()
     await dg.start(
@@ -1544,37 +1713,6 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
 
     # Keepalive ping від сервера не потрібен — пінг іде з клієнта
     # Але треба відповідати на pong (або просто ігнорувати)
-
-    async def billing_tick():
-        nonlocal _user_id
-        if not _user_id:
-            return
-        while True:
-            await asyncio.sleep(60)
-            try:
-                guest_count = len(room.participants)
-                new_balance = _deduct(_user_id, "room", guest_count)
-                logger.info(f"💸 Room billing tick: user={_user_id} guests={guest_count} balance={new_balance:.4f}")
-                if new_balance <= 0:
-                    await ws.send_json({"type": "session_ended", "reason": "no_balance"})
-                    await ws.close()
-                    return
-                else:
-                    from billing_db import get_balance_warning as _gbw
-                    _warn = _gbw(new_balance)
-                    if _warn:
-                        await ws.send_json({
-                            "type": "balance_warning",
-                            "level": _warn,           # "low" | "critical"
-                            "balance": round(new_balance, 4),
-                            "guests": guest_count,    # сколько участников сейчас
-                        })
-            except asyncio.CancelledError:
-                return
-            except Exception as e:
-                logger.warning(f"Room billing tick error: {e}")
-
-    billing_tasks = [asyncio.create_task(billing_tick())]
 
     async def _host_process_final(final_result: TranscriptResult):
         """
@@ -1664,14 +1802,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                 action = msg.get("action")
                 guest_id = msg.get("guest_id")
 
-                # Auth для білінгу (може прийти будь-коли на початку)
-                if msg_type == "auth" and not _user_id:
-                    _user = get_user_by_token(msg.get("token", ""))
-                    _user_id = _user["id"] if _user else None
-                    if _user_id:
-                        logger.info(f"💳 Room: user_id={_user_id} (billing active)")
-                        billing_tasks[0].cancel()
-                        billing_tasks[0] = asyncio.create_task(billing_tick())
+                if msg_type == "auth":
                     continue
 
                 if msg_type == "ping":
@@ -1722,7 +1853,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
             pass
     finally:
         result_task.cancel()
-        billing_tasks[0].cancel()
+        await _billing_coordinator.stop(billing_handle)
         # Отменяем фоновые задачи перевода/TTS
         for t in _bg_tasks_host:
             t.cancel()
@@ -2056,24 +2187,10 @@ async def api_register(body: RegisterBody):
         }
         raise HTTPException(400, errors.get(result["error"], result["error"]))
     result["user"].pop("password_hash", None)
-    # ── Авто-бонус $3 при регистрации (без ожидания email) ──
-    try:
-        from billing_db import _conn as _bconn
-        _bc = _bconn()
-        _bcur = _bc.cursor()
-        _bcur.execute("SELECT bonus_given FROM users WHERE id=?", (result["user"]["id"],))
-        _brow = _bcur.fetchone()
-        if _brow and not _brow["bonus_given"]:
-            _bc.execute(
-                "UPDATE users SET balance=ROUND(balance+3.0,6), bonus_given=1 WHERE id=?",
-                (result["user"]["id"],)
-            )
-            _bc.commit()
-            logger.info(f"🎁 auto bonus $3: user_id={result['user']['id']}")
-        _bc.close()
-    except Exception as _be:
-        logger.warning(f"auto_bonus failed: {_be}")
-    # Отправить верификационный email ($3 бонус)
+    # Бонус $3 НЕ начисляется при регистрации. Единая политика: бонус
+    # выдаётся ровно один раз ПОСЛЕ подтверждения email (verify_email_token),
+    # что согласуется с текстом письма. См. billing_db.verify_email_token.
+    # Отправить верификационный email (после подтверждения — $3 бонус)
     try:
         import threading
         threading.Thread(
@@ -2214,7 +2331,7 @@ async def admin_update_user(
 ):
     _check_admin(authorization)
     import sqlite3
-    from billing_db import DB_PATH
+    from db_config import DB_PATH
     from vox_db import hash_password
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
@@ -2257,7 +2374,7 @@ async def admin_delete_user(
 ):
     _check_admin(authorization)
     import sqlite3
-    from billing_db import DB_PATH
+    from db_config import DB_PATH
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
     cur.execute("SELECT id FROM users WHERE id=?", (user_id,))
@@ -2535,6 +2652,30 @@ async def serve_pwa_install_js():
     if not pwa_path.exists():
         raise HTTPException(status_code=404, detail="pwa-install.js not found")
     return FileResponse(pwa_path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+
+@app.get("/vox-connection.js")
+async def serve_vox_connection_js():
+    path = FRONTEND_DIR / "vox-connection.js"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="vox-connection.js not found")
+    return FileResponse(path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+
+@app.get("/vox-socket.js")
+async def serve_vox_socket_js():
+    path = FRONTEND_DIR / "vox-socket.js"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="vox-socket.js not found")
+    return FileResponse(path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+
+@app.get("/vox-diagnostics.js")
+async def serve_vox_diagnostics_js():
+    path = FRONTEND_DIR / "vox-diagnostics.js"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="vox-diagnostics.js not found")
+    return FileResponse(path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 @app.get("/icons/icon-{size}.png")
 async def serve_icon(size: str):

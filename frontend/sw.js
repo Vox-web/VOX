@@ -10,15 +10,19 @@
  * Важно:
  * - HTML НЕ кешируется вообще
  * - /host НЕ precache'ится
- * - При обновлении service worker сразу активируется
+ * - Обновление активируется только после подтверждения пользователя
  */
 
-const CACHE_NAME = 'vox-static-v2';
+// Версия SW. Меняйте при изменении логики кеширования/обновления.
+const SW_VERSION = '3.2.1';
+const CACHE_NAME = 'vox-static-' + SW_VERSION;
 
 const PRECACHE = [
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  '/vox-connection.js',
+  '/vox-socket.js',
 ];
 
 // Что считаем безопасной статикой для кеширования
@@ -31,7 +35,8 @@ function isStaticAsset(request, url) {
   if (
     pathname.startsWith('/api/') ||
     pathname.startsWith('/ws') ||
-    pathname.startsWith('/room/')
+    pathname.startsWith('/room/') ||
+    pathname === '/sw.js'
   ) {
     return false;
   }
@@ -70,8 +75,20 @@ self.addEventListener('install', event => {
           console.warn('SW precache skip:', url, e.message);
         })))
       )
-      .then(() => self.skipWaiting())
+    // НЕ вызываем skipWaiting() автоматически: новый SW ждёт в waiting,
+    // клиент показывает баннер «Доступна новая версия» и активирует обновление
+    // по кнопке (controlled update без неожиданной подмены кода).
   );
+});
+
+// Клиент может попросить применить обновление немедленно.
+self.addEventListener('message', event => {
+  const data = event.data || {};
+  if (data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  } else if (data.type === 'GET_VERSION') {
+    if (event.source) event.source.postMessage({ type: 'SW_VERSION', version: SW_VERSION });
+  }
 });
 
 self.addEventListener('activate', event => {
@@ -128,7 +145,8 @@ self.addEventListener('fetch', event => {
   if (
     url.pathname.startsWith('/ws') ||
     url.pathname.startsWith('/api/') ||
-    url.pathname.startsWith('/room/')
+    url.pathname.startsWith('/room/') ||
+    url.pathname === '/sw.js'
   ) {
     return;
   }

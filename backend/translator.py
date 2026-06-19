@@ -11,6 +11,7 @@ import os
 import json
 import logging
 import asyncio
+import threading
 from collections import OrderedDict
 
 from openai import OpenAI
@@ -123,20 +124,52 @@ class Translator:
         self._context: list[dict] = []  # [{"source": "...", "translation": "..."}]
         self._context_size = context_size
 
+        # Один экземпляр Translator может использоваться несколькими потоками
+        # одновременно (translate_parallel запускает переводы на разные языки
+        # в executor'ах). Блокировка защищает _cache и _context от порчи.
+        # ВАЖНО: внешний вызов OpenAI выполняется ВНЕ блокировки.
+        self._lock = threading.RLock()
+
     def clear_context(self):
         """Сброс контекста разговора (при смене спикера/сессии)."""
-        self._context = []
+        with self._lock:
+            self._context = []
         logger.debug("🧹 Контекст переводчика сброшен")
+
+    # --- Потокобезопасные операции над общим состоянием ---
+    def _cache_get(self, key: str):
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                return self._cache[key]
+        return None
+
+    def _cache_put(self, key: str, value: str):
+        with self._lock:
+            self._cache[key] = value
+            while len(self._cache) > self._cache_size:
+                self._cache.popitem(last=False)
+
+    def _context_append(self, source: str, translation: str):
+        with self._lock:
+            self._context.append({"source": source, "translation": translation})
+            if len(self._context) > self._context_size * 2:
+                self._context = self._context[-self._context_size:]
+
+    def _context_snapshot(self) -> list[dict]:
+        with self._lock:
+            return list(self._context[-self._context_size:])
 
     def _cache_key(self, text: str, source: str, target: str) -> str:
         return f"{source}:{target}:{text.lower().strip()}"
     
     def _recent_context_block(self) -> str:
-        if not self._context:
+        snapshot = self._context_snapshot()
+        if not snapshot:
             return ""
 
         lines = []
-        for item in self._context[-self._context_size:]:
+        for item in snapshot:
             src = item.get("source", "").strip()
             trn = item.get("translation", "").strip()
             if src or trn:
@@ -157,10 +190,11 @@ class Translator:
 
         key = self._cache_key(text, source_lang, target_lang)
 
-        if use_cache and key in self._cache:
-            self._cache.move_to_end(key)
-            logger.debug(f"📋 Кеш: {text[:30]}...")
-            return self._cache[key]
+        if use_cache:
+            cached = self._cache_get(key)
+            if cached is not None:
+                logger.debug(f"📋 Кеш: {text[:30]}...")
+                return cached
 
         if self.client is None:
             logger.warning("⚠️ OpenAI клиент не инициализирован, возвращаю оригинал")
@@ -179,12 +213,12 @@ class Translator:
                 },
             ]
 
-            if self._context:
-                context_lines = []
-                for item in self._context[-self._context_size:]:
-                    context_lines.append(
-                        f'[{item["source"]}] → [{item["translation"]}]'
-                    )
+            snapshot = self._context_snapshot()
+            if snapshot:
+                context_lines = [
+                    f'[{item["source"]}] → [{item["translation"]}]'
+                    for item in snapshot
+                ]
                 messages.append({
                     "role": "system",
                     "content": (
@@ -196,6 +230,7 @@ class Translator:
 
             messages.append({"role": "user", "content": text})
 
+            # Сетевой вызов — ВНЕ блокировки.
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=messages,
@@ -206,14 +241,10 @@ class Translator:
             translated = response.choices[0].message.content.strip()
 
             if use_cache:
-                self._cache[key] = translated
-                if len(self._cache) > self._cache_size:
-                    self._cache.popitem(last=False)
+                self._cache_put(key, translated)
 
             if store_context:
-                self._context.append({"source": text, "translation": translated})
-                if len(self._context) > self._context_size * 2:
-                    self._context = self._context[-self._context_size:]
+                self._context_append(text, translated)
 
             logger.info(f"🌐 [{source_lang}→{target_lang}] {text[:30]}... → {translated[:30]}...")
             return translated
@@ -252,11 +283,9 @@ class Translator:
             ]
 
             # Контекст последних фраз — ключевой сигнал для восстановления
-            if self._context:
-                context_lines = [
-                    item["source"]
-                    for item in self._context[-self._context_size:]
-                ]
+            _asr_snapshot = self._context_snapshot()
+            if _asr_snapshot:
+                context_lines = [item["source"] for item in _asr_snapshot]
                 messages.append({
                     "role": "system",
                     "content": (
@@ -278,9 +307,7 @@ class Translator:
 
             # Сохраняем оригинальный ASR в контекст (не исправленный),
             # чтобы модель видела паттерн ошибок
-            self._context.append({"source": text, "translation": corrected})
-            if len(self._context) > self._context_size * 2:
-                self._context = self._context[-self._context_size:]
+            self._context_append(text, corrected)
 
             if corrected != text:
                 logger.info(f"🔧 ASR fix [{lang}]: «{text}» → «{corrected}»")
@@ -391,9 +418,7 @@ class Translator:
                 spoken_text = draft_translation
 
             # Сохраняем в контекст только то, что реально пошло в озвучку
-            self._context.append({"source": text, "translation": spoken_text})
-            if len(self._context) > self._context_size * 2:
-                self._context = self._context[-self._context_size:]
+            self._context_append(text, spoken_text)
 
             logger.info(
                 f"🧠 semantic gate [{source_lang}→{target_lang}] emit={emit_now} "

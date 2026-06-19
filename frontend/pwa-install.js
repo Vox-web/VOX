@@ -304,9 +304,7 @@
         pwaBtn.removeAttribute('onclick');
         pwaBtn.addEventListener('click', openModal);
 
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').catch(() => {});
-        }
+        initServiceWorkerUpdates();
 
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
@@ -324,6 +322,103 @@
         window.addEventListener('pageshow', setButtonState);
 
         setButtonState();
+    }
+
+    // =====================================================================
+    // Версии и обновление PWA (Service Worker update flow)
+    // =====================================================================
+    window.VOX_FRONTEND_VERSION = '3.2.1';
+    window.VOX_SW_VERSION = null;
+
+    const SW_UPDATE_I18N = {
+        uk: { msg: 'Доступна нова версія VOX', btn: 'Оновити' },
+        en: { msg: 'A new version of VOX is available', btn: 'Update' },
+        de: { msg: 'Eine neue VOX-Version ist verfügbar', btn: 'Aktualisieren' },
+    };
+
+    function swUpdateText(key) {
+        const lang = getUILang();
+        return (SW_UPDATE_I18N[lang] || SW_UPDATE_I18N.en)[key];
+    }
+
+    function showUpdateBanner(reg) {
+        if (document.getElementById('voxUpdateBanner')) return;
+        const bar = document.createElement('div');
+        bar.id = 'voxUpdateBanner';
+        bar.setAttribute('role', 'status');
+        bar.style.cssText =
+            'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:99999;' +
+            'display:flex;gap:12px;align-items:center;background:#15121f;color:#f0eeff;' +
+            'border:1px solid #2a2340;border-radius:14px;padding:12px 16px;' +
+            'box-shadow:0 12px 40px rgba(0,0,0,.45);font-family:Arial,sans-serif;font-size:14px;max-width:92vw';
+        const span = document.createElement('span');
+        span.textContent = swUpdateText('msg');
+        const btn = document.createElement('button');
+        btn.textContent = swUpdateText('btn');
+        btn.style.cssText =
+            'background:linear-gradient(135deg,#9b8aff,#7c6aff);color:#fff;border:0;border-radius:10px;' +
+            'padding:8px 16px;font-weight:700;cursor:pointer';
+        btn.addEventListener('click', () => {
+            const waiting = reg.waiting;
+            if (waiting) waiting.postMessage({ type: 'SKIP_WAITING' });
+            btn.disabled = true;
+            btn.textContent = '…';
+        });
+        bar.appendChild(span);
+        bar.appendChild(btn);
+        document.body.appendChild(bar);
+    }
+
+    function initServiceWorkerUpdates() {
+        if (!('serviceWorker' in navigator)) return;
+
+        // Был ли контроллер на момент загрузки. Перезагружаемся только если SW
+        // ОБНОВИЛСЯ (заменил существующий контроллер), а не при первой установке —
+        // так первый визит не дёргает лишний reload.
+        const hadController = !!navigator.serviceWorker.controller;
+
+        navigator.serviceWorker.register('/sw.js').then(reg => {
+            // Запросить версию активного SW (для диагностики).
+            try {
+                navigator.serviceWorker.addEventListener('message', e => {
+                    if (e.data && e.data.type === 'SW_VERSION') window.VOX_SW_VERSION = e.data.version;
+                });
+                if (navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' });
+                }
+            } catch (_) {}
+
+            // Если уже есть ожидающий SW — сразу показать баннер.
+            if (reg.waiting && navigator.serviceWorker.controller) {
+                showUpdateBanner(reg);
+            }
+
+            reg.addEventListener('updatefound', () => {
+                const nw = reg.installing;
+                if (!nw) return;
+                nw.addEventListener('statechange', () => {
+                    // installed + есть контроллер => это ОБНОВЛЕНИЕ (не первая установка)
+                    if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                        showUpdateBanner(reg);
+                    }
+                });
+            });
+
+            // Периодически проверять обновления (раз в 30 минут и при возврате на вкладку).
+            setInterval(() => { reg.update().catch(() => {}); }, 30 * 60 * 1000);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') reg.update().catch(() => {});
+            });
+        }).catch(() => {});
+
+        // Перезагрузка ровно один раз при смене контроллера (guard от reload-loop),
+        // и только если это обновление существующего SW.
+        let _refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (_refreshing || !hadController) return;
+            _refreshing = true;
+            window.location.reload();
+        });
     }
 
     window.initPwaInstall = initPwaInstall;

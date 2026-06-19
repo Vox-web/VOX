@@ -1,46 +1,3 @@
-Для отправки изменений из локального репозитория на GitHub обычно используется стандартная последовательность из четырех команд:
-
-1. **Проверка состояния**
-Перед началом работы стоит увидеть, какие файлы были изменены:
-`git status`
-2. **Добавление файлов в индекс (Staging)**
-Чтобы подготовить файлы к сохранению, их нужно добавить.
-* Добавить конкретный файл: `git add <имя_файла>`
-* Добавить все измененные файлы сразу: `git add .`
-
-
-3. **Создание коммита (Фиксация изменений)**
-Нужно сохранить добавленные изменения с описанием того, что было сделано:
-`git commit -m "Ваше сообщение о внесенных изменениях"`
-4. **Отправка на GitHub (Push)**
-Теперь изменения отправляются в удаленный репозиторий:
-`git push origin <название_ветки>`
-*(Чаще всего основной веткой является `main` или `master`)*
-
-git add .
-git commit -m "Ваше сообщение о внесенных изменениях"
-git push origin main
-
-Полезный лайфхак
-Если вы не хотите каждый раз вводить origin main, при первой отправке используйте флаг -u:
-git push -u origin main
-
-После этого Git «запомнит» связь, и в будущем вам достаточно будет писать просто:
-git push
-
-
----
-
-### Дополнительные полезные команды:
-
-* **git pull** — перед отправкой своих данных полезно скачать актуальную версию проекта из облака, чтобы избежать конфликтов.
-* **git remote -v** — позволяет проверить, к какому именно репозиторию на GitHub привязан ваш локальный проект.
-* **git log** — просмотр истории ваших предыдущих коммитов.
-
-
-
-
-
 # VOX — Real-Time AI Translation Platform
 
 Мультиязычная платформа для перевода речи в реальном времени.
@@ -156,7 +113,7 @@ VOX/
 | TTS (основной) | edge-tts (Microsoft) | Бесплатный, ~300мс |
 | TTS (fallback) | OpenAI TTS tts-1 | Платный, автоматический fallback |
 | Биллинг | Stripe Checkout + Webhooks | Пополнение баланса, поминутная тарификация |
-| Email | Resend API | Верификация email, $3 бонус |
+| Email | Gmail SMTP | Верификация email, $3 бонус (после подтверждения) |
 | БД | SQLite (WAL mode) | Users, sessions, reviews, payments |
 | Frontend | Vanilla HTML/JS | AudioWorklet, Web Audio API, WebSocket |
 
@@ -166,21 +123,29 @@ VOX/
 
 ## Переменные окружения
 
+Полный список — в `.env.example`. Минимум:
+
 ```env
 # Обязательные
 DEEPGRAM_API_KEY=dg_...          # STT
 OPENAI_API_KEY=sk-...            # Перевод + TTS fallback
 PORT=8080
 
+# Единый путь к БД (auth + billing). В проде — persistent volume.
+VOX_DB_PATH=/data/vox.db
+
 # Биллинг (опционально)
 STRIPE_SECRET_KEY=sk_...         # Stripe
 STRIPE_WEBHOOK_SECRET=whsec_...  # Stripe Webhooks
-RESEND_API_KEY=re_...            # Email верификация
 BASE_URL=https://your-domain.com # Для email-ссылок и Stripe redirect
+
+# Email-верификация (Gmail SMTP — НЕ Resend)
+GMAIL_USER=youraddress@gmail.com
+GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
 
 # Админка
 ADMIN_LOGIN=admin
-ADMIN_PASSWORD=your_secure_password
+ADMIN_PASSWORD=your_secure_password   # обязательно сменить дефолт
 
 # Настройки
 DEFAULT_TARGET_LANG=uk
@@ -196,8 +161,8 @@ ROOM_TIMEOUT_MINUTES=120
 4. Deploy
 
 ```
-# Procfile
-web: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+# Procfile (фактический)
+web: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
 
 ## API эндпоинты
@@ -248,16 +213,5 @@ web: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
 
 **VOX** — часть экосистемы AI-продуктов: AURA (healthcare voice assistant), ATHENA (smart companion), VOX (real-time translation).
 
-*Версия 3.1 — Март 2026*
-
-
-Карта: 4242 4242 4242 4242
-MM/ГГ: любая будущая дата, например 12/26
-CVV: любые 3 цифры, например 123
-Имя: любое
-Адрес: любой
-
-
-Дипграм 
-https://console.deepgram.com
-Вход через гуугл obivan.ua@gmail.com
+*Версия 3.2.1* — единый source of truth в `backend/version.py`
+(согласован с frontend `VOX_FRONTEND_VERSION` и SW `SW_VERSION`).

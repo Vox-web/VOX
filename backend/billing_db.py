@@ -7,20 +7,32 @@ VOX — Биллинг: модуль базы данных
 import sqlite3
 import secrets
 import logging
-from pathlib import Path
-import os
 
 logger = logging.getLogger("vox.billing_db")
 
-# Используем ту же БД, что и vox_db.py
-DB_PATH = Path(os.environ.get("VOX_DB_PATH", "/data/vox.db"))
+# Используем ту же БД, что и vox_db.py — единый источник пути (db_config.py).
+# Раньше здесь был отдельный дефолт "/data/vox.db", из-за чего billing мог
+# работать с другим файлом, чем auth. Теперь путь общий.
+from db_config import DB_PATH
+
+# Единые билинговые константы (один источник правды).
+MIN_BALANCE_TO_START = 0.25   # минимальный баланс для старта платной сессии
+DEFAULT_PRICE_PER_MIN = 0.05  # дефолтный тариф $/мин
+EMAIL_VERIFY_BONUS = 3.0      # бонус за подтверждение email (один раз на пользователя)
 
 
 def _conn():
     """Создать соединение с БД."""
-    con = sqlite3.connect(DB_PATH)
+    con = sqlite3.connect(DB_PATH, timeout=5.0)
     con.row_factory = sqlite3.Row
+    # Ждать освобождения блокировки до 5с вместо мгновенного "database is locked".
+    con.execute("PRAGMA busy_timeout=5000")
     return con
+
+
+def room_billable(guest_count: int) -> bool:
+    """Списывать ли за комнату: тариф = цена × гости, при 0 гостях — нет."""
+    return guest_count > 0
 
 
 # ---------------------------------------------------------------------------
@@ -147,45 +159,63 @@ def generate_verify_token(user_id: int) -> str:
 
 def verify_email_token(token: str) -> dict:
     """
-    Верифицировать токен.
-    Если bonus_given=False — начислить $3 бонус.
+    Верифицировать токен email и начислить бонус РОВНО ОДИН РАЗ.
+
+    Идемпотентность и защита от гонки: бонус начисляется атомарным
+    UPDATE с условием bonus_given=0. Даже при параллельных запросах
+    (двойной клик/двойная доставка письма) только один UPDATE изменит
+    строку — повторный вернёт rowcount=0 и второй бонус не выдаст.
+
     Возвращает {"ok": bool, "user_id": int|None, "bonus": bool}
     """
     if not token:
         return {"ok": False, "user_id": None, "bonus": False}
 
     con = _conn()
-    cur = con.cursor()
-    cur.execute(
-        "SELECT id, is_email_verified, bonus_given FROM users WHERE email_verify_token=?",
-        (token,)
-    )
-    row = cur.fetchone()
-    if not row:
-        con.close()
-        return {"ok": False, "user_id": None, "bonus": False}
+    try:
+        # Сериализуем запись (SQLite write-lock на время транзакции).
+        con.execute("BEGIN IMMEDIATE")
+        cur = con.cursor()
+        cur.execute(
+            "SELECT id FROM users WHERE email_verify_token=?",
+            (token,)
+        )
+        row = cur.fetchone()
+        if not row:
+            con.rollback()
+            return {"ok": False, "user_id": None, "bonus": False}
 
-    user_id = row["id"]
-    bonus_applied = False
+        user_id = row["id"]
 
-    # Помечаем email как подтверждённый
-    con.execute(
-        "UPDATE users SET is_email_verified=1, email_verify_token=NULL WHERE id=?",
-        (user_id,)
-    )
-
-    # Начисляем $3 бонус только если ещё не давали
-    if not row["bonus_given"]:
+        # Помечаем email подтверждённым и гасим токен.
         con.execute(
-            "UPDATE users SET balance = ROUND(balance + 3.0, 6), bonus_given=1 WHERE id=?",
+            "UPDATE users SET is_email_verified=1, email_verify_token=NULL WHERE id=?",
             (user_id,)
         )
-        bonus_applied = True
-        logger.info(f"🎁 bonus $3 начислен: user_id={user_id}")
 
-    con.commit()
-    con.close()
-    return {"ok": True, "user_id": user_id, "bonus": bonus_applied}
+        # Атомарно начисляем бонус только если он ещё не выдавался.
+        cur.execute(
+            "UPDATE users SET balance = ROUND(balance + ?, 6), bonus_given=1 "
+            "WHERE id=? AND bonus_given=0",
+            (EMAIL_VERIFY_BONUS, user_id)
+        )
+        bonus_applied = cur.rowcount > 0
+
+        con.commit()
+        if bonus_applied:
+            logger.info(f"🎁 bonus ${EMAIL_VERIFY_BONUS:.0f} начислен (verify): user_id={user_id}")
+        return {"ok": True, "user_id": user_id, "bonus": bonus_applied}
+    except Exception as e:
+        con.rollback()
+        logger.error(f"verify_email_token: {e}")
+        return {"ok": False, "user_id": None, "bonus": False}
+    finally:
+        con.close()
+
+
+def can_start_session(user_id: int) -> bool:
+    """Достаточно ли баланса для старта платной сессии (>= MIN_BALANCE_TO_START)."""
+    return get_user_balance(user_id) >= MIN_BALANCE_TO_START
 
 
 # ---------------------------------------------------------------------------
