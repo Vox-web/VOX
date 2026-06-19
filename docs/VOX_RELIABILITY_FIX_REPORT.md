@@ -1,6 +1,6 @@
 # VOX — Reliability Fix Report
 
-Ветка: `fix/vox-pwa-reliability` · Версия после правок: **3.2.0**
+Ветка: `fix/vox-pwa-reliability` · Версия после правок: **3.2.1**
 Дата работы: 2026-06-20 · Ничего не запушено и не задеплоено.
 
 ---
@@ -33,7 +33,7 @@
 
 Что сделано:
 1. **Liveness/stale-watchdog** (`host.html`): любое входящее сообщение/`pong` обновляет метку активности; если в активной сессии нет сообщений > 30с — авто-`repair`. Клиент шлёт ping каждые 15с, сервер отвечает `pong` → при живом сокете метка свежая, при мёртвом — устаревает и срабатывает reconnect. Watchdog работает и на переднем плане (периодический `setInterval`), а не только по lifecycle-событиям.
-2. **Переиспользуемая state machine** (`frontend/vox-connection.js`, 10 node-тестов): состояния `connecting/connected/reconnecting/offline/auth_required/insufficient_balance/microphone_error/closed`; backoff+jitter; лимит попыток; single-connection guard; heartbeat; stale-watchdog; повторная отправка `config`/`audio_meta`; отмена таймеров при stop. (Готовая инфраструктура; найден и исправлен латентный баг `_lastActivity==0`.)
+2. **Переиспользуемая state machine** (`frontend/vox-connection.js`) и WebSocket-совместимый адаптер (`frontend/vox-socket.js`, 12 node-тестов): состояния `connecting/connected/reconnecting/offline/auth_required/insufficient_balance/billing_unavailable/microphone_error/closed`; backoff+jitter; лимит попыток; single-connection guard; heartbeat; stale-watchdog; повторная отправка auth/config/audio_meta через `onopen`; отмена таймеров при stop. Адаптер фактически подключён в Solo, Duo one-device, Duo remote host/guest и Room host/guest; прямых `new WebSocket` в этих страницах не осталось.
 3. **Mic lifecycle** (`host.html`): подписка на `track 'ended'/'mute'/'unmute'`; при `ended` в активной сессии — `repair`; состояние в `window._voxMicState`.
 4. **SW update flow** (`sw.js`+`pwa-install.js`): версионированный кеш, убран авто-`skipWaiting`, баннер «Доступна новая версия» + контролируемый reload с guard от reload-loop (`hadController`), периодическая `reg.update()`. Устраняет «застревание» установленной PWA на старом коде.
 5. **Диагностика** (`vox-diagnostics.js`): скрываемая панель (`?diag=1` или 5 тапов в угол) — версии, состояние WS, last close, reconnect attempts, sample rate, mic, online. Помогает быстро понять: сеть / авторизация / баланс / WS / SW / микрофон.
@@ -44,9 +44,9 @@
 
 ## 3. Изменённые/новые файлы
 
-**Backend:** `db_config.py`(new), `version.py`(new), `language_capabilities.py`(new), `vox_db.py`, `billing_db.py`, `billing.py`, `main.py`, `translator.py`, `audio_utils.py`, `tts_engine.py`, `solo_semantic.py`. Убран из индекса `backend/vox.db` (файл на диске сохранён).
+**Backend:** `db_config.py`(new), `version.py`(new), `language_capabilities.py`(new), `session_billing.py`(new), `vox_db.py`, `billing_db.py`, `billing.py`, `main.py`, `translator.py`, `audio_utils.py`, `tts_engine.py`, `solo_semantic.py`. Убран из индекса `backend/vox.db` (файл на диске сохранён).
 
-**Frontend:** `sw.js`, `pwa-install.js`, `host.html`, `docs.html`, `vox-connection.js`(new), `vox-diagnostics.js`(new).
+**Frontend:** `sw.js`, `pwa-install.js`, `host.html`, `solo.html`, `duo_guest.html`, `guest.html`, `docs.html`, `vox-connection.js`(new), `vox-socket.js`(new), `vox-diagnostics.js`(new).
 
 **Scripts:** `scripts/audit_split_databases.py`(new), `scripts/migrate_split_databases.py`(new).
 
@@ -72,8 +72,8 @@ b4bbc72 fix(billing): single bonus on email verify, start-balance gate, room 0-g
 
 ## 5. Тесты и результаты
 
-Запуск Python: `python -m pytest tests/ -q` → **50 passed**.
-Запуск JS: `node tests/js/test_vox_connection.js` → **10 passed**.
+Финальный запуск Python: `python -m pytest tests/ -q` → **61 passed**.
+Финальный запуск JS: `node tests/js/test_vox_connection.js` → **12 passed**.
 
 | Область | Файл | Что проверяет |
 |---|---|---|
@@ -84,11 +84,30 @@ b4bbc72 fix(billing): single bonus on email verify, start-balance gate, room 0-g
 | Translator concurrency | `test_translator_threadsafe.py` | 8 потоков × 150 переводов без порчи cache/context; clear_context под нагрузкой |
 | Аудио | `test_audio_resample.py` | ресэмплинг 8/16/44.1/48k→16k; выбор и валидация sample rate |
 | Email (mock) | `test_email_mock.py` | SMTP замокан; токен; flow verify→бонус; нет креденшелов→False |
-| Версии | `test_version_consistency.py` | backend == SW == frontend (3.2.0) |
+| Версии | `test_version_consistency.py` | backend == SW == frontend (3.2.1) |
 | API smoke | `test_api_smoke.py` | /status, /api/languages, статика JS, validate-only /set-config, регистрация без бонуса |
-| WS state machine | `js/test_vox_connection.js` | connect/resend, single-socket, heartbeat, stale→reconnect, backoff+лимит, stop, terminal, offline |
+| Billing runtime | `test_session_billing.py` | start gate; fail-closed DB error; postpay после 60с; Room 0/1 guest; host exclusion; reconnect ownership |
+| Frontend integration | `test_frontend_connection_integration.py` | все реальные страницы загружают runtime; по одному managed socket на flow; Solo audio_meta; SW exclusions |
+| WS state machine | `js/test_vox_connection.js` | connect/resend, single-socket, heartbeat, stale→reconnect, backoff+лимит, stop, terminal, offline, реальный адаптер |
 
 Также выполнен **локальный запуск** через `TestClient` (in-process): `/status`=200, `/api/languages`=15 языков (default en/ru), новые JS отдаются, `/set-config` валидирует и не мутирует, регистрация даёт balance=0.0.
+
+### Фактическая интеграция соединения
+
+| Поток | Страница | `VoxConnection` через `VoxSocket` | Повторная инициализация после reconnect |
+|---|---|---:|---|
+| Solo | `host.html`, `solo.html` | да | auth/config и фактический `audio_meta` |
+| Duo one-device | `host.html` | да | auth/config |
+| Duo remote host | `host.html` | да | auth |
+| Duo remote guest | `duo_guest.html` | да | обработчики потока восстанавливаются через повторный `onopen` |
+| Room host | `host.html` | да | auth |
+| Room guest | `guest.html` | да | `audio_meta` и pre-roll при активном микрофоне |
+
+Для каждого flow создаётся один managed socket. `online`, `offline`, `pageshow` и
+`visibilitychange` обрабатывает адаптер; manual stop/закрытие комнаты вызывает
+`stop()` и удаляет lifecycle listeners. Старые ручные reconnect-таймеры из
+реальных обработчиков удалены; legacy resume guard только вызывает `resume()`
+существующего managed socket и не создаёт параллельное соединение.
 
 ---
 
@@ -128,7 +147,7 @@ cd backend && uvicorn main:app --host 0.0.0.0 --port 8080
    python scripts/migrate_split_databases.py --target /data/vox.db --source <другой.db> --apply    # с backup
    ```
 4. Запушить ветку, смержить, дать Railway пересобрать (`cd backend && uvicorn main:app`).
-5. После деплоя инкрементировать версию в `backend/version.py`, `frontend/pwa-install.js` (`VOX_FRONTEND_VERSION`) и `frontend/sw.js` (`SW_VERSION`) при будущих изменениях — баннер обновления покажется автоматически.
+5. После деплоя инкрементировать версию в `backend/version.py`, `frontend/pwa-install.js` (`VOX_FRONTEND_VERSION`) и `frontend/sw.js` (`SW_VERSION`) при будущих изменениях; тест `test_version_consistency.py` проверяет их равенство.
 
 > Пуш/деплой не выполнены — ждут отдельной команды.
 
@@ -166,7 +185,7 @@ cd backend && uvicorn main:app --host 0.0.0.0 --port 8080
 ## Приложение. Конкретные изменения логики (не «молча»)
 
 - **Бонус $3**: теперь начисляется **только после подтверждения email** (раньше — сразу при регистрации). Атомарно/идемпотентно. Старые пользователи с `bonus_given=1` повторно не получат.
-- **Гейт баланса**: сессия (Solo/Duo/Room) не стартует при балансе < $0.25; биллинг переведён на **prepay** (списание в начале минуты) — нет бесплатной первой минуты.
+- **Гейт баланса**: сессия (Solo/Duo/Room) не стартует при балансе < $0.25. Нежелательный **prepay удалён**: первый `_deduct` выполняется только после фактически прошедших 60 секунд. Короткая 10-секундная сессия не списывает минуту. Ошибка чтения billing DB закрывает старт с `billing_unavailable`, а не разрешает платную сессию молча.
 - **Room при 0 гостях**: списаний нет.
 - **/set-config**: больше не меняет глобальные дефолты (был кросс-юзер баг) — только валидирует.
 - **Duo one-device**: языки `uk, pl, zh, ko, ar, tr` недоступны в этом режиме осознанно (ограничение nova-3 multi); доступны в Solo/Room/Duo-Remote. `nl` скрыт (нет в 15 языках продукта).

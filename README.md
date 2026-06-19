@@ -213,5 +213,5 @@ web: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
 
 **VOX** — часть экосистемы AI-продуктов: AURA (healthcare voice assistant), ATHENA (smart companion), VOX (real-time translation).
 
-*Версия 3.2.0* — единый source of truth в `backend/version.py`
+*Версия 3.2.1* — единый source of truth в `backend/version.py`
 (согласован с frontend `VOX_FRONTEND_VERSION` и SW `SW_VERSION`).
