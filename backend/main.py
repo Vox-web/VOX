@@ -290,6 +290,34 @@ def _pick_client_sample_rate(meta: dict | None, default: int = 16000) -> int:
             return rate
     return default
 
+
+async def _enforce_start_balance(ws, user_id) -> bool:
+    """
+    Гейт минимального баланса ПЕРЕД стартом платной транскрипции.
+
+    Возвращает True, если можно начинать (анонимная сессия или баланс
+    достаточен). Если баланса не хватает — отправляет клиенту
+    code=insufficient_balance и возвращает False (вызывающий обязан
+    закрыть соединение и не запускать Deepgram).
+    """
+    if not user_id:
+        return True  # анонимная сессия — без биллинга, как и раньше
+    try:
+        from billing_db import can_start_session, MIN_BALANCE_TO_START
+        if can_start_session(user_id):
+            return True
+        await ws.send_json({
+            "type": "session_ended",
+            "reason": "insufficient_balance",
+            "code": "insufficient_balance",
+            "min_balance": MIN_BALANCE_TO_START,
+            "message": "Недостатній баланс для запуску сесії. Поповніть рахунок.",
+        })
+    except Exception:
+        # Не блокируем сессию из-за технической ошибки проверки баланса.
+        return True
+    return False
+
 # ---------------------------------------------------------------------------
 # Pydantic модели
 
@@ -840,11 +868,16 @@ async def websocket_duo(ws: WebSocket):
         await ws.close()
         return
 
+    # Гейт баланса ДО старта платной транскрипции.
+    if not await _enforce_start_balance(ws, _user_id):
+        await ws.close()
+        return
+
     async def billing_tick():
         if not _user_id:
             return
+        # Prepay: списываем в начале минуты, затем каждые 60с.
         while True:
-            await asyncio.sleep(60)
             try:
                 new_balance = _deduct(_user_id, "duo", 0)
                 if new_balance <= 0:
@@ -855,6 +888,7 @@ async def websocket_duo(ws: WebSocket):
                 return
             except Exception as e:
                 logger.warning(f"Duo billing error: {e}")
+            await asyncio.sleep(60)
 
     billing_task = asyncio.create_task(billing_tick())
 
@@ -1026,11 +1060,15 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
     except (asyncio.TimeoutError, Exception):
         pass
 
+    # Гейт баланса ДО старта платной транскрипции.
+    if not await _enforce_start_balance(ws, _user_id):
+        await ws.close(); return
+
     async def billing_tick():
         if not _user_id:
             return
+        # Prepay: списываем в начале минуты, затем каждые 60с.
         while True:
-            await asyncio.sleep(60)
             try:
                 new_balance = _deduct(_user_id, "duo", 0)
                 if new_balance <= 0:
@@ -1040,6 +1078,7 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
                 return
             except Exception as e:
                 logger.warning(f"Duo host billing error: {e}")
+            await asyncio.sleep(60)
 
     billing_task = asyncio.create_task(billing_tick())
     await ws.send_json({"type": "duo_ready", "lang_a": session.lang_a, "lang_b": session.lang_b})
@@ -1295,11 +1334,16 @@ async def websocket_solo(ws: WebSocket):
     else:
         logger.info("💳 Solo: anonymous session (no billing)")
 
+    # Гейт баланса ДО старта платной транскрипции (нет бесплатной первой минуты).
+    if not await _enforce_start_balance(ws, _user_id):
+        await ws.close()
+        return
+
     async def billing_tick():
         if not _user_id:
             return
+        # Prepay: списываем за минуту в начале, затем каждые 60с.
         while True:
-            await asyncio.sleep(60)
             try:
                 new_balance = _deduct(_user_id, "solo", 0)
                 logger.info(f"💸 Solo billing tick: user={_user_id} balance={new_balance:.4f}")
@@ -1320,6 +1364,7 @@ async def websocket_solo(ws: WebSocket):
                 return
             except Exception as e:
                 logger.warning(f"Solo billing tick error: {e}")
+            await asyncio.sleep(60)
 
     billing_task = asyncio.create_task(billing_tick())
 
@@ -1558,10 +1603,17 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
         nonlocal _user_id
         if not _user_id:
             return
+        # Prepay: списываем в начале минуты, затем каждые 60с.
         while True:
-            await asyncio.sleep(60)
             try:
                 guest_count = len(room.participants)
+                # Тариф Room = цена × число гостей. При 0 гостях слушать
+                # некому — списания НЕ делаем (хост не платит за пустую комнату).
+                from billing_db import room_billable as _room_billable
+                if not _room_billable(guest_count):
+                    logger.info(f"💤 Room billing skip: user={_user_id} guests=0 (никто не слушает)")
+                    await asyncio.sleep(60)
+                    continue
                 new_balance = _deduct(_user_id, "room", guest_count)
                 logger.info(f"💸 Room billing tick: user={_user_id} guests={guest_count} balance={new_balance:.4f}")
                 if new_balance <= 0:
@@ -1582,6 +1634,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                 return
             except Exception as e:
                 logger.warning(f"Room billing tick error: {e}")
+            await asyncio.sleep(60)
 
     billing_tasks = [asyncio.create_task(billing_tick())]
 
@@ -1678,6 +1731,10 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                     _user = get_user_by_token(msg.get("token", ""))
                     _user_id = _user["id"] if _user else None
                     if _user_id:
+                        # Гейт баланса при авторизации хоста комнаты.
+                        if not await _enforce_start_balance(ws, _user_id):
+                            await ws.close()
+                            break
                         logger.info(f"💳 Room: user_id={_user_id} (billing active)")
                         billing_tasks[0].cancel()
                         billing_tasks[0] = asyncio.create_task(billing_tick())
@@ -2065,24 +2122,10 @@ async def api_register(body: RegisterBody):
         }
         raise HTTPException(400, errors.get(result["error"], result["error"]))
     result["user"].pop("password_hash", None)
-    # ── Авто-бонус $3 при регистрации (без ожидания email) ──
-    try:
-        from billing_db import _conn as _bconn
-        _bc = _bconn()
-        _bcur = _bc.cursor()
-        _bcur.execute("SELECT bonus_given FROM users WHERE id=?", (result["user"]["id"],))
-        _brow = _bcur.fetchone()
-        if _brow and not _brow["bonus_given"]:
-            _bc.execute(
-                "UPDATE users SET balance=ROUND(balance+3.0,6), bonus_given=1 WHERE id=?",
-                (result["user"]["id"],)
-            )
-            _bc.commit()
-            logger.info(f"🎁 auto bonus $3: user_id={result['user']['id']}")
-        _bc.close()
-    except Exception as _be:
-        logger.warning(f"auto_bonus failed: {_be}")
-    # Отправить верификационный email ($3 бонус)
+    # Бонус $3 НЕ начисляется при регистрации. Единая политика: бонус
+    # выдаётся ровно один раз ПОСЛЕ подтверждения email (verify_email_token),
+    # что согласуется с текстом письма. См. billing_db.verify_email_token.
+    # Отправить верификационный email (после подтверждения — $3 бонус)
     try:
         import threading
         threading.Thread(

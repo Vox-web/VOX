@@ -21,6 +21,7 @@ from billing_db import (
     generate_verify_token, verify_email_token,
     create_payment_record, confirm_stripe_payment,
     get_all_payments, admin_adjust_balance, get_user_by_id,
+    can_start_session, MIN_BALANCE_TO_START,
 )
 from vox_db import get_user_by_token
 
@@ -36,8 +37,7 @@ BASE_URL = os.getenv("BASE_URL", "").rstrip("/")
 # Допустимые суммы пополнения (USD)
 TOPUP_AMOUNTS = {5, 10, 20, 50}
 
-# Стоимость запуска сессии минимум $0.25
-MIN_BALANCE_TO_START = 0.25
+# MIN_BALANCE_TO_START импортируется из billing_db (единый источник правды).
 
 billing_router = APIRouter(prefix="/api")
 
@@ -335,55 +335,7 @@ async def admin_adjust_balance_endpoint(
 
 async def check_balance_for_start(user_id: int) -> bool:
     """
-    Проверить достаточно ли баланса для старта сессии.
-    Минимум MIN_BALANCE_TO_START ($0.25).
+    Проверить, достаточно ли баланса для старта сессии (>= MIN_BALANCE_TO_START).
+    Делегирует в billing_db.can_start_session — единая логика без дублей.
     """
-    balance = get_user_balance(user_id)
-    return balance >= MIN_BALANCE_TO_START
-
-
-async def billing_tick(user_id: int, mode: str, guests: int, ws: WebSocket):
-    """
-    Вызывается каждую минуту активной сессии:
-    - Списывает стоимость за минуту
-    - За 2 минуты до обнуления — предупреждение
-    - При нулевом балансе — завершает сессию
-    """
-    new_balance = deduct_session_cost(user_id, mode, guests)
-    from billing_db import _conn as _bconn
-    try:
-        bc = _bconn(); cur = bc.cursor()
-        cur.execute("SELECT price_per_min FROM user_finance_settings WHERE user_id=?", (user_id,))
-        row = cur.fetchone()
-        _ppm = float(row["price_per_min"]) if row and row["price_per_min"] else 0.05
-        bc.close()
-    except Exception:
-        _ppm = 0.05
-    cost_per_min = _ppm * max(1, guests)
-
-    if new_balance <= 0:
-        try:
-            await ws.send_json({
-                "type": "session_ended",
-                "reason": "no_balance",
-                "message": "Баланс вичерпано. Поповніть для продовження."
-            })
-        except Exception:
-            pass
-        logger.info(f"🔴 billing_tick: user={user_id} баланс исчерпан, сессия завершена")
-        return False
-
-    minutes_left = int(new_balance / cost_per_min)
-    if minutes_left <= 2:
-        try:
-            await ws.send_json({
-                "type": "balance_warning",
-                "minutes_left": minutes_left,
-                "balance": round(new_balance, 4),
-                "message": f"⚠️ Баланс закінчується! Залишилось ~{minutes_left} хв."
-            })
-        except Exception:
-            pass
-        logger.info(f"⚠️ billing_tick: user={user_id} minutes_left={minutes_left}")
-
-    return True
+    return can_start_session(user_id)
