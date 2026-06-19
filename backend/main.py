@@ -2622,6 +2622,22 @@ async def serve_pwa_install_js():
         raise HTTPException(status_code=404, detail="pwa-install.js not found")
     return FileResponse(pwa_path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
+
+@app.get("/vox-connection.js")
+async def serve_vox_connection_js():
+    path = FRONTEND_DIR / "vox-connection.js"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="vox-connection.js not found")
+    return FileResponse(path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+
+@app.get("/vox-diagnostics.js")
+async def serve_vox_diagnostics_js():
+    path = FRONTEND_DIR / "vox-diagnostics.js"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="vox-diagnostics.js not found")
+    return FileResponse(path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
 @app.get("/icons/icon-{size}.png")
 async def serve_icon(size: str):
     """

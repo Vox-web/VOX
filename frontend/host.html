@@ -1623,6 +1623,32 @@
                 throw devErr;
             }
         }
+        // ── Mic lifecycle: следим за состоянием дорожки микрофона ──
+        // На Android после фона трек может прийти в состояние 'ended'/'muted'.
+        // Тогда нужно пере-получить микрофон. Сообщаем об этом через repair.
+        const _track = st.getAudioTracks()[0];
+        function _updateMicState() {
+            try {
+                window._voxMicState = _track ? {
+                    readyState: _track.readyState, muted: _track.muted, enabled: _track.enabled,
+                    label: _track.label || null,
+                } : null;
+            } catch(_) {}
+        }
+        _updateMicState();
+        if (_track) {
+            _track.addEventListener('ended', () => {
+                _updateMicState();
+                console.warn('[VOX mic] track ended — запланирован repair');
+                if (typeof window._voxScheduleRepair === 'function' &&
+                    (soloListening || roomId || _duoListening || _duoRemoteListening)) {
+                    window._voxScheduleRepair('mic_track_ended', 60);
+                }
+            });
+            _track.addEventListener('mute', _updateMicState);
+            _track.addEventListener('unmute', _updateMicState);
+        }
+
         const cx = new AudioContext({sampleRate:16000});
         const code = `class ${name} extends AudioWorkletProcessor{constructor(){super();this.b=[];}process(i){const c=i[0]?.[0];if(!c)return true;this.b.push(...c);while(this.b.length>=2048){const ch=new Float32Array(this.b.splice(0,2048));this.port.postMessage(ch.buffer,[ch.buffer]);}return true;}}registerProcessor('${name}',${name});`;
         const bl = new Blob([code],{type:'application/javascript'}); const u = URL.createObjectURL(bl);
@@ -1658,6 +1684,25 @@
     // =====================================================================
     let soloListening=false, soloWs=null, soloMic=null, curSoloKey='soloStatusDisconnected', soloDetectedSourceLang=null;
     let _wsRetries=0, _fallbackActive=false, _fallbackRecognition=null;
+
+    // ── Watchdog активности соединения ──
+    // Любое сообщение от сервера (текст или аудио) обновляет метку. Если в
+    // активной сессии долго нет ни одного сообщения — сокет «полуоткрыт»
+    // (частый случай на Android после фона/смены сети): readyState=OPEN, но
+    // данные не идут. Тогда инициируем repair. Это лечит «перестало слышать».
+    let _voxLastActivityAt = Date.now();
+    const VOX_STALE_MS = 30000; // нет сообщений 30с при активной диктовке → реконнект
+    function _voxTouchActivity() { _voxLastActivityAt = Date.now(); }
+    window._voxConnDiag = function () {
+        return {
+            frontend: window.VOX_FRONTEND_VERSION || null,
+            sw: window.VOX_SW_VERSION || null,
+            lastActivityAgoMs: Date.now() - _voxLastActivityAt,
+            soloWs: soloWs?.readyState, duoWs: (typeof _duoWs!=='undefined'?_duoWs?.readyState:null),
+            roomWs: (typeof roomWs!=='undefined'?roomWs?.readyState:null),
+            online: navigator.onLine,
+        };
+    };
 
     // Отправить реальные параметры аудио на сервер (Solo). Безопасно вызывать
     // многократно: и после старта мика, и в onopen после reconnect.
@@ -1835,6 +1880,7 @@
         };
         soloWs.onerror = () => soloSetStatus('soloStatusError');
         soloWs.onmessage = e => {
+            _voxTouchActivity();
             if (e.data instanceof ArrayBuffer) { _audioMsg(e.data); return; }
             try {
                 const m = JSON.parse(e.data);
@@ -2190,6 +2236,7 @@
             document.getElementById('duoStatusText').textContent = t('soloStatusError');
         };
         _duoWs.onmessage = e => {
+            _voxTouchActivity();
             if (e.data instanceof ArrayBuffer) {
                 _duoPlayAudio(e.data); return;
             }
@@ -2307,6 +2354,7 @@
             document.getElementById('duoRemoteStatusDot').className = 'status-dot';
         };
         _duoRemoteWs.onmessage = e => {
+            _voxTouchActivity();
             if (e.data instanceof ArrayBuffer) {
                 _playA(e.data.slice(6)); return; // всегда играть речь партнёра
             }
@@ -2526,6 +2574,7 @@
 
         roomWs.onerror = () => roomSetStatus('roomStatusDisconnected');
         roomWs.onmessage = e => {
+            _voxTouchActivity();
             if (e.data instanceof ArrayBuffer) _audioMsg(e.data);
             else handleRoomMsg(JSON.parse(e.data));
         };
@@ -3161,6 +3210,8 @@
             clearTimeout(repairScheduled);
             repairScheduled = setTimeout(() => maybeRepair(reason), delay);
         }
+        // Доступ к repair из других областей (например из _mic при track 'ended').
+        window._voxScheduleRepair = scheduleRepair;
 
         function reloadFresh(reason) {
             console.log('[VOX resume guard] reload:', reason);
@@ -3295,10 +3346,13 @@
             const duoRemoteActive = curScreen === 'screenDuoRemote' && (!!_duoId || !!_duoRemoteWs || !!_duoRemoteListening);
             const roomActive = !!roomId;
 
-            const soloBroken = soloActive && wsClosedOrBroken(soloWs);
-            const duoLocalBroken = duoLocalActive && wsClosedOrBroken(_duoWs);
-            const duoRemoteBroken = duoRemoteActive && wsClosedOrBroken(_duoRemoteWs);
-            const roomBroken = roomActive && wsClosedOrBroken(roomWs);
+            // «Полуоткрытый» сокет: OPEN, но давно нет сообщений от сервера.
+            const stale = (Date.now() - _voxLastActivityAt) > VOX_STALE_MS;
+
+            const soloBroken = soloActive && (wsClosedOrBroken(soloWs) || stale);
+            const duoLocalBroken = duoLocalActive && (wsClosedOrBroken(_duoWs) || stale);
+            const duoRemoteBroken = duoRemoteActive && (wsClosedOrBroken(_duoRemoteWs) || stale);
+            const roomBroken = roomActive && (wsClosedOrBroken(roomWs) || stale);
 
             const mustRepairSolo = soloActive && soloBroken;
             const mustRepairDuoLocal = duoLocalActive && duoLocalBroken;
@@ -3311,6 +3365,7 @@
 
             repairing = true;
             clearAllPingIntervals();
+            _voxTouchActivity(); // сбрасываем метку, чтобы watchdog не дёргал repair повторно
 
             if (mustRepairRoom) {
                 repairRoom(`${reason}; away=${awayMs}`);
@@ -3369,6 +3424,24 @@
             await populateSpeakerDevices();
             scheduleRepair('online', 900);
         });
+
+        window.addEventListener('offline', () => {
+            console.log('[VOX] offline');
+        });
+
+        // Периодический stale-watchdog: ловит «полуоткрытый» сокет даже когда
+        // приложение на переднем плане и lifecycle-события не приходят.
+        setInterval(() => {
+            if (document.visibilityState !== 'visible') return;
+            if (!navigator.onLine) return;
+            const active = !!soloListening || !!roomId ||
+                (curScreen === 'screenDuo' && (!!_duoWs || !!_duoListening)) ||
+                (curScreen === 'screenDuoRemote' && (!!_duoId || !!_duoRemoteWs));
+            if (!active) { _voxTouchActivity(); return; }
+            if ((Date.now() - _voxLastActivityAt) > VOX_STALE_MS) {
+                scheduleRepair('stale_watchdog', 50);
+            }
+        }, 10000);
     })();
     </script>
     <!-- ── Review FAB Button ── -->
@@ -3377,5 +3450,6 @@
     <span>Відгук</span>
 </a>
 <script src="/pwa-install.js"></script>
+<script src="/vox-diagnostics.js"></script>
 </body>
 </html>

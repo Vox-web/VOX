@@ -13,7 +13,9 @@
  * - При обновлении service worker сразу активируется
  */
 
-const CACHE_NAME = 'vox-static-v2';
+// Версия SW. Меняйте при изменении логики кеширования/обновления.
+const SW_VERSION = '3.2.0';
+const CACHE_NAME = 'vox-static-' + SW_VERSION;
 
 const PRECACHE = [
   '/manifest.json',
@@ -70,8 +72,20 @@ self.addEventListener('install', event => {
           console.warn('SW precache skip:', url, e.message);
         })))
       )
-      .then(() => self.skipWaiting())
+    // НЕ вызываем skipWaiting() автоматически: новый SW ждёт в waiting,
+    // клиент показывает баннер «Доступна новая версия» и активирует обновление
+    // по кнопке (controlled update без неожиданной подмены кода).
   );
+});
+
+// Клиент может попросить применить обновление немедленно.
+self.addEventListener('message', event => {
+  const data = event.data || {};
+  if (data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  } else if (data.type === 'GET_VERSION') {
+    if (event.source) event.source.postMessage({ type: 'SW_VERSION', version: SW_VERSION });
+  }
 });
 
 self.addEventListener('activate', event => {
