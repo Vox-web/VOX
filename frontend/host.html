@@ -2083,9 +2083,54 @@
     }
 
     // ── One-device Duo ──
+    // ── Возможности языков с backend (единый источник правды) ──
+    // Не даём выбрать пару, которую Duo «на одному пристрої» не поддержит.
+    let _voxOneDeviceSet = null;
+    function _markOneDeviceOptions() {
+        if (!_voxOneDeviceSet) return;
+        ['duoLangASelect', 'duoLangBSelect'].forEach(id => {
+            const sel = document.getElementById(id);
+            if (!sel) return;
+            [...sel.options].forEach(o => {
+                const ok = _voxOneDeviceSet.has(o.value);
+                o.dataset.oneDevice = ok ? '1' : '0';
+                // Помечаем неподдерживаемые языки звёздочкой (для one-device).
+                if (!ok && !/\*$/.test(o.textContent)) o.textContent = o.textContent + ' *';
+            });
+        });
+    }
+    function _pairSupportsOneDevice(a, b) {
+        if (!_voxOneDeviceSet) return true; // caps не загрузились — не блокируем
+        return _voxOneDeviceSet.has(a) && _voxOneDeviceSet.has(b);
+    }
+    (async function _loadLangCaps() {
+        try {
+            const r = await fetch('/api/languages');
+            if (!r.ok) return;
+            const data = await r.json();
+            _voxOneDeviceSet = new Set((data.languages || [])
+                .filter(l => l.duo_one_device).map(l => l.code));
+            _markOneDeviceOptions();
+        } catch (_) { /* офлайн / ошибка — не блокируем UI */ }
+    })();
+    function _oneDeviceUnsupportedMsg() {
+        const lang = (window.uiLang || localStorage.getItem('vox_ui_lang') || 'uk').toLowerCase();
+        const m = {
+            uk: 'Режим «На одному пристрої» не підтримує цю пару мов. Скористайтесь режимом «Дистанційно (QR)».',
+            en: 'One-device mode does not support this language pair. Use “Remote (QR)” instead.',
+            de: 'Der Ein-Gerät-Modus unterstützt dieses Sprachpaar nicht. Nutzen Sie „Remote (QR)“.',
+        };
+        return m[lang] || m.en;
+    }
+
     function startDuoLocal() {
         const langA = document.getElementById('duoLangASelect').value;
         const langB = document.getElementById('duoLangBSelect').value;
+        // Гейт: one-device поддерживает только часть языков (см. /api/languages)
+        if (!_pairSupportsOneDevice(langA, langB)) {
+            alert(_oneDeviceUnsupportedMsg());
+            return;
+        }
         showScreen('screenDuo');
         document.getElementById('duoStatusDot').className = 'status-dot';
         document.getElementById('duoStatusText').textContent = t('duoStatusConnecting');

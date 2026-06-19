@@ -464,6 +464,21 @@ async def api_config():
         "landing_url": f"{base_url}/landing" if base_url else "/landing",
     })
 
+@app.get("/api/languages")
+async def api_languages():
+    """
+    Реальные возможности языков (единый источник — language_capabilities.py).
+    Фронтенд использует это, чтобы не предлагать пары, которые backend
+    отвергнет (например Duo one-device для uk/pl/zh/ko/ar/tr).
+    """
+    from language_capabilities import as_list, default_duo_one_device_pair
+    a, b = default_duo_one_device_pair()
+    return JSONResponse({
+        "languages": as_list(),
+        "duo_one_device_default": {"lang_a": a, "lang_b": b},
+    }, headers={"Cache-Control": "public, max-age=300"})
+
+
 @app.get("/api/build-info")
 async def api_build_info():
     return JSONResponse(
@@ -856,10 +871,10 @@ async def websocket_duo(ws: WebSocket):
 
     logger.info(f"🤝 Duo one-device pair: {lang_a}↔{lang_b} user={_user_id}")
 
-    # Пары, которые реально поддерживаются в nova-3 multi
-    MULTI_LANGS = {"en", "es", "fr", "de", "hi", "ru", "pt", "ja", "it", "nl"}
+    # Поддержка пары определяется единым источником (language_capabilities.py).
+    from language_capabilities import supports_duo_one_device
 
-    if lang_a not in MULTI_LANGS or lang_b not in MULTI_LANGS:
+    if not supports_duo_one_device(lang_a, lang_b):
         await ws.send_json({
             "type": "error",
             "message": f"One-device auto mode is not supported for pair {lang_a}↔{lang_b}.",
@@ -1001,7 +1016,7 @@ async def websocket_duo(ws: WebSocket):
                         if (new_a, new_b) != (lang_a, lang_b):
                             lang_a, lang_b = new_a, new_b
 
-                            if lang_a not in MULTI_LANGS or lang_b not in MULTI_LANGS:
+                            if not supports_duo_one_device(lang_a, lang_b):
                                 await ws.send_json({
                                     "type": "error",
                                     "message": f"One-device auto mode is not supported for pair {lang_a}↔{lang_b}.",
