@@ -709,6 +709,8 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js"></script>
+    <script src="/vox-connection.js"></script>
+    <script src="/vox-socket.js"></script>
     <script>
     // =====================================================================
     // VOX Solo Frontend
@@ -1006,11 +1008,26 @@
     // =====================================================================
     // WebSocket
     // =====================================================================
+    function sendSoloAudioMeta() {
+        if (!ws || ws.readyState !== WebSocket.OPEN || !audioContext) return;
+        let trackSampleRate = null;
+        try { trackSampleRate = mediaStream?.getAudioTracks?.()[0]?.getSettings?.().sampleRate || null; } catch (_) {}
+        ws.send(JSON.stringify({
+            type: 'audio_meta',
+            requested_sample_rate: 16000,
+            context_sample_rate: Number(audioContext.sampleRate) || null,
+            track_sample_rate: trackSampleRate,
+            sample_format: 'float32',
+            channels: 1,
+            chunk_frames: 512,
+        }));
+    }
+
     function connectWebSocket() {
         const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
         const url = `${protocol}//${location.host}/ws/solo`;
 
-        ws = new WebSocket(url);
+        ws = new VoxSocket(url);
         ws.binaryType = 'arraybuffer';
 
         ws.onopen = () => {
@@ -1020,6 +1037,7 @@
                 target_lang: langSelect.value,
                 tts_enabled: _ttsEnabled,
             }));
+            sendSoloAudioMeta();
             setStatus('connected', 'connected');
             console.log('WebSocket connected');
             // Keepalive ping — не даёт Railway proxy убить idle соединение
@@ -1034,7 +1052,6 @@
             // Не перезаписуємо статус якщо юзер сам натиснув Stop
             if (isListening) {
                 setStatus('disconnected', 'disconnected_init');
-                setTimeout(connectWebSocket, 2000);
             }
             console.log('WebSocket closed');
         };
@@ -1367,6 +1384,8 @@
     // =====================================================================
     async function startMicrophone() {
         try {
+            // A resume/retry must replace, never stack, the capture pipeline.
+            if (audioContext || mediaStream || audioWorkletNode) stopMicrophone();
             const micConstraints = {
                 sampleRate: 16000,
                 channelCount: 1,
@@ -1399,6 +1418,40 @@
                 } else {
                     throw devErr;
                 }
+            }
+
+            const track = mediaStream.getAudioTracks()[0];
+            const updateMicState = () => {
+                window._voxMicState = track ? {
+                    readyState: track.readyState,
+                    muted: track.muted,
+                    enabled: track.enabled,
+                    label: track.label || null,
+                } : null;
+            };
+            updateMicState();
+            if (track) {
+                track.addEventListener('mute', () => {
+                    updateMicState();
+                    setStatus('disconnected', 'mic_error');
+                });
+                track.addEventListener('unmute', () => {
+                    updateMicState();
+                    if (isListening) setStatus('listening', 'listening');
+                });
+                track.addEventListener('ended', async () => {
+                    updateMicState();
+                    if (!isListening) return;
+                    setStatus('disconnected', 'mic_error');
+                    try {
+                        stopMicrophone();
+                        await startMicrophone();
+                        ws?.resume?.('microphone_track_ended');
+                    } catch (error) {
+                        console.error('Microphone recovery failed:', error);
+                        ws?.connection?.markMicrophoneError?.(String(error));
+                    }
+                }, { once: true });
             }
 
             audioContext = new AudioContext({ sampleRate: 16000 });
@@ -1451,12 +1504,15 @@
 
             source.connect(hpFilter);
             hpFilter.connect(audioWorkletNode);
+            sendSoloAudioMeta();
         } catch (e) {
             console.error('Microphone error:', e);
             setStatus('disconnected', 'mic_error');
             isListening = false;
             mainBtn.classList.remove('active');
             mainBtn.textContent = t('btnListen');
+            ws?.connection?.markMicrophoneError?.(String(e));
+            stopMicrophone();
         }
     }
 

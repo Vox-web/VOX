@@ -475,6 +475,8 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js"></script>
+    <script src="/vox-connection.js"></script>
+    <script src="/vox-socket.js"></script>
     <script>
     // =================================================================
     // i18n — Guest UI strings
@@ -948,7 +950,7 @@
         const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
         const url = `${protocol}//${location.host}/ws/room/${roomId}/guest/${guestId}`;
 
-        ws = new WebSocket(url);
+        ws = new VoxSocket(url);
         ws.binaryType = 'arraybuffer';
 
         ws.onopen = () => {
@@ -970,7 +972,6 @@
             statusDot.className = 'status-dot';
             serverLog('ws_close', { room_id: roomId, guest_id: guestId });
             statusTextEl.textContent = t('statusDisconnected');
-            if (guestId && !_wasKicked) setTimeout(connectGuestWS, 500);
         };
 
         ws.onerror = (err) => {
@@ -2025,10 +2026,6 @@
                 if (micId) _showHeadphoneSuggest(newSpk.deviceId, micId);
             }
         } catch(e) { console.warn('headphone detect:', e); }
-    });
-    // Один глобальный listener — не дублируется при реконнектах
-    window.addEventListener('online', () => {
-        if (guestId && !_wasKicked && (!ws || ws.readyState === WebSocket.CLOSED)) connectGuestWS();
     });
     console.log('VOX Guest v0.6.0');
     </script>

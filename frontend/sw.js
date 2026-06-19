@@ -10,17 +10,19 @@
  * Важно:
  * - HTML НЕ кешируется вообще
  * - /host НЕ precache'ится
- * - При обновлении service worker сразу активируется
+ * - Обновление активируется только после подтверждения пользователя
  */
 
 // Версия SW. Меняйте при изменении логики кеширования/обновления.
-const SW_VERSION = '3.2.0';
+const SW_VERSION = '3.2.1';
 const CACHE_NAME = 'vox-static-' + SW_VERSION;
 
 const PRECACHE = [
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  '/vox-connection.js',
+  '/vox-socket.js',
 ];
 
 // Что считаем безопасной статикой для кеширования
@@ -33,7 +35,8 @@ function isStaticAsset(request, url) {
   if (
     pathname.startsWith('/api/') ||
     pathname.startsWith('/ws') ||
-    pathname.startsWith('/room/')
+    pathname.startsWith('/room/') ||
+    pathname === '/sw.js'
   ) {
     return false;
   }
@@ -142,7 +145,8 @@ self.addEventListener('fetch', event => {
   if (
     url.pathname.startsWith('/ws') ||
     url.pathname.startsWith('/api/') ||
-    url.pathname.startsWith('/room/')
+    url.pathname.startsWith('/room/') ||
+    url.pathname === '/sw.js'
   ) {
     return;
   }

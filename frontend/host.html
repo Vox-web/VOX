@@ -1142,6 +1142,8 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js"></script>
+    <script src="/vox-connection.js"></script>
+    <script src="/vox-socket.js"></script>
     <script>
     // =====================================================================
     // i18n
@@ -1640,13 +1642,24 @@
             _track.addEventListener('ended', () => {
                 _updateMicState();
                 console.warn('[VOX mic] track ended — запланирован repair');
+                if (typeof window._voxRecoverMic === 'function') {
+                    window._voxRecoverMic(name);
+                }
                 if (typeof window._voxScheduleRepair === 'function' &&
                     (soloListening || roomId || _duoListening || _duoRemoteListening)) {
                     window._voxScheduleRepair('mic_track_ended', 60);
                 }
             });
-            _track.addEventListener('mute', _updateMicState);
-            _track.addEventListener('unmute', _updateMicState);
+            _track.addEventListener('mute', () => {
+                _updateMicState();
+                if (name === 'VoxSP') soloSetStatus('soloStatusMicError');
+                else if (name === 'VoxRP') roomSetStatus('roomStatusDisconnected');
+            });
+            _track.addEventListener('unmute', () => {
+                _updateMicState();
+                if (name === 'VoxSP' && soloListening) soloSetStatus('soloStatusListening');
+                else if (name === 'VoxRP' && roomMicActive) roomSetStatus('roomStatusConnected');
+            });
         }
 
         const cx = new AudioContext({sampleRate:16000});
@@ -1694,11 +1707,16 @@
     const VOX_STALE_MS = 30000; // нет сообщений 30с при активной диктовке → реконнект
     function _voxTouchActivity() { _voxLastActivityAt = Date.now(); }
     window._voxConnDiag = function () {
+        const active = [soloWs, _duoWs, _duoRemoteWs, roomWs]
+            .find(socket => socket && typeof socket.getDiagnostics === 'function');
+        const managed = active ? active.getDiagnostics() : {};
         return {
+            ...managed,
             frontend: window.VOX_FRONTEND_VERSION || null,
             sw: window.VOX_SW_VERSION || null,
             lastActivityAgoMs: Date.now() - _voxLastActivityAt,
             soloWs: soloWs?.readyState, duoWs: (typeof _duoWs!=='undefined'?_duoWs?.readyState:null),
+            duoRemoteWs: (typeof _duoRemoteWs!=='undefined'?_duoRemoteWs?.readyState:null),
             roomWs: (typeof roomWs!=='undefined'?roomWs?.readyState:null),
             online: navigator.onLine,
         };
@@ -1846,7 +1864,7 @@
 
     function soloConnectWS() {
         const p = location.protocol==='https:'?'wss:':'ws:';
-        soloWs = new WebSocket(`${p}//${location.host}/ws/solo`);
+        soloWs = new VoxSocket(`${p}//${location.host}/ws/solo`);
         soloWs.binaryType = 'arraybuffer';
         soloWs.onopen = () => {
             _wsRetries = 0;
@@ -1874,8 +1892,7 @@
             if (soloListening) {
                 soloSetStatus('soloStatusDisconnected');
                 _wsRetries = (_wsRetries||0) + 1;
-                if (_wsRetries <= 3) setTimeout(soloConnectWS, 500);
-                else soloStartFallback();
+                if (_wsRetries > 3) soloStartFallback();
             }
         };
         soloWs.onerror = () => soloSetStatus('soloStatusError');
@@ -2213,7 +2230,7 @@
         document.getElementById('duoStatusText').textContent = t('duoStatusConnecting');
 
         const p = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        _duoWs = new WebSocket(`${p}//${location.host}/ws/duo`);
+        _duoWs = new VoxSocket(`${p}//${location.host}/ws/duo`);
         _duoWs.binaryType = 'arraybuffer';
 
         _duoWs.onopen = () => {
@@ -2336,7 +2353,7 @@
 
     function _connectDuoRemoteHost(langA, langB) {
         const p = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        _duoRemoteWs = new WebSocket(`${p}//${location.host}/ws/duo/${_duoId}/host`);
+        _duoRemoteWs = new VoxSocket(`${p}//${location.host}/ws/duo/${_duoId}/host`);
         _duoRemoteWs.binaryType = 'arraybuffer';
         _duoRemoteWs.onopen = () => {
             const _tok = localStorage.getItem('vox_token') || '';
@@ -2423,6 +2440,43 @@
     // ROOM
     // =====================================================================
     let roomId=null, roomWs=null, roomMicObj=null, roomMicActive=false, participants={};
+    let _voxMicRecovering = false;
+
+    window._voxRecoverMic = async function (name) {
+        if (_voxMicRecovering) return;
+        _voxMicRecovering = true;
+        try {
+            if (name === 'VoxSP' && soloListening) {
+                soloMic?.stop();
+                soloMic = await _mic('VoxSP', buf => {
+                    if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(buf);
+                    _vad(soloVadEl, new Float32Array(buf));
+                });
+                _sendSoloAudioMeta();
+                soloSetStatus('soloStatusListening');
+            } else if (name === 'VoxDL' && _duoListening) {
+                _duoMic?.stop();
+                _duoMic = await _startDuoMic('VoxDL', _duoWs);
+            } else if (name === 'VoxDR' && _duoRemoteListening) {
+                _duoRemoteMic?.stop();
+                _duoRemoteMic = await _startDuoMic('VoxDR', _duoRemoteWs);
+            } else if (name === 'VoxRP' && roomMicActive) {
+                roomMicObj?.stop();
+                roomMicObj = await _mic('VoxRP', buf => {
+                    if (roomWs?.readyState === WebSocket.OPEN) roomWs.send(buf);
+                    _vad(roomVadEl, new Float32Array(buf));
+                });
+                roomSetStatus('roomStatusConnected');
+            }
+        } catch (error) {
+            console.error('[VOX mic] recovery failed:', error);
+            const socket = name === 'VoxSP' ? soloWs : name === 'VoxRP' ? roomWs
+                : name === 'VoxDL' ? _duoWs : _duoRemoteWs;
+            socket?.connection?.markMicrophoneError?.(String(error));
+        } finally {
+            _voxMicRecovering = false;
+        }
+    };
     const roomVadEl=document.getElementById('roomVad'), roomOrigEl=document.getElementById('roomOriginal'),
           roomTransEl=document.getElementById('roomTranslation'), roomHistEl=document.getElementById('roomHistory');
 
@@ -2532,7 +2586,7 @@
 
     function connectRoomWS() {
         const p = location.protocol==='https:'?'wss:':'ws:';
-        roomWs = new WebSocket(`${p}//${location.host}/ws/room/${roomId}/host`);
+        roomWs = new VoxSocket(`${p}//${location.host}/ws/room/${roomId}/host`);
         roomWs.binaryType = 'arraybuffer';
         roomWs.onopen = () => {
             _roomWsRetries = 0;
@@ -2561,15 +2615,7 @@
                 return;
             }
             if (!roomId) return;
-            // Ограниченный реконнект (макс 5 попыток)
             _roomWsRetries++;
-            if (_roomWsRetries <= 5) {
-                const delay = Math.min(500 * Math.pow(2, _roomWsRetries - 1), 5000);
-                setTimeout(connectRoomWS, delay);
-            } else {
-                console.warn('Room reconnect limit reached');
-                _cleanupDeadRoom();
-            }
         };
 
         roomWs.onerror = () => roomSetStatus('roomStatusDisconnected');
@@ -2683,13 +2729,6 @@
 
     applyI18n(false);
     _updateTtsBtn();
-    // Единственные глобальные online-listeners — не дублируются при реконнектах
-    window.addEventListener('online', () => {
-        if (soloListening && (!soloWs || soloWs.readyState === WebSocket.CLOSED)) soloConnectWS();
-    });
-    window.addEventListener('online', () => {
-        if (roomId && (!roomWs || roomWs.readyState === WebSocket.CLOSED)) connectRoomWS();
-    });
     // Восстановление комнаты после рефреша (с TTL и проверкой на сервере)
     const ROOM_RESTORE_TTL_MS = 2 * 60 * 1000; // 2 минуты — если дольше, комната точно мёртва
     const savedRoom = sessionStorage.getItem('vox_host_room');
@@ -3241,7 +3280,7 @@
             setTimeout(() => {
                 try {
                     const p = location.protocol === 'https:' ? 'wss:' : 'ws:';
-                    _duoWs = new WebSocket(`${p}//${location.host}/ws/duo`);
+                    _duoWs.resume('legacy_repair_disabled');
                     _duoWs.binaryType = 'arraybuffer';
 
                     _duoWs.onopen = () => {
@@ -3337,6 +3376,15 @@
         function maybeRepair(reason) {
             if (repairing) return;
             if (document.visibilityState === 'hidden') return;
+
+            // VoxConnection owns reconnection and timer cleanup. Lifecycle repair
+            // only nudges the existing managed sockets; it never creates another.
+            repairing = true;
+            [soloWs, _duoWs, _duoRemoteWs, roomWs].forEach(socket => {
+                try { socket?.resume(reason); } catch (_) {}
+            });
+            repairing = false;
+            return;
 
             const awayMs = hiddenAt ? (Date.now() - hiddenAt) : 0;
             const staleAfterBackground = awayMs > RESUME_AFTER_MS;

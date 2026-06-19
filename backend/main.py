@@ -285,6 +285,10 @@ from audio_utils import (
     pick_client_sample_rate as _pick_client_sample_rate,
     validate_audio_meta as _validate_audio_meta,
 )
+from session_billing import (
+    billing_coordinator as _billing_coordinator,
+    count_billable_room_guests as _count_billable_room_guests,
+)
 
 
 async def _enforce_start_balance(ws, user_id) -> bool:
@@ -309,10 +313,97 @@ async def _enforce_start_balance(ws, user_id) -> bool:
             "min_balance": MIN_BALANCE_TO_START,
             "message": "Недостатній баланс для запуску сесії. Поповніть рахунок.",
         })
-    except Exception:
-        # Не блокируем сессию из-за технической ошибки проверки баланса.
-        return True
+    except Exception as exc:
+        logger.error("Billing balance check failed for user=%s: %s", user_id, exc)
+        await ws.send_json({
+            "type": "session_ended",
+            "reason": "billing_unavailable",
+            "code": "billing_unavailable",
+            "message": "Сервіс оплати тимчасово недоступний. Спробуйте ще раз пізніше.",
+        })
     return False
+
+
+async def _resolve_session_user(ws, token):
+    """Resolve a supplied auth token without turning DB failures into anonymity."""
+    if not token:
+        return True, None
+    try:
+        user = get_user_by_token(token)
+    except Exception as exc:
+        logger.error("Session auth lookup failed: %s", exc)
+        await ws.send_json({
+            "type": "session_ended",
+            "reason": "billing_unavailable",
+            "code": "billing_unavailable",
+            "message": "Сервіс оплати тимчасово недоступний. Спробуйте ще раз пізніше.",
+        })
+        return False, None
+    if not user:
+        await ws.send_json({
+            "type": "session_ended",
+            "reason": "auth_required",
+            "code": "auth_required",
+            "message": "Сесія входу завершилась. Увійдіть знову.",
+        })
+        return False, None
+    return True, user["id"]
+
+
+async def _begin_session_billing(ws, key, user_id, mode, guest_count=lambda: 0):
+    """Start one postpaid billing loop for a logical session."""
+    if not user_id:
+        return None
+
+    from billing_db import deduct_session_cost, get_balance_warning
+
+    async def on_balance(new_balance, guests):
+        logger.info(
+            "Billing tick: mode=%s user=%s guests=%s balance=%.4f",
+            mode, user_id, guests, new_balance,
+        )
+        if new_balance <= 0:
+            await ws.send_json({
+                "type": "session_ended",
+                "reason": "no_balance",
+                "code": "insufficient_balance",
+                "message": "Баланс вичерпано. Поповніть рахунок, щоб продовжити.",
+            })
+            await ws.close()
+            return
+        warning = get_balance_warning(new_balance)
+        if warning:
+            payload = {
+                "type": "balance_warning",
+                "level": warning,
+                "balance": round(new_balance, 4),
+            }
+            if mode == "room":
+                payload["guests"] = guests
+            await ws.send_json(payload)
+
+    async def on_error(exc):
+        logger.error("Billing tick failed: mode=%s user=%s: %s", mode, user_id, exc)
+        try:
+            await ws.send_json({
+                "type": "session_ended",
+                "reason": "billing_unavailable",
+                "code": "billing_unavailable",
+                "message": "Сервіс оплати тимчасово недоступний. Спробуйте ще раз пізніше.",
+            })
+            await ws.close()
+        except Exception:
+            pass
+
+    return await _billing_coordinator.start(
+        key=key,
+        user_id=user_id,
+        mode=mode,
+        deduct=deduct_session_cost,
+        guest_count=guest_count,
+        on_balance=on_balance,
+        on_error=on_error,
+    )
 
 # ---------------------------------------------------------------------------
 # Pydantic модели
@@ -841,8 +932,8 @@ async def websocket_duo(ws: WebSocket):
     translator = Translator()
     logger.info("🔌 WebSocket підключено (Duo one-device)")
 
-    from billing_db import deduct_session_cost as _deduct
     _user_id = None
+    _auth_ok = True
     lang_a = "uk"
     lang_b = "en"
     session_tts_enabled = True
@@ -857,8 +948,7 @@ async def websocket_duo(ws: WebSocket):
             msg_type = msg.get("type")
 
             if msg_type == "auth":
-                _user = get_user_by_token(msg.get("token", ""))
-                _user_id = _user["id"] if _user else None
+                _auth_ok, _user_id = await _resolve_session_user(ws, msg.get("token", ""))
 
             elif msg_type == "config":
                 lang_a = msg.get("lang_a", lang_a)
@@ -866,6 +956,10 @@ async def websocket_duo(ws: WebSocket):
                 session_tts_enabled = bool(msg.get("tts_enabled", session_tts_enabled))
     except (asyncio.TimeoutError, Exception):
         pass
+
+    if not _auth_ok:
+        await ws.close()
+        return
 
     logger.info(f"🤝 Duo one-device pair: {lang_a}↔{lang_b} user={_user_id}")
 
@@ -886,24 +980,9 @@ async def websocket_duo(ws: WebSocket):
         await ws.close()
         return
 
-    async def billing_tick():
-        if not _user_id:
-            return
-        # Prepay: списываем в начале минуты, затем каждые 60с.
-        while True:
-            try:
-                new_balance = _deduct(_user_id, "duo", 0)
-                if new_balance <= 0:
-                    await ws.send_json({"type": "session_ended", "reason": "no_balance"})
-                    await ws.close()
-                    return
-            except asyncio.CancelledError:
-                return
-            except Exception as e:
-                logger.warning(f"Duo billing error: {e}")
-            await asyncio.sleep(60)
-
-    billing_task = asyncio.create_task(billing_tick())
+    billing_handle = await _begin_session_billing(
+        ws, ("duo-one-device", _user_id), _user_id, "duo"
+    )
 
     dg = DeepgramTranscriber()
     await dg.start(language="multi", model="nova-3", endpointing=1000, utterance_end_ms=2000, commit_mode="lazy")
@@ -1038,7 +1117,7 @@ async def websocket_duo(ws: WebSocket):
         logger.error(f"❌ Duo one-device error: {e}", exc_info=True)
     finally:
         result_task.cancel()
-        billing_task.cancel()
+        await _billing_coordinator.stop(billing_handle)
         try:
             await result_task
         except (asyncio.CancelledError, Exception):
@@ -1060,40 +1139,28 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
 
     session.host_ws = ws
     session.host_disconnected_at = None
-    from billing_db import deduct_session_cost as _deduct
     _user_id = None
+    _auth_ok = True
 
     try:
         first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
         if first_raw.get("text"):
             first = json.loads(first_raw["text"])
             if first.get("type") == "auth":
-                _user = get_user_by_token(first.get("token", ""))
-                _user_id = _user["id"] if _user else None
+                _auth_ok, _user_id = await _resolve_session_user(ws, first.get("token", ""))
     except (asyncio.TimeoutError, Exception):
         pass
+
+    if not _auth_ok:
+        await ws.close(); return
 
     # Гейт баланса ДО старта платной транскрипции.
     if not await _enforce_start_balance(ws, _user_id):
         await ws.close(); return
 
-    async def billing_tick():
-        if not _user_id:
-            return
-        # Prepay: списываем в начале минуты, затем каждые 60с.
-        while True:
-            try:
-                new_balance = _deduct(_user_id, "duo", 0)
-                if new_balance <= 0:
-                    await ws.send_json({"type": "session_ended", "reason": "no_balance"})
-                    await ws.close(); return
-            except asyncio.CancelledError:
-                return
-            except Exception as e:
-                logger.warning(f"Duo host billing error: {e}")
-            await asyncio.sleep(60)
-
-    billing_task = asyncio.create_task(billing_tick())
+    billing_handle = await _begin_session_billing(
+        ws, ("duo-remote-host", duo_id), _user_id, "duo"
+    )
     await ws.send_json({"type": "duo_ready", "lang_a": session.lang_a, "lang_b": session.lang_b})
     if session.guest_ws is not None:
         try:
@@ -1162,7 +1229,8 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
     except WebSocketDisconnect:
         logger.info(f"🔌 Duo host відключився {duo_id}")
     finally:
-        result_task.cancel(); billing_task.cancel()
+        result_task.cancel()
+        await _billing_coordinator.stop(billing_handle)
         session.host_ws = None
         session.host_disconnected_at = time.time()
         try:
@@ -1320,8 +1388,8 @@ async def websocket_solo(ws: WebSocket):
     solo_source_lang: str | None = SESSION_DEFAULTS.get("source_lang")
     solo_target_lang: str = SESSION_DEFAULTS.get("target_lang") or os.getenv("DEFAULT_TARGET_LANG", "uk")
 
-    from billing_db import deduct_session_cost as _deduct
     _user_id = None
+    _auth_ok = True
 
     try:
         first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
@@ -1329,8 +1397,7 @@ async def websocket_solo(ws: WebSocket):
             first = json.loads(first_raw["text"])
 
             if first.get("type") == "auth":
-                _user = get_user_by_token(first.get("token", ""))
-                _user_id = _user["id"] if _user else None
+                _auth_ok, _user_id = await _resolve_session_user(ws, first.get("token", ""))
 
             elif first.get("type") == "config":
                 if first.get("source_lang"):
@@ -1342,44 +1409,23 @@ async def websocket_solo(ws: WebSocket):
     except (asyncio.TimeoutError, Exception):
         pass
 
+    if not _auth_ok:
+        await ws.close()
+        return
+
     if _user_id:
         logger.info(f"💳 Solo: user_id={_user_id} (billing active)")
     else:
         logger.info("💳 Solo: anonymous session (no billing)")
 
-    # Гейт баланса ДО старта платной транскрипции (нет бесплатной первой минуты).
+    # Гейт баланса ДО старта платной транскрипции.
     if not await _enforce_start_balance(ws, _user_id):
         await ws.close()
         return
 
-    async def billing_tick():
-        if not _user_id:
-            return
-        # Prepay: списываем за минуту в начале, затем каждые 60с.
-        while True:
-            try:
-                new_balance = _deduct(_user_id, "solo", 0)
-                logger.info(f"💸 Solo billing tick: user={_user_id} balance={new_balance:.4f}")
-                if new_balance <= 0:
-                    await ws.send_json({"type": "session_ended", "reason": "no_balance"})
-                    await ws.close()
-                    return
-                else:
-                    from billing_db import get_balance_warning as _gbw
-                    _warn = _gbw(new_balance)
-                    if _warn:
-                        await ws.send_json({
-                            "type": "balance_warning",
-                            "level": _warn,
-                            "balance": round(new_balance, 4),
-                        })
-            except asyncio.CancelledError:
-                return
-            except Exception as e:
-                logger.warning(f"Solo billing tick error: {e}")
-            await asyncio.sleep(60)
-
-    billing_task = asyncio.create_task(billing_tick())
+    billing_handle = await _begin_session_billing(
+        ws, ("solo", _user_id), _user_id, "solo"
+    )
 
     dg = DeepgramTranscriber()
     await dg.start(language=solo_source_lang or "uk")
@@ -1596,7 +1642,7 @@ async def websocket_solo(ws: WebSocket):
         logger.error(f"❌ Помилка WebSocket Solo: {e}", exc_info=True)
     finally:
         result_task.cancel()
-        billing_task.cancel()
+        await _billing_coordinator.stop(billing_handle)
         try:
             await result_task
         except (asyncio.CancelledError, Exception):
@@ -1626,9 +1672,34 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
         room.host_websocket = ws
         logger.info(f"🔌 Хост подключён к комнате '{room_id}'")
 
-    # Billing auth — токен може прийти як перше або будь-яке text-повідомлення
-    from billing_db import deduct_session_cost as _deduct
+    # Billing auth must be resolved before starting the paid Deepgram stream.
     _user_id = None
+    _auth_ok = True
+
+    try:
+        first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
+        if first_raw.get("text"):
+            first = json.loads(first_raw["text"])
+            if first.get("type") == "auth":
+                _auth_ok, _user_id = await _resolve_session_user(ws, first.get("token", ""))
+    except (asyncio.TimeoutError, json.JSONDecodeError):
+        pass
+
+    if not _auth_ok:
+        await ws.close()
+        return
+
+    if not await _enforce_start_balance(ws, _user_id):
+        await ws.close()
+        return
+
+    billing_handle = await _begin_session_billing(
+        ws,
+        ("room-host", room_id),
+        _user_id,
+        "room",
+        guest_count=lambda: _count_billable_room_guests(room),
+    )
 
     dg = DeepgramTranscriber()
     await dg.start(
@@ -1642,45 +1713,6 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
 
     # Keepalive ping від сервера не потрібен — пінг іде з клієнта
     # Але треба відповідати на pong (або просто ігнорувати)
-
-    async def billing_tick():
-        nonlocal _user_id
-        if not _user_id:
-            return
-        # Prepay: списываем в начале минуты, затем каждые 60с.
-        while True:
-            try:
-                guest_count = len(room.participants)
-                # Тариф Room = цена × число гостей. При 0 гостях слушать
-                # некому — списания НЕ делаем (хост не платит за пустую комнату).
-                from billing_db import room_billable as _room_billable
-                if not _room_billable(guest_count):
-                    logger.info(f"💤 Room billing skip: user={_user_id} guests=0 (никто не слушает)")
-                    await asyncio.sleep(60)
-                    continue
-                new_balance = _deduct(_user_id, "room", guest_count)
-                logger.info(f"💸 Room billing tick: user={_user_id} guests={guest_count} balance={new_balance:.4f}")
-                if new_balance <= 0:
-                    await ws.send_json({"type": "session_ended", "reason": "no_balance"})
-                    await ws.close()
-                    return
-                else:
-                    from billing_db import get_balance_warning as _gbw
-                    _warn = _gbw(new_balance)
-                    if _warn:
-                        await ws.send_json({
-                            "type": "balance_warning",
-                            "level": _warn,           # "low" | "critical"
-                            "balance": round(new_balance, 4),
-                            "guests": guest_count,    # сколько участников сейчас
-                        })
-            except asyncio.CancelledError:
-                return
-            except Exception as e:
-                logger.warning(f"Room billing tick error: {e}")
-            await asyncio.sleep(60)
-
-    billing_tasks = [asyncio.create_task(billing_tick())]
 
     async def _host_process_final(final_result: TranscriptResult):
         """
@@ -1770,18 +1802,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
                 action = msg.get("action")
                 guest_id = msg.get("guest_id")
 
-                # Auth для білінгу (може прийти будь-коли на початку)
-                if msg_type == "auth" and not _user_id:
-                    _user = get_user_by_token(msg.get("token", ""))
-                    _user_id = _user["id"] if _user else None
-                    if _user_id:
-                        # Гейт баланса при авторизации хоста комнаты.
-                        if not await _enforce_start_balance(ws, _user_id):
-                            await ws.close()
-                            break
-                        logger.info(f"💳 Room: user_id={_user_id} (billing active)")
-                        billing_tasks[0].cancel()
-                        billing_tasks[0] = asyncio.create_task(billing_tick())
+                if msg_type == "auth":
                     continue
 
                 if msg_type == "ping":
@@ -1832,7 +1853,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
             pass
     finally:
         result_task.cancel()
-        billing_tasks[0].cancel()
+        await _billing_coordinator.stop(billing_handle)
         # Отменяем фоновые задачи перевода/TTS
         for t in _bg_tasks_host:
             t.cancel()
@@ -2638,6 +2659,14 @@ async def serve_vox_connection_js():
     path = FRONTEND_DIR / "vox-connection.js"
     if not path.exists():
         raise HTTPException(status_code=404, detail="vox-connection.js not found")
+    return FileResponse(path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+
+@app.get("/vox-socket.js")
+async def serve_vox_socket_js():
+    path = FRONTEND_DIR / "vox-socket.js"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="vox-socket.js not found")
     return FileResponse(path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 

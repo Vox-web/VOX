@@ -31,7 +31,7 @@ def test_languages_endpoint():
 
 
 def test_static_js_served():
-    for path in ("/vox-connection.js", "/vox-diagnostics.js", "/pwa-install.js", "/sw.js"):
+    for path in ("/vox-connection.js", "/vox-socket.js", "/vox-diagnostics.js", "/pwa-install.js", "/sw.js"):
         r = client.get(path)
         assert r.status_code == 200, path
         assert "javascript" in r.headers.get("content-type", "")

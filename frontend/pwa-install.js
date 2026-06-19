@@ -327,7 +327,7 @@
     // =====================================================================
     // Версии и обновление PWA (Service Worker update flow)
     // =====================================================================
-    window.VOX_FRONTEND_VERSION = '3.2.0';
+    window.VOX_FRONTEND_VERSION = '3.2.1';
     window.VOX_SW_VERSION = null;
 
     const SW_UPDATE_I18N = {

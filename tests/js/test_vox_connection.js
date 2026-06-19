@@ -6,6 +6,7 @@
 const assert = require('assert');
 const path = require('path');
 const { VoxConnection, STATES } = require(path.join(__dirname, '..', '..', 'frontend', 'vox-connection.js'));
+const { VoxSocket } = require(path.join(__dirname, '..', '..', 'frontend', 'vox-socket.js'));
 
 // --- Поддельные часы/таймеры ---
 class Clock {
@@ -185,6 +186,61 @@ test('reconnect while offline -> offline state', () => {
   conn.start();
   assert.strictEqual(conn.state, STATES.OFFLINE);
   assert.strictEqual(FakeWS.instances.length, 0);
+});
+
+// 11. Реальный адаптер страницы использует state machine и повторяет onopen.
+test('VoxSocket adapter reconnects one socket and replays open setup', () => {
+  FakeWS.instances = [];
+  const clock = new Clock();
+  let opens = 0;
+  const socket = new VoxSocket('ws://test/ws', {
+    autoStart: false,
+    connectionOptions: {
+      WebSocketImpl: FakeWS,
+      timers: {
+        setTimeout: (fn, ms) => clock.setTimeout(fn, ms),
+        clearTimeout: id => clock.clearTimeout(id),
+        setInterval: (fn, ms) => clock.setInterval(fn, ms),
+        clearInterval: id => clock.clearInterval(id),
+      },
+      now: () => clock.now(), isOnline: () => true, random: () => 0.5,
+    },
+  });
+  socket.onopen = () => { opens++; socket.send(JSON.stringify({ type: 'config' })); };
+  socket.connection.start();
+  FakeWS.instances[0]._open();
+  FakeWS.instances[0]._serverClose(1006, 'network');
+  clock.tick(1000);
+  assert.strictEqual(FakeWS.instances.length, 2);
+  FakeWS.instances[1]._open();
+  assert.strictEqual(opens, 2);
+  assert.strictEqual(FakeWS.instances[1].sent.map(JSON.parse)[0].type, 'config');
+  socket.close();
+});
+
+// 12. billing_unavailable является терминальным и не запускает reconnect.
+test('VoxSocket stops reconnect on billing_unavailable', () => {
+  FakeWS.instances = [];
+  const clock = new Clock();
+  const socket = new VoxSocket('ws://test/ws', {
+    autoStart: false,
+    connectionOptions: {
+      WebSocketImpl: FakeWS,
+      timers: {
+        setTimeout: (fn, ms) => clock.setTimeout(fn, ms),
+        clearTimeout: id => clock.clearTimeout(id),
+        setInterval: (fn, ms) => clock.setInterval(fn, ms),
+        clearInterval: id => clock.clearInterval(id),
+      },
+      now: () => clock.now(), isOnline: () => true,
+    },
+  });
+  socket.connection.start();
+  FakeWS.instances[0]._open();
+  FakeWS.instances[0]._msg(JSON.stringify({ type: 'session_ended', code: 'billing_unavailable' }));
+  assert.strictEqual(socket.connectionState, STATES.BILLING_UNAVAILABLE);
+  clock.tick(120000);
+  assert.strictEqual(FakeWS.instances.length, 1);
 });
 
 console.log(`\nvox-connection: ${passed} tests passed`);

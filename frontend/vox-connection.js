@@ -30,6 +30,7 @@
     OFFLINE: 'offline',
     AUTH_REQUIRED: 'auth_required',
     INSUFFICIENT_BALANCE: 'insufficient_balance',
+    BILLING_UNAVAILABLE: 'billing_unavailable',
     MICROPHONE_ERROR: 'microphone_error',
     CLOSED: 'closed',
   });
@@ -38,6 +39,7 @@
   const TERMINAL = new Set([
     STATES.AUTH_REQUIRED,
     STATES.INSUFFICIENT_BALANCE,
+    STATES.BILLING_UNAVAILABLE,
     STATES.CLOSED,
   ]);
 
