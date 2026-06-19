@@ -89,6 +89,63 @@ def normalize_audio(audio: np.ndarray) -> np.ndarray:
     return audio
 
 
+def pick_client_sample_rate(meta: dict | None, default: int = SAMPLE_RATE) -> int:
+    """
+    Вытянуть фактическую частоту дискретизации из audio_meta клиента.
+
+    Предпочитаем sample rate AudioContext, потому что именно в нём работает
+    Web Audio граф. Невалидные значения игнорируются, при их отсутствии —
+    возвращается default. Единый источник для Solo и Room.
+    """
+    if not meta:
+        return default
+    for key in ("context_sample_rate", "sample_rate", "track_sample_rate", "requested_sample_rate"):
+        value = meta.get(key)
+        try:
+            rate = int(value)
+        except (TypeError, ValueError):
+            continue
+        if 8000 <= rate <= 192000:
+            return rate
+    return default
+
+
+def validate_audio_meta(meta: dict | None) -> tuple[bool, str]:
+    """
+    Проверить параметры аудио из audio_meta.
+
+    Возвращает (ok, reason). Клиент VOX шлёт PCM float32 mono. Принимаем
+    8к/16к/44.1к/48к (и всё в диапазоне 8000..192000). Неверный формат или
+    частота вне диапазона → понятная причина для сообщения клиенту.
+    """
+    if not isinstance(meta, dict):
+        return False, "audio_meta is not an object"
+
+    fmt = meta.get("sample_format")
+    if fmt is not None and str(fmt).lower() not in ("float32", "f32", "float", "pcm_f32"):
+        return False, f"unsupported sample_format={fmt!r} (ожидается float32)"
+
+    ch = meta.get("channels")
+    if ch is not None:
+        try:
+            if int(ch) not in (1, 2):
+                return False, f"unsupported channels={ch!r}"
+        except (TypeError, ValueError):
+            return False, f"invalid channels={ch!r}"
+
+    rate_keys = ("context_sample_rate", "sample_rate", "track_sample_rate", "requested_sample_rate")
+    present = [meta.get(k) for k in rate_keys if meta.get(k) is not None]
+    for value in present:
+        try:
+            rate = int(value)
+        except (TypeError, ValueError):
+            return False, f"invalid sample rate value {value!r}"
+        if not (8000 <= rate <= 192000):
+            return False, f"sample rate {rate} вне диапазона 8000..192000"
+
+    return True, "ok"
+
+
 def resample_audio(
     audio: np.ndarray, orig_sr: int, target_sr: int = SAMPLE_RATE
 ) -> np.ndarray:

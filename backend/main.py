@@ -272,23 +272,11 @@ session_config = {
 }
 
 
-def _pick_client_sample_rate(meta: dict | None, default: int = 16000) -> int:
-    """
-    Вытянуть фактическую частоту дискретизации из audio_meta клиента.
-    Предпочитаем sample rate AudioContext, потому что именно в нём работает Web Audio граф.
-    """
-    if not meta:
-        return default
-
-    for key in ("context_sample_rate", "sample_rate", "track_sample_rate", "requested_sample_rate"):
-        value = meta.get(key)
-        try:
-            rate = int(value)
-        except (TypeError, ValueError):
-            continue
-        if 8000 <= rate <= 192000:
-            return rate
-    return default
+# Единые аудио-хелперы вынесены в audio_utils (тестируются без зависимостей app).
+from audio_utils import (
+    pick_client_sample_rate as _pick_client_sample_rate,
+    validate_audio_meta as _validate_audio_meta,
+)
 
 
 async def _enforce_start_balance(ws, user_id) -> bool:
@@ -1386,6 +1374,11 @@ async def websocket_solo(ws: WebSocket):
     dg = DeepgramTranscriber()
     await dg.start(language=solo_source_lang or "uk")
     last_solo_seen_final_text = ""
+    # Фактическая частота входного аудио из браузера. Раньше Solo полагался
+    # только на AudioContext(16000), но Android/Safari часто его игнорируют —
+    # тогда без ресэмплинга речь искажалась. Теперь клиент шлёт audio_meta.
+    solo_audio_meta: dict = {}
+    solo_input_sample_rate = 16000
 
     async def handle_results():
         nonlocal last_solo_seen_final_text
@@ -1511,7 +1504,9 @@ async def websocket_solo(ws: WebSocket):
 
             if "bytes" in message and message["bytes"]:
                 if not dg.is_active:
-                    await dg.start(solo_source_lang or "uk")
+                    dg.set_input_sample_rate(solo_input_sample_rate)
+                    await dg.start(solo_source_lang or "uk",
+                                   input_sample_rate=solo_input_sample_rate)
                 await dg.send_audio(message["bytes"])
 
             elif "text" in message and message["text"]:
@@ -1521,6 +1516,30 @@ async def websocket_solo(ws: WebSocket):
 
                     if msg_type == "ping":
                         await ws.send_json({"type": "pong"})
+
+                    elif msg_type == "audio_meta":
+                        # Тот же путь, что и у гостя: валидируем и используем
+                        # общий ресэмплинг в transcriber.send_audio.
+                        ok, reason = _validate_audio_meta(msg)
+                        if not ok:
+                            logger.warning(f"🎛️ [SOLO] невалидный audio_meta: {reason}")
+                            await ws.send_json({
+                                "type": "error",
+                                "code": "audio_meta_invalid",
+                                "message": f"Невалидные параметры аудио: {reason}",
+                            })
+                            continue
+                        solo_audio_meta = dict(msg)
+                        solo_input_sample_rate = _pick_client_sample_rate(solo_audio_meta)
+                        dg.set_input_sample_rate(solo_input_sample_rate)
+                        logger.info(
+                            "🎛️ [SOLO] audio_meta: context_sr=%s track_sr=%s picked_sr=%s format=%s",
+                            solo_audio_meta.get("context_sample_rate"),
+                            solo_audio_meta.get("track_sample_rate"),
+                            solo_input_sample_rate,
+                            solo_audio_meta.get("sample_format"),
+                        )
+                        continue
 
                     elif msg_type == "tts_done":
                         pass

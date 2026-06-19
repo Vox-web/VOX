@@ -1633,7 +1633,24 @@
         const nd = new AudioWorkletNode(cx, name);
         nd.port.onmessage = e => onChunk(e.data);
         src.connect(hp); hp.connect(nd); // nd НЕ подключается к cx.destination — иначе аудио-петля и баг маршрутизации на Android
-        return { stop(){ try{nd.disconnect();}catch(_){} try{hp.disconnect();}catch(_){} try{src.disconnect();}catch(_){} try{cx.close();}catch(_){} st.getTracks().forEach(t=>t.stop()); } };
+        // Фактические параметры аудио. Браузер (особенно Android/Safari) может
+        // проигнорировать sampleRate:16000 — поэтому отдаём РЕАЛЬНЫЙ cx.sampleRate,
+        // чтобы сервер корректно ресэмплировал.
+        let _trackSr = null;
+        try { _trackSr = (st.getAudioTracks()[0]?.getSettings?.().sampleRate) || null; } catch(_) {}
+        const meta = {
+            requested_sample_rate: 16000,
+            context_sample_rate: Number(cx.sampleRate) || null,
+            track_sample_rate: _trackSr,
+            sample_format: 'float32',
+            channels: 1,
+            chunk_frames: 2048,
+        };
+        return {
+            meta,
+            sampleRate: Number(cx.sampleRate) || 16000,
+            stop(){ try{nd.disconnect();}catch(_){} try{hp.disconnect();}catch(_){} try{src.disconnect();}catch(_){} try{cx.close();}catch(_){} st.getTracks().forEach(t=>t.stop()); }
+        };
     }
 
     // =====================================================================
@@ -1641,6 +1658,16 @@
     // =====================================================================
     let soloListening=false, soloWs=null, soloMic=null, curSoloKey='soloStatusDisconnected', soloDetectedSourceLang=null;
     let _wsRetries=0, _fallbackActive=false, _fallbackRecognition=null;
+
+    // Отправить реальные параметры аудио на сервер (Solo). Безопасно вызывать
+    // многократно: и после старта мика, и в onopen после reconnect.
+    function _sendSoloAudioMeta() {
+        try {
+            if (soloWs?.readyState === WebSocket.OPEN && soloMic?.meta) {
+                soloWs.send(JSON.stringify({ type: 'audio_meta', ...soloMic.meta }));
+            }
+        } catch (_) {}
+    }
 
     // Карта мов для Web Speech API
     const _speechLangMap = {
@@ -1789,6 +1816,8 @@
                 target_lang: tgtLang,
                 tts_enabled: _ttsEnabled,
             }));
+            // После reconnect мик уже существует — обязательно повторно шлём audio_meta.
+            _sendSoloAudioMeta();
             clearInterval(_soloPingInterval);
             _soloPingInterval = setInterval(() => {
                 if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(JSON.stringify({type:'ping'}));
@@ -1842,6 +1871,8 @@
                 if (soloWs?.readyState === WebSocket.OPEN) soloWs.send(buf);
                 _vad(soloVadEl, new Float32Array(buf));
             });
+            // Сообщаем серверу реальную частоту дискретизации ДО потока аудио.
+            _sendSoloAudioMeta();
             if (soloListening) soloSetStatus('soloStatusListening');
         } catch(e) { console.error('Mic err:', e); soloSetStatus('soloStatusMicError'); soloStop(); }
     }
