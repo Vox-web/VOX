@@ -11,7 +11,10 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
 
-import stripe
+try:
+    import stripe  # биллинг опционален — без пакета приложение всё равно стартует
+except ImportError:  # pragma: no cover
+    stripe = None
 from fastapi import APIRouter, Header, HTTPException, Request, WebSocket
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
@@ -30,7 +33,8 @@ logger = logging.getLogger("vox.billing")
 # ---------------------------------------------------------------------------
 # Конфигурация
 # ---------------------------------------------------------------------------
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+if stripe is not None:
+    stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 BASE_URL = os.getenv("BASE_URL", "").rstrip("/")
 
@@ -208,7 +212,7 @@ async def api_create_checkout(
     if body.amount not in TOPUP_AMOUNTS:
         raise HTTPException(400, f"Допустимые суммы: {sorted(TOPUP_AMOUNTS)}")
 
-    if not stripe.api_key:
+    if stripe is None or not stripe.api_key:
         raise HTTPException(503, "Stripe не настроен")
 
     try:
@@ -253,6 +257,9 @@ async def api_stripe_webhook(request: Request):
     """
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
+
+    if stripe is None:
+        raise HTTPException(503, "Stripe не настроен")
 
     if not STRIPE_WEBHOOK_SECRET:
         logger.warning("⚠️ STRIPE_WEBHOOK_SECRET не задан — webhook не верифицируется")

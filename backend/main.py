@@ -127,9 +127,11 @@ async def lifespan(app: FastAPI):
 # ---------------------------------------------------------------------------
 # FastAPI приложение
 # ---------------------------------------------------------------------------
+from version import __version__ as VOX_VERSION
+
 app = FastAPI(
     title="VOX",
-    version="0.3.0",
+    version=VOX_VERSION,
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url=None,
@@ -263,13 +265,19 @@ def _build_info_payload() -> dict:
     }
 
 # ---------------------------------------------------------------------------
-# Конфигурация Solo-сессии
+# Дефолты Solo-сессии (read-only).
+# ВАЖНО: раньше это был МУТАБЕЛЬНЫЙ глобальный session_config, и /set-config
+# менял язык по умолчанию сразу ДЛЯ ВСЕХ пользователей (кросс-юзер баг).
+# Теперь это неизменяемые дефолты; язык каждой Solo-сессии задаётся через
+# WS-сообщение config (per-session). Алиас session_config оставлен для /status.
 # ---------------------------------------------------------------------------
-session_config = {
+SESSION_DEFAULTS = {
     "target_lang": os.getenv("DEFAULT_TARGET_LANG", "uk"),
     "source_lang": None,
     "is_listening": False,
 }
+# Обратная совместимость для /status (read-only снимок дефолтов).
+session_config = SESSION_DEFAULTS
 
 
 # Единые аудио-хелперы вынесены в audio_utils (тестируются без зависимостей app).
@@ -479,21 +487,23 @@ async def api_build_info():
 # ===========================================================================
 @app.post("/set-config")
 async def set_config(config: dict):
+    """
+    DEPRECATED. Язык Solo-сессии задаётся per-session через WS-сообщение config.
+    Этот эндпоинт больше НЕ меняет глобальные дефолты (раньше это был кросс-юзер
+    баг). Теперь он только валидирует переданные языки и эхо-возвращает их.
+    """
+    echo = {}
     if "target_lang" in config:
         lang = config["target_lang"]
-        if lang in Translator.SUPPORTED_LANGUAGES:
-            session_config["target_lang"] = lang
-            logger.info(f"🌐 Solo — язык перевода: {lang}")
-        else:
+        if lang not in Translator.SUPPORTED_LANGUAGES:
             raise HTTPException(status_code=400, detail=f"Unsupported language: {lang}")
+        echo["target_lang"] = lang
     if "source_lang" in config:
         lang = config["source_lang"]
-        if lang is None or lang in Translator.SUPPORTED_LANGUAGES:
-            session_config["source_lang"] = lang
-            logger.info(f"🎤 Solo — язык ввода: {lang or 'auto'}")
-        else:
+        if not (lang is None or lang in Translator.SUPPORTED_LANGUAGES):
             raise HTTPException(status_code=400, detail=f"Unsupported language: {lang}")
-    return JSONResponse({"status": "ok", "config": session_config})
+        echo["source_lang"] = lang
+    return JSONResponse({"status": "ok", "deprecated": True, "config": echo})
 
 
 # ===========================================================================
@@ -1307,8 +1317,8 @@ async def websocket_solo(ws: WebSocket):
         keep_tail_words=6,
     )
 
-    solo_source_lang: str | None = session_config.get("source_lang")
-    solo_target_lang: str = session_config.get("target_lang") or os.getenv("DEFAULT_TARGET_LANG", "uk")
+    solo_source_lang: str | None = SESSION_DEFAULTS.get("source_lang")
+    solo_target_lang: str = SESSION_DEFAULTS.get("target_lang") or os.getenv("DEFAULT_TARGET_LANG", "uk")
 
     from billing_db import deduct_session_cost as _deduct
     _user_id = None

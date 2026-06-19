@@ -1,9 +1,9 @@
 """
 VOX — Синтез речи (Text-to-Speech)
 
-Два движка:
-1. OpenAI TTS (tts-1) — основной, высокое качество
-2. edge-tts (Microsoft) — бесплатный fallback
+Два движка (порядок соответствует реальному коду synthesize()):
+1. edge-tts (Microsoft) — ОСНОВНОЙ: бесплатный, быстрый
+2. OpenAI TTS (tts-1) — FALLBACK при ошибке/пустом ответе edge-tts
 """
 
 import os
