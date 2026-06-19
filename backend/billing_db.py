@@ -7,13 +7,13 @@ VOX — Биллинг: модуль базы данных
 import sqlite3
 import secrets
 import logging
-from pathlib import Path
-import os
 
 logger = logging.getLogger("vox.billing_db")
 
-# Используем ту же БД, что и vox_db.py
-DB_PATH = Path(os.environ.get("VOX_DB_PATH", "/data/vox.db"))
+# Используем ту же БД, что и vox_db.py — единый источник пути (db_config.py).
+# Раньше здесь был отдельный дефолт "/data/vox.db", из-за чего billing мог
+# работать с другим файлом, чем auth. Теперь путь общий.
+from db_config import DB_PATH
 
 
 def _conn():

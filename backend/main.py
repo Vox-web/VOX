@@ -68,6 +68,11 @@ async def lifespan(app: FastAPI):
 
     logger.info("🚀 VOX сервер запускается...")
 
+    # Единый путь к БД + проверка доступности каталога (см. db_config.py).
+    from db_config import DB_PATH, ensure_db_ready
+    ensure_db_ready()
+    logger.info("✅ База данных: единый путь %s", DB_PATH)
+
     dg_key = os.getenv("DEEPGRAM_API_KEY")
     if not dg_key:
         logger.error("❌ DEEPGRAM_API_KEY не задан! Добавьте в .env")
@@ -129,6 +134,10 @@ app = FastAPI(
     docs_url="/api/docs",
     redoc_url=None,
 )
+
+# Гарантируем, что каталог БД существует и доступен ДО первого подключения.
+from db_config import ensure_db_ready as _ensure_db_ready
+_ensure_db_ready()
 init_db()
 
 # ── Billing ──
@@ -2214,7 +2223,7 @@ async def admin_update_user(
 ):
     _check_admin(authorization)
     import sqlite3
-    from billing_db import DB_PATH
+    from db_config import DB_PATH
     from vox_db import hash_password
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
@@ -2257,7 +2266,7 @@ async def admin_delete_user(
 ):
     _check_admin(authorization)
     import sqlite3
-    from billing_db import DB_PATH
+    from db_config import DB_PATH
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
     cur.execute("SELECT id FROM users WHERE id=?", (user_id,))

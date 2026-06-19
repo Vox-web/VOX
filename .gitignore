@@ -32,5 +32,12 @@ vox_log.txt
 # OS
 .DS_Store
 Thumbs.db
-"*.db" 
-"backend/vox.db" 
+
+# Databases (кавычки в этих паттернах раньше делали их нерабочими!)
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+# Backup-файлы миграций БД
+*.bak-*
