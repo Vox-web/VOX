@@ -155,7 +155,9 @@ def _build_verification_html(name: str, verify_url: str) -> str:
 
 
 GMAIL_HOST = "smtp.gmail.com"
-GMAIL_SMTP_TIMEOUT = 12  # сек на попытку; ошибки сети возвращаются быстро
+# Сек на попытку. Короткий таймаут, чтобы заблокированный исходящий SMTP
+# (типично для PaaS) не подвешивал запрос регистрации на десятки секунд.
+GMAIL_SMTP_TIMEOUT = 7
 
 
 def _resolve_ipv4(host: str) -> Optional[str]:
