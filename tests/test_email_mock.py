@@ -1,5 +1,8 @@
 """
 Block F — email-верификация через Gmail SMTP с mock-транспортом (без сети).
+
+Транспорт SMTP теперь живёт в email_provider; провайдер выбирается через
+EMAIL_PROVIDER. Здесь явно тестируем gmail-путь.
 """
 
 import pytest
@@ -7,6 +10,7 @@ import pytest
 import vox_db
 import billing_db
 import billing
+import email_provider
 
 
 class _FakeSMTP:
@@ -34,9 +38,10 @@ def _setup(monkeypatch):
     vox_db.init_db()
     billing_db.migrate()
     _FakeSMTP.sent.clear()
+    monkeypatch.setenv("EMAIL_PROVIDER", "gmail")
     monkeypatch.setenv("GMAIL_USER", "vox@gmail.com")
     monkeypatch.setenv("GMAIL_APP_PASSWORD", "app pass word")
-    monkeypatch.setattr(billing.smtplib, "SMTP_SSL", _FakeSMTP)
+    monkeypatch.setattr(email_provider.smtplib, "SMTP_SSL", _FakeSMTP)
 
 
 def _new_user(email):

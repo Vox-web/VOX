@@ -6,9 +6,6 @@ Stripe Checkout, Webhooks, Email верификация через Gmail SMTP, �
 import os
 import json
 import logging
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from typing import Optional
 
 try:
@@ -25,7 +22,10 @@ from billing_db import (
     create_payment_record, confirm_stripe_payment,
     get_all_payments, admin_adjust_balance, get_user_by_id,
     can_start_session, MIN_BALANCE_TO_START,
+    get_or_create_verify_token, mark_verification_sent, get_verification_meta,
+    get_account_start_status, RESEND_COOLDOWN_SEC,
 )
+import email_provider
 from vox_db import get_user_by_token
 
 logger = logging.getLogger("vox.billing")
@@ -88,26 +88,12 @@ def _check_admin(authorization: Optional[str]):
 
 
 # ---------------------------------------------------------------------------
-# EMAIL верификация (Gmail SMTP)
+# EMAIL верификация (через email_provider: Resend HTTP API / Gmail SMTP)
 # ---------------------------------------------------------------------------
 
-def send_verification_email(user_id: int, email: str, name: str) -> bool:
-    """
-    Генерировать токен и отправить HTML-письмо верификации через Gmail SMTP.
-    Вызывается после регистрации пользователя.
-    Переменные среды: GMAIL_USER, GMAIL_APP_PASSWORD
-    """
-    gmail_user = os.getenv("GMAIL_USER", "")
-    gmail_pass = os.getenv("GMAIL_APP_PASSWORD", "")
-
-    if not gmail_user or not gmail_pass:
-        logger.warning("⚠️ GMAIL_USER або GMAIL_APP_PASSWORD не задано — email не відправлено")
-        return False
-
-    token = generate_verify_token(user_id)
-    verify_url = f"{BASE_URL}/api/verify-email?token={token}"
-
-    html_body = f"""<!DOCTYPE html>
+def _build_verification_html(name: str, verify_url: str) -> str:
+    """Собрать HTML письма верификации."""
+    return f"""<!DOCTYPE html>
 <html lang="uk">
 <head>
 <meta charset="UTF-8"/>
@@ -162,21 +148,28 @@ def send_verification_email(user_id: int, email: str, name: str) -> bool:
 </body>
 </html>"""
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = "🎙 VOX — Підтвердіть email та отримайте $3"
-    msg["From"]    = f"VOX <{gmail_user}>"
-    msg["To"]      = email
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(gmail_user, gmail_pass)
-            server.sendmail(gmail_user, email, msg.as_string())
-        logger.info(f"📧 email відправлено через Gmail: {email}")
-        return True
-    except Exception as e:
-        logger.error(f"❌ Gmail SMTP error: {e}")
-        return False
+def send_verification_email(user_id: int, email: str, name: str) -> bool:
+    """
+    Отправить письмо верификации email через активный провайдер
+    (Resend HTTP API или Gmail SMTP — см. email_provider / EMAIL_PROVIDER).
+
+    Токен ПЕРЕИСПОЛЬЗУЕТСЯ, если уже существует: повторная отправка не должна
+    инвалидировать ранее отправленную рабочую ссылку. Результат доставки
+    фиксируется в email_delivery_state (sent/failed).
+    """
+    token = get_or_create_verify_token(user_id)
+    verify_url = f"{BASE_URL}/api/verify-email?token={token}"
+    html_body = _build_verification_html(name, verify_url)
+
+    result = email_provider.send_email(
+        to=email,
+        subject="🎙 VOX — Підтвердіть email та отримайте $3",
+        html_body=html_body,
+    )
+    # Фиксируем фактическое состояние доставки (без секретов).
+    mark_verification_sent(user_id, result.get("state", "failed"))
+    return bool(result.get("ok"))
 
 
 # ---------------------------------------------------------------------------
@@ -298,6 +291,87 @@ async def api_send_verification(authorization: Optional[str] = Header(None)):
         raise HTTPException(503, "Не вдалося надіслати лист. Спробуйте пізніше.")
 
     return JSONResponse({"ok": True, "message": "Лист надіслано"})
+
+
+@billing_router.get("/account/status")
+async def api_account_status(authorization: Optional[str] = Header(None)):
+    """
+    Server-authoritative статус аккаунта для онбординга.
+
+    Фронтенд вызывает его после регистрации, перед стартом каждого платного
+    host-режима, после возврата в приложение и после подтверждения email.
+    Не возвращает verification token.
+    """
+    user = _get_current_user(authorization)
+    start = get_account_start_status(user["id"])
+    meta = get_verification_meta(user["id"])
+
+    resend_available_at = None
+    if meta["cooldown_remaining"] > 0:
+        from datetime import datetime, timezone, timedelta
+        resend_available_at = (
+            datetime.now(timezone.utc) + timedelta(seconds=meta["cooldown_remaining"])
+        ).isoformat()
+
+    return JSONResponse({
+        "authenticated": True,
+        "email_verified": start["email_verified"],
+        "balance": start["balance"],
+        "start_status": start["status"],
+        "verification_required": start["status"] == "email_verification_required",
+        "resend_available_at": resend_available_at,
+        "resend_cooldown_remaining": meta["cooldown_remaining"],
+        "email_delivery_state": meta["delivery_state"],
+        "min_balance": MIN_BALANCE_TO_START,
+    })
+
+
+@billing_router.post("/auth/resend-verification")
+async def api_resend_verification(authorization: Optional[str] = Header(None)):
+    """
+    Повторно отправить verification email (cooldown 60с).
+
+    Поведение:
+      * только для авторизованного пользователя;
+      * если email уже подтверждён — понятный ответ без отправки;
+      * cooldown 60с между фактическими отправками;
+      * НЕ сообщаем «лист надіслано», если провайдер вернул ошибку;
+      * токен переиспользуется (старая ссылка не инвалидируется).
+    """
+    user = _get_current_user(authorization)
+    full_user = get_user_by_id(user["id"])
+    if not full_user:
+        raise HTTPException(404, "Користувача не знайдено")
+
+    if full_user.get("is_email_verified"):
+        return JSONResponse({
+            "ok": True,
+            "status": "already_verified",
+            "message": "Email вже підтверджений.",
+        })
+
+    meta = get_verification_meta(user["id"])
+    if meta["cooldown_remaining"] > 0:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "ok": False,
+                "status": "cooldown",
+                "retry_after": meta["cooldown_remaining"],
+                "message": "Зачекайте перед повторною відправкою.",
+            },
+        )
+
+    sent = send_verification_email(user["id"], user["email"], user.get("name", ""))
+    if not sent:
+        # Реальная ошибка провайдера — честно сообщаем, не имитируем успех.
+        raise HTTPException(503, "Не вдалося надіслати лист. Спробуйте ще раз пізніше.")
+
+    return JSONResponse({
+        "ok": True,
+        "status": "sent",
+        "message": "Лист надіслано. Перевірте пошту (і папку «Спам»).",
+    })
 
 
 @billing_router.get("/verify-email")
