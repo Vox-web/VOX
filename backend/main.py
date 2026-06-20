@@ -89,6 +89,13 @@ async def lifespan(app: FastAPI):
     room_manager = RoomManager(base_url=base_url)
     logger.info("✅ RoomManager готов")
 
+    # Логируем выбранный почтовый провайдер (без секретов).
+    try:
+        import email_provider
+        email_provider.log_provider_on_startup()
+    except Exception as exc:  # pragma: no cover
+        logger.warning("⚠️ email provider log failed: %r", exc)
+
     try:
         logger.info(
             "🧪 BUILD INFO: %s",
@@ -291,36 +298,53 @@ from session_billing import (
 )
 
 
-async def _enforce_start_balance(ws, user_id) -> bool:
+async def _enforce_account_start(ws, user_id) -> bool:
     """
-    Гейт минимального баланса ПЕРЕД стартом платной транскрипции.
+    ЕДИНЫЙ account activation gate ПЕРЕД стартом платной транскрипции.
 
-    Возвращает True, если можно начинать (анонимная сессия или баланс
-    достаточен). Если баланса не хватает — отправляет клиенту
-    code=insufficient_balance и возвращает False (вызывающий обязан
-    закрыть соединение и не запускать Deepgram).
+    Используется ОДИНАКОВО во всех платных host-сценариях: Solo, Duo one-device,
+    Duo remote host, Room host. Делегирует решение в общий серверный источник
+    правды billing_db.get_account_start_status, поэтому поведение режимов не
+    расходится.
+
+    Возвращает True, если можно начинать (анонимная сессия или статус ready).
+    Иначе отправляет клиенту terminal JSON с code/reason/понятным message и
+    возвращает False (вызывающий обязан закрыть соединение и не запускать
+    Deepgram). Порядок приоритета: email_verification_required важнее, чем
+    insufficient_balance — новый пользователь с балансом $0 НЕ должен видеть
+    «недостатньо коштів», пока email не подтверждён.
     """
     if not user_id:
         return True  # анонимная сессия — без биллинга, как и раньше
+
+    from billing_db import get_account_start_status, MIN_BALANCE_TO_START
+    status = get_account_start_status(user_id)["status"]
+
+    if status == "ready":
+        return True
+
+    messages = {
+        "email_verification_required": (
+            "Підтвердіть email, щоб активувати акаунт і отримати $3 для тестування VOX."
+        ),
+        "insufficient_balance": "Недостатній баланс для запуску сесії. Поповніть рахунок.",
+        "billing_unavailable": "Сервіс оплати тимчасово недоступний. Спробуйте ще раз пізніше.",
+    }
+    payload = {
+        "type": "session_ended",
+        "reason": status,
+        "code": status,
+        "message": messages.get(status, messages["billing_unavailable"]),
+    }
+    if status == "insufficient_balance":
+        payload["min_balance"] = MIN_BALANCE_TO_START
+
+    # Сначала гарантированно доставляем terminal JSON, только потом вызывающий
+    # закрывает соединение — клиент должен увидеть причину, а не голый onclose.
     try:
-        from billing_db import can_start_session, MIN_BALANCE_TO_START
-        if can_start_session(user_id):
-            return True
-        await ws.send_json({
-            "type": "session_ended",
-            "reason": "insufficient_balance",
-            "code": "insufficient_balance",
-            "min_balance": MIN_BALANCE_TO_START,
-            "message": "Недостатній баланс для запуску сесії. Поповніть рахунок.",
-        })
+        await ws.send_json(payload)
     except Exception as exc:
-        logger.error("Billing balance check failed for user=%s: %s", user_id, exc)
-        await ws.send_json({
-            "type": "session_ended",
-            "reason": "billing_unavailable",
-            "code": "billing_unavailable",
-            "message": "Сервіс оплати тимчасово недоступний. Спробуйте ще раз пізніше.",
-        })
+        logger.error("Failed to send account-gate terminal message: %s", exc)
     return False
 
 
@@ -976,7 +1000,7 @@ async def websocket_duo(ws: WebSocket):
         return
 
     # Гейт баланса ДО старта платной транскрипции.
-    if not await _enforce_start_balance(ws, _user_id):
+    if not await _enforce_account_start(ws, _user_id):
         await ws.close()
         return
 
@@ -1155,7 +1179,7 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
         await ws.close(); return
 
     # Гейт баланса ДО старта платной транскрипции.
-    if not await _enforce_start_balance(ws, _user_id):
+    if not await _enforce_account_start(ws, _user_id):
         await ws.close(); return
 
     billing_handle = await _begin_session_billing(
@@ -1419,7 +1443,7 @@ async def websocket_solo(ws: WebSocket):
         logger.info("💳 Solo: anonymous session (no billing)")
 
     # Гейт баланса ДО старта платной транскрипции.
-    if not await _enforce_start_balance(ws, _user_id):
+    if not await _enforce_account_start(ws, _user_id):
         await ws.close()
         return
 
@@ -1689,7 +1713,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
         await ws.close()
         return
 
-    if not await _enforce_start_balance(ws, _user_id):
+    if not await _enforce_account_start(ws, _user_id):
         await ws.close()
         return
 
@@ -2675,6 +2699,14 @@ async def serve_vox_diagnostics_js():
     path = FRONTEND_DIR / "vox-diagnostics.js"
     if not path.exists():
         raise HTTPException(status_code=404, detail="vox-diagnostics.js not found")
+    return FileResponse(path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+
+@app.get("/vox-activation.js")
+async def serve_vox_activation_js():
+    path = FRONTEND_DIR / "vox-activation.js"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="vox-activation.js not found")
     return FileResponse(path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 @app.get("/icons/icon-{size}.png")

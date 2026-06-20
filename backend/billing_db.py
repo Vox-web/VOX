@@ -57,6 +57,10 @@ def migrate():
         "is_email_verified":  "INTEGER DEFAULT 0",
         "bonus_given":        "INTEGER DEFAULT 0",
         "email_verify_token": "TEXT",
+        # Onboarding: состояние доставки verification email и cooldown повторной
+        # отправки. Безопасная миграция — только ADD COLUMN, без потери данных.
+        "email_delivery_state":      "TEXT DEFAULT 'unknown'",  # sent | failed | unknown
+        "last_verification_sent_at": "TEXT",                    # ISO-время последней отправки
     }
     for col, definition in new_cols.items():
         if col not in existing_cols:
@@ -216,6 +220,129 @@ def verify_email_token(token: str) -> dict:
 def can_start_session(user_id: int) -> bool:
     """Достаточно ли баланса для старта платной сессии (>= MIN_BALANCE_TO_START)."""
     return get_user_balance(user_id) >= MIN_BALANCE_TO_START
+
+
+# ---------------------------------------------------------------------------
+# Единый account activation gate
+# ---------------------------------------------------------------------------
+
+# Cooldown повторной отправки verification email (секунды).
+RESEND_COOLDOWN_SEC = 60
+
+
+def get_or_create_verify_token(user_id: int) -> str:
+    """
+    Вернуть существующий verification-токен пользователя или создать новый.
+
+    Важно: НЕ инвалидируем рабочий старый verification link. Если токен уже
+    есть (email ещё не подтверждён) — переиспользуем его, чтобы повторная
+    отправка письма не ломала ранее отправленную ссылку.
+    """
+    con = _conn()
+    try:
+        row = con.execute(
+            "SELECT email_verify_token FROM users WHERE id=?", (user_id,)
+        ).fetchone()
+        if row and row["email_verify_token"]:
+            return row["email_verify_token"]
+    finally:
+        con.close()
+    return generate_verify_token(user_id)
+
+
+def mark_verification_sent(user_id: int, state: str) -> None:
+    """
+    Зафиксировать факт попытки отправки verification email.
+
+    state: 'sent' | 'failed' | 'unknown'. Время обновляем только при успешной
+    отправке — cooldown должен ограничивать реальные отправленные письма, а не
+    неудачные попытки (чтобы пользователь мог сразу повторить после сбоя).
+    """
+    con = _conn()
+    try:
+        if state == "sent":
+            con.execute(
+                "UPDATE users SET email_delivery_state=?, "
+                "last_verification_sent_at=datetime('now') WHERE id=?",
+                (state, user_id),
+            )
+        else:
+            con.execute(
+                "UPDATE users SET email_delivery_state=? WHERE id=?",
+                (state, user_id),
+            )
+        con.commit()
+    finally:
+        con.close()
+
+
+def get_verification_meta(user_id: int) -> dict:
+    """Вернуть состояние доставки и cooldown повторной отправки."""
+    con = _conn()
+    try:
+        row = con.execute(
+            "SELECT email_delivery_state, last_verification_sent_at, "
+            "CAST((julianday('now') - julianday(last_verification_sent_at)) * 86400.0 "
+            "AS INTEGER) AS elapsed_sec "
+            "FROM users WHERE id=?",
+            (user_id,),
+        ).fetchone()
+    finally:
+        con.close()
+
+    if not row:
+        return {"delivery_state": "unknown", "cooldown_remaining": 0, "last_sent_at": None}
+
+    elapsed = row["elapsed_sec"]
+    last_sent = row["last_verification_sent_at"]
+    if last_sent is None or elapsed is None:
+        remaining = 0
+    else:
+        remaining = max(0, RESEND_COOLDOWN_SEC - int(elapsed))
+    return {
+        "delivery_state": row["email_delivery_state"] or "unknown",
+        "cooldown_remaining": remaining,
+        "last_sent_at": last_sent,
+    }
+
+
+def get_account_start_status(user_id: int) -> dict:
+    """
+    Единый серверный gate для старта любой платной host-сессии.
+
+    Возвращает dict со статусом start_status (строго в этом порядке приоритета):
+      1. email_verification_required — email не подтверждён (важнее баланса!);
+      2. insufficient_balance        — email ок, но баланс < MIN_BALANCE_TO_START;
+      3. ready                       — email подтверждён и баланса достаточно;
+      4. billing_unavailable         — техническая ошибка доступа к БД биллинга.
+
+    Используется ОДИНАКОВО в Solo / Duo one-device / Duo remote host / Room host,
+    чтобы поведение не расходилось между режимами.
+    """
+    try:
+        user = get_user_by_id(user_id)
+        if user is None:
+            # Аккаунт не найден в billing-БД — это не «нет денег», а техническая
+            # рассинхронизация. Не разрешаем платную сессию молча.
+            return {
+                "status": "billing_unavailable",
+                "email_verified": False,
+                "balance": 0.0,
+            }
+        email_verified = bool(user.get("is_email_verified"))
+        balance = float(user.get("balance") or 0.0)
+    except Exception as exc:
+        logger.error("get_account_start_status failed for user=%s: %s", user_id, exc)
+        return {"status": "billing_unavailable", "email_verified": False, "balance": 0.0}
+
+    if not email_verified:
+        status = "email_verification_required"
+    elif balance < MIN_BALANCE_TO_START:
+        status = "insufficient_balance"
+    else:
+        status = "ready"
+
+    return {"status": status, "email_verified": email_verified, "balance": round(balance, 4)}
 
 
 # ---------------------------------------------------------------------------

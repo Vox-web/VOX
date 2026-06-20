@@ -96,31 +96,43 @@ async def test_reconnect_replaces_loop_without_parallel_charge():
     await coordinator.stop(new)
 
 
+def _patch_start_status(monkeypatch, status):
+    monkeypatch.setattr(
+        billing_db, "get_account_start_status",
+        lambda _user_id: {"status": status, "email_verified": status != "email_verification_required", "balance": 0.0},
+    )
+
+
+@pytest.mark.asyncio
+async def test_start_gate_requires_email_verification(monkeypatch):
+    ws = FakeWebSocket()
+    _patch_start_status(monkeypatch, "email_verification_required")
+    assert await main._enforce_account_start(ws, 11) is False
+    # Приоритет: неподтверждённый email, НЕ «недостатньо коштів».
+    assert ws.messages[-1]["code"] == "email_verification_required"
+
+
 @pytest.mark.asyncio
 async def test_start_gate_rejects_insufficient_balance(monkeypatch):
     ws = FakeWebSocket()
-    monkeypatch.setattr(billing_db, "can_start_session", lambda _user_id: False)
-    assert await main._enforce_start_balance(ws, 11) is False
+    _patch_start_status(monkeypatch, "insufficient_balance")
+    assert await main._enforce_account_start(ws, 11) is False
     assert ws.messages[-1]["code"] == "insufficient_balance"
 
 
 @pytest.mark.asyncio
-async def test_start_gate_allows_sufficient_balance(monkeypatch):
+async def test_start_gate_allows_ready_account(monkeypatch):
     ws = FakeWebSocket()
-    monkeypatch.setattr(billing_db, "can_start_session", lambda _user_id: True)
-    assert await main._enforce_start_balance(ws, 11) is True
+    _patch_start_status(monkeypatch, "ready")
+    assert await main._enforce_account_start(ws, 11) is True
     assert ws.messages == []
 
 
 @pytest.mark.asyncio
 async def test_start_gate_fails_closed_when_billing_is_unavailable(monkeypatch):
     ws = FakeWebSocket()
-
-    def unavailable(_user_id):
-        raise OSError("database unavailable")
-
-    monkeypatch.setattr(billing_db, "can_start_session", unavailable)
-    assert await main._enforce_start_balance(ws, 11) is False
+    _patch_start_status(monkeypatch, "billing_unavailable")
+    assert await main._enforce_account_start(ws, 11) is False
     assert ws.messages[-1]["code"] == "billing_unavailable"
 
 
