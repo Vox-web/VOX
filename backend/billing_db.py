@@ -222,6 +222,44 @@ def can_start_session(user_id: int) -> bool:
     return get_user_balance(user_id) >= MIN_BALANCE_TO_START
 
 
+def grant_signup_bonus(user_id: int) -> bool:
+    """
+    ТЕСТОВЫЙ РЕЖИМ: начислить $3 и пометить email подтверждённым СРАЗУ при
+    регистрации, без верификации по письму.
+
+    Идемпотентно: бонус выдаётся ровно один раз (guard bonus_given=0). Это та же
+    атомарная логика, что и в verify_email_token, но без токена. Чтобы вернуть
+    верификацию — перестать вызывать эту функцию из /api/register и снова
+    включить отправку письма.
+
+    Возвращает True, если бонус был начислен этим вызовом.
+    """
+    con = _conn()
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        con.execute(
+            "UPDATE users SET is_email_verified=1, email_verify_token=NULL WHERE id=?",
+            (user_id,),
+        )
+        cur = con.cursor()
+        cur.execute(
+            "UPDATE users SET balance = ROUND(balance + ?, 6), bonus_given=1 "
+            "WHERE id=? AND bonus_given=0",
+            (EMAIL_VERIFY_BONUS, user_id),
+        )
+        applied = cur.rowcount > 0
+        con.commit()
+        if applied:
+            logger.info(f"🎁 signup bonus ${EMAIL_VERIFY_BONUS:.0f} начислен (test-mode): user_id={user_id}")
+        return applied
+    except Exception as exc:
+        con.rollback()
+        logger.error(f"grant_signup_bonus: {exc}")
+        return False
+    finally:
+        con.close()
+
+
 # ---------------------------------------------------------------------------
 # Единый account activation gate
 # ---------------------------------------------------------------------------

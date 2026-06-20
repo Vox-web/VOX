@@ -233,41 +233,44 @@ def test_resend_smtp_login_failure_reports_error(fake_gmail):
     assert r.status_code == 503
 
 
-# ── Честный registration flow + изоляция email ────────────────────────────────
+# ── ТЕСТОВЫЙ РЕЖИМ: бонус $3 сразу при регистрации, без верификации ───────────
 
-def test_register_reports_delivery_state_sent(fake_gmail):
-    r = client.post("/api/register", json={
-        "email": _email("regsent"), "name": "S", "password": "secret123",
-    })
-    assert r.status_code == 200
-    assert r.json()["email_delivery_state"] == "sent"
-    assert len(fake_gmail["sent"]) == 1
-
-
-def test_register_provider_failure_still_creates_account(fake_gmail):
-    fake_gmail["fail_on"] = "send"  # SMTP бросает исключение
-    email = _email("regfail")
+def test_register_grants_bonus_and_marks_verified():
+    email = _email("regbonus")
     r = client.post("/api/register", json={
         "email": email, "name": "S", "password": "secret123",
     })
     assert r.status_code == 200
-    assert r.json()["email_delivery_state"] == "failed"  # честный статус
-    assert vox_db.get_user_by_email(email) is not None    # аккаунт создан
+    body = r.json()
+    uid = body["user"]["id"]
+    assert body["bonus_granted"] is True
+    assert body["email_delivery_state"] == "skipped"     # письмо не отправляется
+    assert billing_db.get_user_balance(uid) == billing_db.EMAIL_VERIFY_BONUS
+    u = billing_db.get_user_by_id(uid)
+    assert int(u["is_email_verified"]) == 1
 
 
-def test_register_without_mock_cannot_send_real_email(monkeypatch):
-    """
-    Регрессия инцидента apismoke@x.com: даже с «настоящими» creds и БЕЗ FakeSMTP
-    реальная отправка невозможна — smtplib.SMTP_SSL глобально заблокирован
-    (conftest). Результат — failed, ни одно письмо не уходит наружу.
-    """
-    monkeypatch.setenv("GMAIL_USER", "real@gmail.com")
-    monkeypatch.setenv("GMAIL_APP_PASSWORD", "app pass word")
+def test_registered_user_gate_is_ready_without_verification():
+    """После регистрации аккаунт сразу 'ready' — модалка активации не нужна."""
+    email = _email("regready")
+    uid = client.post("/api/register", json={
+        "email": email, "name": "S", "password": "secret123",
+    }).json()["user"]["id"]
+    assert billing_db.get_account_start_status(uid)["status"] == "ready"
+
+
+def test_register_does_not_send_any_email(monkeypatch):
+    """В тестовом режиме письмо не отправляется вообще (никакого транспорта)."""
+    import billing
+
+    def _must_not_send(*a, **k):
+        raise AssertionError("no email must be sent in test mode")
+
+    monkeypatch.setattr(billing, "send_verification_email", _must_not_send)
     r = client.post("/api/register", json={
-        "email": _email("regreal"), "name": "S", "password": "secret123",
+        "email": _email("regnomail"), "name": "S", "password": "secret123",
     })
     assert r.status_code == 200
-    assert r.json()["email_delivery_state"] == "failed"
 
 
 # ── token reuse ───────────────────────────────────────────────────────────────

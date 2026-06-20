@@ -74,9 +74,12 @@ def test_register_button_shows_animated_spinner_not_static_dots():
     assert "btn.textContent='...'" not in html
 
 
-def test_index_shows_activation_after_register():
-    # Передаём фактический email_delivery_state из ответа /api/register.
-    assert "VoxActivation.showActivation(d.email_delivery_state)" in _read("index.html")
+def test_register_activation_modal_disabled_in_test_mode():
+    html = _read("index.html")
+    # ТЕСТОВЫЙ РЕЖИМ: после регистрации модалка активации не показывается
+    # (вызов закомментирован), бонус $3 начисляется сразу.
+    assert "// if(window.VoxActivation) VoxActivation.showActivation" in html
+    assert "$3 added for testing" in html or "Нараховано $3" in html
 
 
 def test_activation_modal_has_honest_failed_delivery_copy():

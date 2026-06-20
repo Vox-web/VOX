@@ -1350,12 +1350,7 @@ async function doRegister(){
   if(pass !== pass2){errEl.textContent=(currentLang==='en'?'Passwords do not match':currentLang==='de'?'Passwörter stimmen nicht überein':'Паролі не співпадають');errEl.classList.add('show');return;}
   const btn = document.getElementById('regSubmit');
   btn.disabled=true;btn.classList.add('btn-loading');
-  // Інформуємо: реєстрація очікує відправку листа підтвердження.
-  okEl.textContent = (currentLang==='en'
-      ? '⏳ Creating account and sending the verification email… Please wait.'
-      : currentLang==='de'
-      ? '⏳ Konto wird erstellt und Bestätigungs-E-Mail gesendet… Bitte warten.'
-      : '⏳ Реєструємо акаунт і надсилаємо лист підтвердження… Зачекайте, будь ласка.');
+  okEl.textContent = (currentLang==='en'?'⏳ Creating account…':currentLang==='de'?'⏳ Konto wird erstellt…':'⏳ Реєструємо акаунт…');
   okEl.classList.add('show');
   try{
     const r = await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,name,password:pass})});
@@ -1363,10 +1358,10 @@ async function doRegister(){
     if(r.ok){
       setToken(d.token); currentUser = d.user;
       closeModal('modalAuth'); updateNavForUser();
-      showToast('🎉 ' + (currentLang==='en'?'Account created!':currentLang==='de'?'Konto erstellt!':'Акаунт створено!'), 'success');
-      // Onboarding: показуємо екран активації email. Передаємо ФАКТИЧНИЙ стан
-      // доставки — не кажемо «лист надіслано», якщо провайдер повернув failure.
-      if(window.VoxActivation) VoxActivation.showActivation(d.email_delivery_state);
+      // ТЕСТОВИЙ РЕЖИМ: бонус $3 нараховується одразу, без підтвердження email.
+      showToast('🎉 ' + (currentLang==='en'?'Account created! $3 added for testing.':currentLang==='de'?'Konto erstellt! $3 zum Testen gutgeschrieben.':'Акаунт створено! Нараховано $3 для тестування.'), 'success');
+      // Верифікація email вимкнена в тестовому режимі — модалку активації не показуємо.
+      // if(window.VoxActivation) VoxActivation.showActivation(d.email_delivery_state);
     } else { errEl.textContent=d.detail||'Error'; errEl.classList.add('show'); }
   }catch(e){ errEl.textContent='Server error'; errEl.classList.add('show'); }
   okEl.classList.remove('show');

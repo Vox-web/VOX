@@ -2219,24 +2219,32 @@ async def api_register(body: RegisterBody):
         }
         raise HTTPException(400, errors.get(result["error"], result["error"]))
     result["user"].pop("password_hash", None)
-    # Бонус $3 НЕ начисляется при регистрации. Единая политика: бонус
-    # выдаётся ровно один раз ПОСЛЕ подтверждения email (verify_email_token),
-    # что согласуется с текстом письма. См. billing_db.verify_email_token.
+
+    # ───────────────────────────────────────────────────────────────────────
+    # ТЕСТОВЫЙ РЕЖИМ: бонус $3 начисляется СРАЗУ при регистрации, без
+    # подтверждения email. Аккаунт считается активным немедленно.
     #
-    # Честный flow: отправляем письмо СИНХРОННО (в threadpool, чтобы не блокировать
-    # event loop) и возвращаем фактический результат доставки во фронтенд. Раньше
-    # отправка шла в background thread, и ответ не знал, ушло письмо или нет —
-    # пользователь видел «лист надіслано», когда письмо реально не отправлялось.
-    # Аккаунт создаётся в любом случае, даже если провайдер упал.
-    try:
-        sent = await run_in_threadpool(
-            send_verification_email,
-            result["user"]["id"], result["user"]["email"], result["user"]["name"],
-        )
-    except Exception as _e:
-        logger.warning(f"send_verification_email failed: {_e}")
-        sent = False
-    result["email_delivery_state"] = "sent" if sent else "failed"
+    # Чтобы ВЕРНУТЬ верификацию по email: убрать вызов grant_signup_bonus ниже
+    # и раскомментировать блок отправки письма. Вся инфраструктура верификации
+    # (send_verification_email, /api/auth/resend-verification, activation modal,
+    # account gate) сохранена и продолжает работать.
+    # ───────────────────────────────────────────────────────────────────────
+    from billing_db import grant_signup_bonus
+    granted = grant_signup_bonus(result["user"]["id"])
+    result["bonus_granted"] = granted
+    result["email_delivery_state"] = "skipped"  # верификация отключена (test mode)
+
+    # --- Верификационное письмо (ОТКЛЮЧЕНО в тестовом режиме) ---
+    # try:
+    #     sent = await run_in_threadpool(
+    #         send_verification_email,
+    #         result["user"]["id"], result["user"]["email"], result["user"]["name"],
+    #     )
+    # except Exception as _e:
+    #     logger.warning(f"send_verification_email failed: {_e}")
+    #     sent = False
+    # result["email_delivery_state"] = "sent" if sent else "failed"
+
     return result
 
 

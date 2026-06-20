@@ -43,15 +43,16 @@ def test_set_config_is_validate_only():
     assert client.post("/set-config", json={"target_lang": "zz"}).status_code == 400
 
 
-def test_register_grants_no_bonus(fake_gmail):
-    # Никакого реального email-транспорта: Gmail SMTP подменён FakeSMTP (fixture).
-    # Адрес — зарезервированный TLD .test, письмо в принципе недоставляемо и,
-    # кроме того, наружу вообще не уходит (fake).
+def test_register_grants_signup_bonus_test_mode():
+    # ТЕСТОВЫЙ РЕЖИМ: регистрация сразу начисляет $3 и помечает email
+    # подтверждённым, письмо не отправляется. Адрес — зарезервированный TLD .test.
     r = client.post("/api/register", json={
         "email": "apismoke@vox.test", "name": "S", "password": "secret123",
     })
     assert r.status_code == 200
     body = r.json()
     uid = body["user"]["id"]
-    assert billing_db.get_user_balance(uid) == 0.0
-    assert body["email_delivery_state"] == "sent"
+    assert billing_db.get_user_balance(uid) == billing_db.EMAIL_VERIFY_BONUS  # $3 сразу
+    assert body["email_delivery_state"] == "skipped"
+    u = billing_db.get_user_by_id(uid)
+    assert int(u["is_email_verified"]) == 1
