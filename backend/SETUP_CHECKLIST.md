@@ -24,24 +24,22 @@
 
 ---
 
-## 2. RESEND DASHBOARD (resend.com)
+## 2. EMAIL — GMAIL SMTP (єдиний provider)
 
-### A. Отримати API ключ
-1. Зайти в https://resend.com/api-keys
-2. Create API Key → дати назву "VOX Production"
-3. Скопіювати ключ: `re_...`
-4. Додати в Railway env: `RESEND_API_KEY=re_...`
+Верифікаційні листи йдуть через Gmail SMTP SSL (`smtp.gmail.com:465`),
+відправник — існуючий ящик `GMAIL_USER`. Жодного Resend/MAIL_FROM не потрібно.
 
-### B. Підтвердити домен (обов'язково для продакшн!)
-1. Dashboard → **Domains → Add Domain**
-2. Вказати свій домен (наприклад `vox.ai`)
-3. Додати DNS записи (SPF, DKIM, DMARC) у своєму DNS-провайдері
-4. Після верифікації — змінити `from` в billing.py:
-   `"from": "VOX <noreply@ВАШ_ДОМЕН>"`
+### A. Отримати App Password
+1. Google Account → Security → 2-Step Verification (увімкнути).
+2. App passwords → створити пароль для «Mail».
+3. Скопіювати 16-значний пароль.
 
-### C. Для швидкого тесту без свого домену
-- Використовуй `onboarding@resend.dev` як from (тільки для testing!)
-- Листи підуть лише на email з verified list
+### B. Додати в Railway env
+```
+GMAIL_USER=youraddress@gmail.com
+GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
+```
+Відправник листів = `GMAIL_USER`.
 
 ---
 
@@ -52,7 +50,8 @@
 ```
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-RESEND_API_KEY=re_...
+GMAIL_USER=youraddress@gmail.com
+GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
 BASE_URL=https://your-app.railway.app
 ```
 
@@ -62,7 +61,6 @@ BASE_URL=https://your-app.railway.app
 
 ```
 stripe>=7.0.0
-resend>=0.7.0
 ```
 
 ---

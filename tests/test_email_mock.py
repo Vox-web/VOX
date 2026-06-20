@@ -1,8 +1,8 @@
 """
 Block F — email-верификация через Gmail SMTP с mock-транспортом (без сети).
 
-Транспорт SMTP теперь живёт в email_provider; провайдер выбирается через
-EMAIL_PROVIDER. Здесь явно тестируем gmail-путь.
+Единственный provider — Gmail SMTP SSL внутри billing.send_verification_email.
+Здесь мокаем smtplib.SMTP_SSL и проверяем gmail-путь.
 """
 
 import pytest
@@ -10,7 +10,6 @@ import pytest
 import vox_db
 import billing_db
 import billing
-import email_provider
 
 
 class _FakeSMTP:
@@ -38,10 +37,9 @@ def _setup(monkeypatch):
     vox_db.init_db()
     billing_db.migrate()
     _FakeSMTP.sent.clear()
-    monkeypatch.setenv("EMAIL_PROVIDER", "gmail")
     monkeypatch.setenv("GMAIL_USER", "vox@gmail.com")
     monkeypatch.setenv("GMAIL_APP_PASSWORD", "app pass word")
-    monkeypatch.setattr(email_provider.smtplib, "SMTP_SSL", _FakeSMTP)
+    monkeypatch.setattr(billing.smtplib, "SMTP_SSL", _FakeSMTP)
 
 
 def _new_user(email):
@@ -82,3 +80,23 @@ def test_full_verify_flow_grants_bonus_once():
     res = billing_db.verify_email_token(token)
     assert res["ok"] and res["bonus"] is True
     assert billing_db.get_user_balance(uid) == billing_db.EMAIL_VERIFY_BONUS
+
+
+def test_smtp_success_records_delivery_state_sent():
+    uid = _new_user("statesent@x.com")
+    assert billing.send_verification_email(uid, "statesent@x.com", "U") is True
+    meta = billing_db.get_verification_meta(uid)
+    assert meta["delivery_state"] == "sent"
+
+
+def test_smtp_exception_records_delivery_state_failed(monkeypatch):
+    class _RaisingSMTP(_FakeSMTP):
+        def sendmail(self, frm, to, msg):
+            raise RuntimeError("smtp boom")
+
+    monkeypatch.setattr(billing.smtplib, "SMTP_SSL", _RaisingSMTP)
+    uid = _new_user("statefail@x.com")
+    # Исключение SMTP → False, состояние failed, наружу ничего не ушло.
+    assert billing.send_verification_email(uid, "statefail@x.com", "U") is False
+    assert _FakeSMTP.sent == []
+    assert billing_db.get_verification_meta(uid)["delivery_state"] == "failed"

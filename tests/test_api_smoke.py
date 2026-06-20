@@ -11,7 +11,6 @@ main = pytest.importorskip("main", reason="full app deps not installed")
 from fastapi.testclient import TestClient  # noqa: E402
 
 import billing_db  # noqa: E402
-import billing  # noqa: E402
 
 client = TestClient(main.app)
 
@@ -44,13 +43,10 @@ def test_set_config_is_validate_only():
     assert client.post("/set-config", json={"target_lang": "zz"}).status_code == 400
 
 
-def test_register_grants_no_bonus(monkeypatch):
-    # Никакого реального email-транспорта: мокаем на уровне send_email.
-    # (.test — зарезервированный TLD, письмо в принципе недоставляемо.)
-    monkeypatch.setattr(
-        billing.email_provider, "send_email",
-        lambda **k: {"ok": True, "state": "sent", "provider": "resend", "error": None},
-    )
+def test_register_grants_no_bonus(fake_gmail):
+    # Никакого реального email-транспорта: Gmail SMTP подменён FakeSMTP (fixture).
+    # Адрес — зарезервированный TLD .test, письмо в принципе недоставляемо и,
+    # кроме того, наружу вообще не уходит (fake).
     r = client.post("/api/register", json={
         "email": "apismoke@vox.test", "name": "S", "password": "secret123",
     })

@@ -6,6 +6,9 @@ Stripe Checkout, Webhooks, Email верификация через Gmail SMTP, �
 import os
 import json
 import logging
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import Optional
 
 try:
@@ -26,7 +29,6 @@ from billing_db import (
     get_or_create_verify_token, mark_verification_sent, get_verification_meta,
     get_account_start_status, RESEND_COOLDOWN_SEC,
 )
-import email_provider
 from vox_db import get_user_by_token
 
 logger = logging.getLogger("vox.billing")
@@ -89,7 +91,7 @@ def _check_admin(authorization: Optional[str]):
 
 
 # ---------------------------------------------------------------------------
-# EMAIL верификация (через email_provider: Resend HTTP API / Gmail SMTP)
+# EMAIL верификация (Gmail SMTP SSL — единственный provider)
 # ---------------------------------------------------------------------------
 
 def _build_verification_html(name: str, verify_url: str) -> str:
@@ -152,25 +154,51 @@ def _build_verification_html(name: str, verify_url: str) -> str:
 
 def send_verification_email(user_id: int, email: str, name: str) -> bool:
     """
-    Отправить письмо верификации email через активный провайдер
-    (Resend HTTP API или Gmail SMTP — см. email_provider / EMAIL_PROVIDER).
+    Отправить письмо верификации email через Gmail SMTP SSL.
+
+    Единственный provider: smtp.gmail.com:465, отправитель — существующий ящик
+    GMAIL_USER (без MAIL_FROM). Аутентификация через GMAIL_APP_PASSWORD.
+
+    Семантика результата:
+      * нет GMAIL_USER/GMAIL_APP_PASSWORD → "failed" (False);
+      * исключение login/sendmail → "failed" (False), техническая ошибка пишется
+        в server logs без пароля;
+      * SMTP принял письмо → "sent" (True). ВНИМАНИЕ: success означает только,
+        что Gmail принял отправку, а не что письмо попало во «Входящие».
 
     Токен ПЕРЕИСПОЛЬЗУЕТСЯ, если уже существует: повторная отправка не должна
-    инвалидировать ранее отправленную рабочую ссылку. Результат доставки
+    инвалидировать ранее отправленную рабочую ссылку. Фактический результат
     фиксируется в email_delivery_state (sent/failed).
     """
+    gmail_user = os.getenv("GMAIL_USER", "")
+    gmail_pass = os.getenv("GMAIL_APP_PASSWORD", "")
+    if not gmail_user or not gmail_pass:
+        logger.warning("⚠️ GMAIL_USER або GMAIL_APP_PASSWORD не задано — лист не надіслано")
+        mark_verification_sent(user_id, "failed")
+        return False
+
     token = get_or_create_verify_token(user_id)
     verify_url = f"{BASE_URL}/api/verify-email?token={token}"
     html_body = _build_verification_html(name, verify_url)
 
-    result = email_provider.send_email(
-        to=email,
-        subject="🎙 VOX — Підтвердіть email та отримайте $3",
-        html_body=html_body,
-    )
-    # Фиксируем фактическое состояние доставки (без секретов).
-    mark_verification_sent(user_id, result.get("state", "failed"))
-    return bool(result.get("ok"))
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "🎙 VOX — Підтвердіть email та отримайте $3"
+    msg["From"]    = f"VOX <{gmail_user}>"   # отправитель = существующий GMAIL_USER
+    msg["To"]      = email
+    msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
+            server.login(gmail_user, gmail_pass)
+            server.sendmail(gmail_user, email, msg.as_string())
+        logger.info("📧 email прийнято Gmail SMTP для відправки: %s", email)
+        mark_verification_sent(user_id, "sent")
+        return True
+    except Exception as exc:
+        # Без пароля в логах.
+        logger.error("❌ Gmail SMTP error: %s", exc)
+        mark_verification_sent(user_id, "failed")
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -363,13 +391,13 @@ async def api_resend_verification(authorization: Optional[str] = Header(None)):
             },
         )
 
-    # send_verification_email — синхронный (Resend HTTP / Gmail SMTP). Выполняем
-    # его в threadpool, чтобы блокирующий сетевой вызов не останавливал event loop.
+    # send_verification_email — синхронный Gmail SMTP вызов. Выполняем его в
+    # threadpool, чтобы блокирующий SMTP-вызов не останавливал event loop.
     sent = await run_in_threadpool(
         send_verification_email, user["id"], user["email"], user.get("name", "")
     )
     if not sent:
-        # Реальная ошибка провайдера — честно сообщаем, не имитируем успех.
+        # Реальная ошибка отправки — честно сообщаем, не имитируем успех.
         raise HTTPException(503, "Не вдалося надіслати лист. Спробуйте ще раз пізніше.")
 
     return JSONResponse({

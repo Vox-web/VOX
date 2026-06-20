@@ -29,25 +29,57 @@ if str(_BACKEND_DIR) not in sys.path:
 # ПРИЧИНА (production-инцидент): test_api_smoke регистрировал реального
 # пользователя через /api/register, который запускал фоновый поток отправки
 # письма. Если в окружении были GMAIL_USER/GMAIL_APP_PASSWORD, поток реально
-# слал письмо (отсюда bounce на apismoke@x.com — «Address not found»).
+# слал письмо через Gmail SMTP (отсюда bounce на apismoke@x.com — «Address not
+# found»).
 #
-# Этот autouse-fixture делает невозможным любой реальный сетевой email-вызов из
-# тестов: smtplib.SMTP_SSL и httpx.post (Resend) поднимают RuntimeError. Тесты,
-# которым нужен транспорт (test_email_mock — Gmail, test_email_provider —
-# Resend), ставят СВОЙ fake поверх и работают; всё остальное физически не может
-# уйти в сеть. Патчим сами модули smtplib/httpx — это покрывает и
-# email_provider, и main (/api/contact), т.к. это один и тот же объект модуля.
+# Этот autouse-fixture делает невозможным любой реальный SMTP-вызов из тестов:
+# smtplib.SMTP_SSL поднимает RuntimeError. Тесты, которым нужен транспорт
+# (Gmail-путь), ставят СВОЙ FakeSMTP поверх (см. fixture fake_gmail) и работают;
+# всё остальное физически не может уйти в сеть. Патчим сам модуль smtplib — это
+# покрывает и billing.send_verification_email, и main (/api/contact), т.к. это
+# один и тот же объект модуля.
 @pytest.fixture(autouse=True)
 def _block_real_email_transport(monkeypatch):
     import smtplib
-    import httpx
 
     def _blocked_smtp(*args, **kwargs):
         raise RuntimeError("Real SMTP transport is blocked during tests")
 
-    def _blocked_post(url, *args, **kwargs):
-        raise RuntimeError("Real HTTP email transport is blocked during tests: %s" % url)
-
     monkeypatch.setattr(smtplib, "SMTP_SSL", _blocked_smtp)
-    monkeypatch.setattr(httpx, "post", _blocked_post)
     yield
+
+
+# 4) Управляемый FakeSMTP для тестов Gmail-пути.
+#
+# Ставит валидные creds и подменяет smtplib.SMTP_SSL контролируемой заглушкой
+# поверх глобальной блокировки. Управление поведением: sink["fail_on"] in
+# (None, "login", "send"). sink["sent"] — захваченные письма (наружу не уходят).
+@pytest.fixture
+def fake_gmail(monkeypatch):
+    import smtplib
+
+    sink = {"sent": [], "fail_on": None}
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout=None):
+            self.host, self.port = host, port
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def login(self, user, pwd):
+            if sink["fail_on"] == "login":
+                raise RuntimeError("login failed")
+
+        def sendmail(self, frm, to, msg):
+            if sink["fail_on"] == "send":
+                raise RuntimeError("sendmail failed")
+            sink["sent"].append({"from": frm, "to": to})
+
+    monkeypatch.setenv("GMAIL_USER", "vox@gmail.com")
+    monkeypatch.setenv("GMAIL_APP_PASSWORD", "app pass word")
+    monkeypatch.setattr(smtplib, "SMTP_SSL", FakeSMTP)
+    return sink

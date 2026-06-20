@@ -90,12 +90,9 @@ async def lifespan(app: FastAPI):
     room_manager = RoomManager(base_url=base_url)
     logger.info("✅ RoomManager готов")
 
-    # Логируем выбранный почтовый провайдер (без секретов).
-    try:
-        import email_provider
-        email_provider.log_provider_on_startup()
-    except Exception as exc:  # pragma: no cover
-        logger.warning("⚠️ email provider log failed: %r", exc)
+    # Email-провайдер: Gmail SMTP (smtp.gmail.com:465) от GMAIL_USER.
+    gmail_ready = bool(os.getenv("GMAIL_USER") and os.getenv("GMAIL_APP_PASSWORD"))
+    logger.info("📧 Email: Gmail SMTP (configured=%s)", gmail_ready)
 
     try:
         logger.info(

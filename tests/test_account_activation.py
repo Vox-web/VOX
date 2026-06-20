@@ -193,86 +193,59 @@ def test_guest_ws_handlers_have_no_account_gate():
     assert "_enforce_account_start" not in after
 
 
-# ── 11-14: resend verification ────────────────────────────────────────────────
+# ── 11-14: resend verification (Gmail SMTP через FakeSMTP) ─────────────────────
 
-def test_resend_success(monkeypatch):
+def test_resend_success(fake_gmail):
     tok, _uid = _register(_email("resok"))
-    monkeypatch.setattr(
-        billing.email_provider, "send_email",
-        lambda **k: {"ok": True, "state": "sent", "provider": "resend", "error": None},
-    )
     r = client.post("/api/auth/resend-verification", headers=_auth(tok))
     assert r.status_code == 200 and r.json()["status"] == "sent"
+    assert len(fake_gmail["sent"]) == 1  # письмо «отправлено» только в fake
 
 
-def test_resend_cooldown(monkeypatch):
+def test_resend_cooldown(fake_gmail):
     tok, _uid = _register(_email("rescool"))
-    monkeypatch.setattr(
-        billing.email_provider, "send_email",
-        lambda **k: {"ok": True, "state": "sent", "provider": "resend", "error": None},
-    )
     assert client.post("/api/auth/resend-verification", headers=_auth(tok)).status_code == 200
     r2 = client.post("/api/auth/resend-verification", headers=_auth(tok))
     assert r2.status_code == 429
     assert r2.json()["status"] == "cooldown"
 
 
-def test_resend_already_verified_does_not_send(monkeypatch):
+def test_resend_already_verified_does_not_send(fake_gmail):
     tok, uid = _register(_email("resverif"))
     _verify(uid)
-
-    def must_not_call(**k):
-        raise AssertionError("should not send for verified user")
-
-    monkeypatch.setattr(billing.email_provider, "send_email", must_not_call)
     r = client.post("/api/auth/resend-verification", headers=_auth(tok))
     assert r.status_code == 200 and r.json()["status"] == "already_verified"
+    assert fake_gmail["sent"] == []  # для подтверждённого email письмо не уходит
 
 
-def test_resend_provider_failure_reports_error(monkeypatch):
+def test_resend_smtp_send_failure_reports_error(fake_gmail):
     tok, _uid = _register(_email("resfail"))
-    monkeypatch.setattr(
-        billing.email_provider, "send_email",
-        lambda **k: {"ok": False, "state": "failed", "provider": "resend", "error": "http_500"},
-    )
+    fake_gmail["fail_on"] = "send"  # sendmail бросает исключение
     r = client.post("/api/auth/resend-verification", headers=_auth(tok))
     assert r.status_code == 503  # не имитируем успех
 
 
-def test_resend_endpoint_handles_resend_timeout(monkeypatch):
-    """Полный путь endpoint → threadpool → Resend timeout → controlled 503."""
-    tok, _uid = _register(_email("restimeout"))
-    monkeypatch.setenv("EMAIL_PROVIDER", "resend")
-    monkeypatch.setenv("RESEND_API_KEY", "re_x")
-    monkeypatch.setenv("MAIL_FROM", "VOX <n@x.com>")
-
-    def boom(*a, **k):
-        raise billing.email_provider.httpx.TimeoutException("timeout")
-
-    monkeypatch.setattr(billing.email_provider.httpx, "post", boom)
+def test_resend_smtp_login_failure_reports_error(fake_gmail):
+    """Полный путь endpoint → threadpool → Gmail login fail → controlled 503."""
+    tok, _uid = _register(_email("reslogin"))
+    fake_gmail["fail_on"] = "login"
     r = client.post("/api/auth/resend-verification", headers=_auth(tok))
     assert r.status_code == 503
 
 
 # ── Честный registration flow + изоляция email ────────────────────────────────
 
-def test_register_reports_delivery_state_sent(monkeypatch):
-    monkeypatch.setattr(
-        billing.email_provider, "send_email",
-        lambda **k: {"ok": True, "state": "sent", "provider": "resend", "error": None},
-    )
+def test_register_reports_delivery_state_sent(fake_gmail):
     r = client.post("/api/register", json={
         "email": _email("regsent"), "name": "S", "password": "secret123",
     })
     assert r.status_code == 200
     assert r.json()["email_delivery_state"] == "sent"
+    assert len(fake_gmail["sent"]) == 1
 
 
-def test_register_provider_failure_still_creates_account(monkeypatch):
-    monkeypatch.setattr(
-        billing.email_provider, "send_email",
-        lambda **k: {"ok": False, "state": "failed", "provider": "resend", "error": "http_500"},
-    )
+def test_register_provider_failure_still_creates_account(fake_gmail):
+    fake_gmail["fail_on"] = "send"  # SMTP бросает исключение
     email = _email("regfail")
     r = client.post("/api/register", json={
         "email": email, "name": "S", "password": "secret123",
@@ -284,11 +257,10 @@ def test_register_provider_failure_still_creates_account(monkeypatch):
 
 def test_register_without_mock_cannot_send_real_email(monkeypatch):
     """
-    Регрессия инцидента apismoke@x.com: даже с «настоящими» creds и БЕЗ явного
-    мока send_email реальная отправка невозможна — транспорт глобально
-    заблокирован (conftest). Результат — failed, ни одно письмо не уходит наружу.
+    Регрессия инцидента apismoke@x.com: даже с «настоящими» creds и БЕЗ FakeSMTP
+    реальная отправка невозможна — smtplib.SMTP_SSL глобально заблокирован
+    (conftest). Результат — failed, ни одно письмо не уходит наружу.
     """
-    monkeypatch.setenv("EMAIL_PROVIDER", "gmail")
     monkeypatch.setenv("GMAIL_USER", "real@gmail.com")
     monkeypatch.setenv("GMAIL_APP_PASSWORD", "app pass word")
     r = client.post("/api/register", json={

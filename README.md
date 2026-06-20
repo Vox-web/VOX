@@ -113,7 +113,7 @@ VOX/
 | TTS (основной) | edge-tts (Microsoft) | Бесплатный, ~300мс |
 | TTS (fallback) | OpenAI TTS tts-1 | Платный, автоматический fallback |
 | Биллинг | Stripe Checkout + Webhooks | Пополнение баланса, поминутная тарификация |
-| Email | Resend HTTP API (prod) / Gmail SMTP (dev) | Верификация email, $3 бонус (после подтверждения) |
+| Email | Gmail SMTP SSL (smtp.gmail.com:465) | Верификация email, $3 бонус (после подтверждения) |
 | БД | SQLite (WAL mode) | Users, sessions, reviews, payments |
 | Frontend | Vanilla HTML/JS | AudioWorklet, Web Audio API, WebSocket |
 
@@ -139,16 +139,7 @@ STRIPE_SECRET_KEY=sk_...         # Stripe
 STRIPE_WEBHOOK_SECRET=whsec_...  # Stripe Webhooks
 BASE_URL=https://your-domain.com # Для email-ссылок и Stripe redirect
 
-# Email-верификация — выбор провайдера через EMAIL_PROVIDER
-# PROD (Railway): Resend HTTP API (в текущем Railway deployment Gmail SMTP
-# оказался недоступен: [Errno 101] Network is unreachable).
-# Resend реализован как production-провайдер через HTTPS, но фактическая
-# доставка должна быть проверена после настройки EMAIL_PROVIDER, RESEND_API_KEY
-# и MAIL_FROM в Railway.
-EMAIL_PROVIDER=resend
-RESEND_API_KEY=re_...
-MAIL_FROM=VOX <noreply@your-verified-domain>
-# DEV / legacy fallback (EMAIL_PROVIDER=gmail):
+# Email-верификация — Gmail SMTP SSL (smtp.gmail.com:465), отправитель GMAIL_USER
 GMAIL_USER=youraddress@gmail.com
 GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
 
