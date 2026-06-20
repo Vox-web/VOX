@@ -65,6 +65,15 @@ def test_status_refresh_updates_balance_without_relogin():
         assert evt in js, evt
 
 
+def test_register_button_shows_animated_spinner_not_static_dots():
+    html = _read("index.html")
+    # Кнопки регистрации/логина используют анимированный спиннер, а не «...».
+    assert ".btn-loading" in html and "@keyframes btnspin" in html
+    assert html.count("classList.add('btn-loading')") >= 2  # register + login
+    # Старые статичные точки на submit-кнопках убраны.
+    assert "btn.textContent='...'" not in html
+
+
 def test_index_shows_activation_after_register():
     # Передаём фактический email_delivery_state из ответа /api/register.
     assert "VoxActivation.showActivation(d.email_delivery_state)" in _read("index.html")

@@ -16,7 +16,7 @@ class _FakeSMTP:
     """Мок smtplib.SMTP_SSL: захватывает отправленное письмо вместо сети."""
     sent = []
 
-    def __init__(self, host, port, timeout=None):
+    def __init__(self, host, port, timeout=None, **kwargs):
         self.host, self.port = host, port
 
     def __enter__(self):
@@ -94,9 +94,40 @@ def test_smtp_exception_records_delivery_state_failed(monkeypatch):
         def sendmail(self, frm, to, msg):
             raise RuntimeError("smtp boom")
 
+    # И SSL(465), и STARTTLS(587) падают → итог failed, наружу ничего не ушло.
     monkeypatch.setattr(billing.smtplib, "SMTP_SSL", _RaisingSMTP)
+    # smtplib.SMTP (587) уже заблокирован глобально (conftest) и тоже бросает.
     uid = _new_user("statefail@x.com")
-    # Исключение SMTP → False, состояние failed, наружу ничего не ушло.
     assert billing.send_verification_email(uid, "statefail@x.com", "U") is False
     assert _FakeSMTP.sent == []
     assert billing_db.get_verification_meta(uid)["delivery_state"] == "failed"
+
+
+def test_starttls_587_fallback_rescues_ssl_465_failure(monkeypatch):
+    """
+    Railway-сценарий: SSL:465 падает с [Errno 101] Network is unreachable, но
+    STARTTLS:587 (приоритет IPv4) проходит → письмо считается отправленным.
+    """
+    class _DeadSSL:
+        def __init__(self, *a, **k):
+            raise OSError(101, "Network is unreachable")
+
+    sent_587 = []
+
+    class _OkSMTP587:
+        def __init__(self, host, port, timeout=None, **kwargs):
+            self.host, self.port = host, port
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def ehlo(self, *a): return (250, b"ok")
+        def starttls(self, *a, **k): return (220, b"ready")
+        def login(self, u, p): pass
+        def sendmail(self, frm, to, msg): sent_587.append({"from": frm, "to": to, "port": self.port})
+
+    monkeypatch.setattr(billing.smtplib, "SMTP_SSL", _DeadSSL)
+    monkeypatch.setattr(billing.smtplib, "SMTP", _OkSMTP587)
+
+    uid = _new_user("fallback@x.com")
+    assert billing.send_verification_email(uid, "fallback@x.com", "U") is True
+    assert len(sent_587) == 1 and sent_587[0]["port"] == 587
+    assert billing_db.get_verification_meta(uid)["delivery_state"] == "sent"

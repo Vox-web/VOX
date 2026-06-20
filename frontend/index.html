@@ -592,6 +592,10 @@ footer{
   .modal{padding:28px 20px}
   .dashboard-card{padding:28px 20px}
 }
+/* Анимированный спиннер для submit-кнопок (вместо статичных «...») */
+.btn-loading{position:relative;color:transparent!important;pointer-events:none}
+.btn-loading::after{content:"";position:absolute;width:18px;height:18px;top:calc(50% - 9px);left:calc(50% - 9px);border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:btnspin .6s linear infinite}
+@keyframes btnspin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -1321,7 +1325,7 @@ async function doLogin(){
   errEl.classList.remove('show');
   if(!email||!pass){errEl.textContent=(currentLang==='en'?'Fill all fields':currentLang==='de'?'Alle Felder ausfüllen':'Заповніть всі поля');errEl.classList.add('show');return;}
   const btn = document.getElementById('loginSubmit');
-  btn.disabled=true;btn.textContent='...';
+  btn.disabled=true;btn.classList.add('btn-loading');
   try{
     const r = await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
     const d = await r.json();
@@ -1331,7 +1335,7 @@ async function doLogin(){
       showToast('✅ ' + (currentLang==='en'?'Welcome back!':currentLang==='de'?'Willkommen zurück!':'Раді бачити тебе!'), 'success');
     } else { errEl.textContent=d.detail||'Error'; errEl.classList.add('show'); }
   }catch(e){ errEl.textContent='Server error'; errEl.classList.add('show'); }
-  btn.disabled=false; btn.textContent=t('btn_login');
+  btn.disabled=false; btn.classList.remove('btn-loading'); btn.textContent=t('btn_login');
 }
 
 async function doRegister(){
@@ -1345,7 +1349,7 @@ async function doRegister(){
   if(!name||!email||!pass||!pass2){errEl.textContent=(currentLang==='en'?'Fill all fields':currentLang==='de'?'Alle Felder ausfüllen':'Заповніть всі поля');errEl.classList.add('show');return;}
   if(pass !== pass2){errEl.textContent=(currentLang==='en'?'Passwords do not match':currentLang==='de'?'Passwörter stimmen nicht überein':'Паролі не співпадають');errEl.classList.add('show');return;}
   const btn = document.getElementById('regSubmit');
-  btn.disabled=true;btn.textContent='...';
+  btn.disabled=true;btn.classList.add('btn-loading');
   try{
     const r = await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,name,password:pass})});
     const d = await r.json();
@@ -1358,7 +1362,7 @@ async function doRegister(){
       if(window.VoxActivation) VoxActivation.showActivation(d.email_delivery_state);
     } else { errEl.textContent=d.detail||'Error'; errEl.classList.add('show'); }
   }catch(e){ errEl.textContent='Server error'; errEl.classList.add('show'); }
-  btn.disabled=false; btn.textContent=t('btn_register');
+  btn.disabled=false; btn.classList.remove('btn-loading'); btn.textContent=t('btn_register');
 }
 
 // ═══════════════════════════════════════════════════════

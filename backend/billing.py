@@ -5,6 +5,8 @@ Stripe Checkout, Webhooks, Email верификация через Gmail SMTP, �
 
 import os
 import json
+import socket
+import ssl
 import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -152,17 +154,78 @@ def _build_verification_html(name: str, verify_url: str) -> str:
 </html>"""
 
 
+GMAIL_HOST = "smtp.gmail.com"
+GMAIL_SMTP_TIMEOUT = 12  # сек на попытку; ошибки сети возвращаются быстро
+
+
+def _resolve_ipv4(host: str) -> Optional[str]:
+    """IPv4-адрес хоста или None. Нужен, чтобы обойти [Errno 101] на хостах
+    без исходящего IPv6 (типичная ситуация в PaaS-контейнерах)."""
+    try:
+        infos = socket.getaddrinfo(host, None, socket.AF_INET, socket.SOCK_STREAM)
+        return infos[0][4][0] if infos else None
+    except Exception:
+        return None
+
+
+def _deliver_via_gmail(gmail_user: str, gmail_pass: str, to_addr: str, raw_msg: str):
+    """
+    Отправить уже собранное письмо через Gmail SMTP, перебирая стратегии до
+    первого успеха. Возвращает (ok: bool, detail: str).
+
+    Порядок:
+      1. SSL :465 (обычный resolve) — стандартный путь, работает локально.
+      2. STARTTLS :587 через IPv4 — обходит [Errno 101] Network is unreachable,
+         когда контейнер уходит в недоступный IPv6 и/или 465 фильтруется.
+      3. STARTTLS :587 (обычный resolve) — дополнительный запас.
+
+    Отправитель и аутентификация — только GMAIL_USER/GMAIL_APP_PASSWORD.
+    """
+    ctx = ssl.create_default_context()
+    ipv4 = _resolve_ipv4(GMAIL_HOST)
+
+    attempts = [("ssl", GMAIL_HOST, 465)]
+    if ipv4:
+        attempts.append(("starttls", ipv4, 587))
+    attempts.append(("starttls", GMAIL_HOST, 587))
+
+    last_err = "no_attempt"
+    for mode, addr, port in attempts:
+        try:
+            if mode == "ssl":
+                with smtplib.SMTP_SSL(addr, port, timeout=GMAIL_SMTP_TIMEOUT, context=ctx) as s:
+                    s.login(gmail_user, gmail_pass)
+                    s.sendmail(gmail_user, to_addr, raw_msg)
+            else:
+                with smtplib.SMTP(addr, port, timeout=GMAIL_SMTP_TIMEOUT) as s:
+                    # SNI/проверка сертификата — против реального hostname,
+                    # даже когда подключаемся напрямую по IPv4-адресу.
+                    s._host = GMAIL_HOST
+                    s.ehlo()
+                    s.starttls(context=ctx)
+                    s.ehlo()
+                    s.login(gmail_user, gmail_pass)
+                    s.sendmail(gmail_user, to_addr, raw_msg)
+            return True, f"{mode}:{port}"
+        except Exception as exc:
+            last_err = f"{mode}:{port} {type(exc).__name__}: {exc}"
+            logger.warning("Gmail SMTP attempt failed (%s)", last_err)
+    return False, last_err
+
+
 def send_verification_email(user_id: int, email: str, name: str) -> bool:
     """
-    Отправить письмо верификации email через Gmail SMTP SSL.
+    Отправить письмо верификации email через Gmail SMTP (единственный provider).
 
-    Единственный provider: smtp.gmail.com:465, отправитель — существующий ящик
-    GMAIL_USER (без MAIL_FROM). Аутентификация через GMAIL_APP_PASSWORD.
+    smtp.gmail.com, отправитель — существующий ящик GMAIL_USER (без MAIL_FROM),
+    аутентификация через GMAIL_APP_PASSWORD. Отправка устойчива к [Errno 101]:
+    при неудаче 465/SSL пробуем STARTTLS:587 с приоритетом IPv4 (см.
+    _deliver_via_gmail).
 
     Семантика результата:
       * нет GMAIL_USER/GMAIL_APP_PASSWORD → "failed" (False);
-      * исключение login/sendmail → "failed" (False), техническая ошибка пишется
-        в server logs без пароля;
+      * все SMTP-попытки упали → "failed" (False), техническая причина в логах
+        без пароля;
       * SMTP принял письмо → "sent" (True). ВНИМАНИЕ: success означает только,
         что Gmail принял отправку, а не что письмо попало во «Входящие».
 
@@ -187,18 +250,15 @@ def send_verification_email(user_id: int, email: str, name: str) -> bool:
     msg["To"]      = email
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
-            server.login(gmail_user, gmail_pass)
-            server.sendmail(gmail_user, email, msg.as_string())
-        logger.info("📧 email прийнято Gmail SMTP для відправки: %s", email)
+    ok, detail = _deliver_via_gmail(gmail_user, gmail_pass, email, msg.as_string())
+    if ok:
+        logger.info("📧 email прийнято Gmail SMTP (%s) для відправки: %s", detail, email)
         mark_verification_sent(user_id, "sent")
         return True
-    except Exception as exc:
-        # Без пароля в логах.
-        logger.error("❌ Gmail SMTP error: %s", exc)
-        mark_verification_sent(user_id, "failed")
-        return False
+
+    logger.error("❌ Gmail SMTP не зміг відправити лист (%s)", detail)
+    mark_verification_sent(user_id, "failed")
+    return False
 
 
 # ---------------------------------------------------------------------------
