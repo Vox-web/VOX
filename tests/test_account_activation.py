@@ -254,6 +254,50 @@ def test_resend_endpoint_handles_resend_timeout(monkeypatch):
     assert r.status_code == 503
 
 
+# ── Честный registration flow + изоляция email ────────────────────────────────
+
+def test_register_reports_delivery_state_sent(monkeypatch):
+    monkeypatch.setattr(
+        billing.email_provider, "send_email",
+        lambda **k: {"ok": True, "state": "sent", "provider": "resend", "error": None},
+    )
+    r = client.post("/api/register", json={
+        "email": _email("regsent"), "name": "S", "password": "secret123",
+    })
+    assert r.status_code == 200
+    assert r.json()["email_delivery_state"] == "sent"
+
+
+def test_register_provider_failure_still_creates_account(monkeypatch):
+    monkeypatch.setattr(
+        billing.email_provider, "send_email",
+        lambda **k: {"ok": False, "state": "failed", "provider": "resend", "error": "http_500"},
+    )
+    email = _email("regfail")
+    r = client.post("/api/register", json={
+        "email": email, "name": "S", "password": "secret123",
+    })
+    assert r.status_code == 200
+    assert r.json()["email_delivery_state"] == "failed"  # честный статус
+    assert vox_db.get_user_by_email(email) is not None    # аккаунт создан
+
+
+def test_register_without_mock_cannot_send_real_email(monkeypatch):
+    """
+    Регрессия инцидента apismoke@x.com: даже с «настоящими» creds и БЕЗ явного
+    мока send_email реальная отправка невозможна — транспорт глобально
+    заблокирован (conftest). Результат — failed, ни одно письмо не уходит наружу.
+    """
+    monkeypatch.setenv("EMAIL_PROVIDER", "gmail")
+    monkeypatch.setenv("GMAIL_USER", "real@gmail.com")
+    monkeypatch.setenv("GMAIL_APP_PASSWORD", "app pass word")
+    r = client.post("/api/register", json={
+        "email": _email("regreal"), "name": "S", "password": "secret123",
+    })
+    assert r.status_code == 200
+    assert r.json()["email_delivery_state"] == "failed"
+
+
 # ── token reuse ───────────────────────────────────────────────────────────────
 
 def test_verify_token_is_reused_not_invalidated():

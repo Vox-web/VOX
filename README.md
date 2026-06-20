@@ -141,7 +141,10 @@ BASE_URL=https://your-domain.com # Для email-ссылок и Stripe redirect
 
 # Email-верификация — выбор провайдера через EMAIL_PROVIDER
 # PROD (Railway): Resend HTTP API (в текущем Railway deployment Gmail SMTP
-# оказался недоступен: [Errno 101] Network is unreachable)
+# оказался недоступен: [Errno 101] Network is unreachable).
+# Resend реализован как production-провайдер через HTTPS, но фактическая
+# доставка должна быть проверена после настройки EMAIL_PROVIDER, RESEND_API_KEY
+# и MAIL_FROM в Railway.
 EMAIL_PROVIDER=resend
 RESEND_API_KEY=re_...
 MAIL_FROM=VOX <noreply@your-verified-domain>

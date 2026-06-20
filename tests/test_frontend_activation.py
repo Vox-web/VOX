@@ -66,4 +66,25 @@ def test_status_refresh_updates_balance_without_relogin():
 
 
 def test_index_shows_activation_after_register():
-    assert "VoxActivation.showActivation()" in _read("index.html")
+    # Передаём фактический email_delivery_state из ответа /api/register.
+    assert "VoxActivation.showActivation(d.email_delivery_state)" in _read("index.html")
+
+
+def test_activation_modal_has_honest_failed_delivery_copy():
+    js = _read("vox-activation.js")
+    assert (
+        "Не вдалося надіслати лист підтвердження. Натисніть «Надіслати лист повторно»."
+        in js
+    )
+    # Текст выбирается по фактическому состоянию доставки.
+    assert "email_delivery_state" in js
+
+
+def test_register_response_carries_delivery_state():
+    # Бэкенд честно отдаёт состояние доставки во фронтенд.
+    main_src = (
+        Path(__file__).resolve().parents[1] / "backend" / "main.py"
+    ).read_text(encoding="utf-8")
+    assert 'result["email_delivery_state"] = "sent" if sent else "failed"' in main_src
+    # И не остаётся «слепого» фонового потока отправки в регистрации.
+    assert "threading.Thread(\n            target=send_verification_email" not in main_src

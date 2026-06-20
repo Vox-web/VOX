@@ -12,6 +12,10 @@ email просто не отправлялся, хотя пользовател�
     EMAIL_PROVIDER=resend   → Resend HTTP API (рекомендовано для Railway)
     EMAIL_PROVIDER=gmail    → Gmail SMTP (локальный / dev / legacy fallback)
 
+Resend реализован как production-провайдер через HTTPS, но фактическая доставка
+должна быть проверена после настройки EMAIL_PROVIDER, RESEND_API_KEY и MAIL_FROM
+в Railway (мы не утверждаем, что доставка уже подтверждена в этом deployment).
+
 Правила:
   * никогда не логируем API key / пароль;
   * при неполной конфигурации НЕ имитируем успех — возвращаем state="failed";

@@ -116,12 +116,21 @@
   function showActivation(status) {
     injectOnce();
     bindAutoRefresh();
-    $('vxaBadge').textContent = '📧';
+    // Честный текст: если провайдер реально не доставил письмо
+    // (email_delivery_state === 'failed'), не говорим «лист надіслано».
+    var failed = !!(status && status.email_delivery_state === 'failed');
+    $('vxaBadge').textContent = failed ? '⚠️' : '📧';
     $('vxaTitle').textContent = 'Підтвердіть email, щоб активувати акаунт';
-    $('vxaText').textContent =
-      'Ми надіслали лист на вашу пошту. Відкрийте його та перейдіть за посиланням — ' +
-      'після підтвердження ви отримаєте $3 для тестування VOX.';
-    $('vxaNote').textContent = 'Не бачите листа? Перевірте папку «Спам».';
+    if (failed) {
+      $('vxaText').textContent =
+        'Не вдалося надіслати лист підтвердження. Натисніть «Надіслати лист повторно».';
+      $('vxaNote').textContent = '';
+    } else {
+      $('vxaText').textContent =
+        'Ми надіслали лист на вашу пошту. Відкрийте його та перейдіть за посиланням — ' +
+        'після підтвердження ви отримаєте $3 для тестування VOX.';
+      $('vxaNote').textContent = 'Не бачите листа? Перевірте папку «Спам».';
+    }
     setMsg('', '');
 
     var primary = $('vxaPrimary');
@@ -315,7 +324,15 @@
   root.VoxActivation = {
     ensureReady: ensureReady,
     refreshStatus: fetchStatus,
-    showActivation: function () { return fetchStatus().then(function (s) { showActivation(s || {}); }); },
+    // deliveryState — необязательный хинт ('sent'|'failed') из ответа /api/register,
+    // чтобы сразу показать честный текст, не дожидаясь повторного fetch статуса.
+    showActivation: function (deliveryState) {
+      return fetchStatus().then(function (s) {
+        s = s || {};
+        if (deliveryState) s.email_delivery_state = deliveryState;
+        showActivation(s);
+      });
+    },
     showBalance: showBalance,
     handleTerminal: handleTerminal,
     checkOnLoad: checkOnLoad,

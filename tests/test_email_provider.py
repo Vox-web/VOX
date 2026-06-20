@@ -99,3 +99,20 @@ def test_email_provider_uses_real_httpx_module():
     importlib.reload(ep)
     # Подтверждаем, что зависимость реально импортирована (а не заглушка).
     assert ep.httpx.__name__ == "httpx"
+
+
+# ── глобальная блокировка реального транспорта (conftest) ──────────────────────
+
+def test_real_resend_http_blocked_without_explicit_mock():
+    # Креды Resend заданы (_resend_env), httpx.post НЕ замокан здесь →
+    # conftest._block_real_email_transport должен предотвратить реальный вызов.
+    res = email_provider.send_email("blocked@vox.test", "S", "<b>x</b>")
+    assert res["ok"] is False and res["state"] == "failed"
+
+
+def test_real_smtp_blocked_even_with_credentials(monkeypatch):
+    monkeypatch.setenv("EMAIL_PROVIDER", "gmail")
+    monkeypatch.setenv("GMAIL_USER", "u@gmail.com")
+    monkeypatch.setenv("GMAIL_APP_PASSWORD", "pw")
+    res = email_provider.send_email("blocked@vox.test", "S", "<b>x</b>")
+    assert res["ok"] is False and res["state"] == "failed"

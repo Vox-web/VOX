@@ -21,6 +21,7 @@ from typing import Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from starlette.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -2215,16 +2216,21 @@ async def api_register(body: RegisterBody):
     # Бонус $3 НЕ начисляется при регистрации. Единая политика: бонус
     # выдаётся ровно один раз ПОСЛЕ подтверждения email (verify_email_token),
     # что согласуется с текстом письма. См. billing_db.verify_email_token.
-    # Отправить верификационный email (после подтверждения — $3 бонус)
+    #
+    # Честный flow: отправляем письмо СИНХРОННО (в threadpool, чтобы не блокировать
+    # event loop) и возвращаем фактический результат доставки во фронтенд. Раньше
+    # отправка шла в background thread, и ответ не знал, ушло письмо или нет —
+    # пользователь видел «лист надіслано», когда письмо реально не отправлялось.
+    # Аккаунт создаётся в любом случае, даже если провайдер упал.
     try:
-        import threading
-        threading.Thread(
-            target=send_verification_email,
-            args=(result["user"]["id"], result["user"]["email"], result["user"]["name"]),
-            daemon=True
-        ).start()
+        sent = await run_in_threadpool(
+            send_verification_email,
+            result["user"]["id"], result["user"]["email"], result["user"]["name"],
+        )
     except Exception as _e:
-        logger.warning(f"send_verification_email thread failed: {_e}")
+        logger.warning(f"send_verification_email failed: {_e}")
+        sent = False
+    result["email_delivery_state"] = "sent" if sent else "failed"
     return result
 
 
