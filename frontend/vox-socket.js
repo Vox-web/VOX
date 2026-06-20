@@ -87,6 +87,8 @@
       }
       if (code === 'insufficient_balance' || code === 'no_balance') {
         this.connection.markTerminal(STATES.INSUFFICIENT_BALANCE, { reason: code });
+      } else if (code === 'email_verification_required') {
+        this.connection.markTerminal(STATES.EMAIL_VERIFICATION_REQUIRED, { reason: code });
       } else if (code === 'auth_required') {
         this.connection.markTerminal(STATES.AUTH_REQUIRED, { reason: code });
       } else if (code === 'billing_unavailable') {

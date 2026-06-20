@@ -991,6 +991,7 @@ footer{
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
+<script src="/vox-activation.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════
 //  i18n
@@ -1352,6 +1353,8 @@ async function doRegister(){
       setToken(d.token); currentUser = d.user;
       closeModal('modalAuth'); updateNavForUser();
       showToast('🎉 ' + (currentLang==='en'?'Account created!':currentLang==='de'?'Konto erstellt!':'Акаунт створено!'), 'success');
+      // Onboarding: одразу показуємо екран активації email (бонус $3 після підтвердження).
+      if(window.VoxActivation) VoxActivation.showActivation();
     } else { errEl.textContent=d.detail||'Error'; errEl.classList.add('show'); }
   }catch(e){ errEl.textContent='Server error'; errEl.classList.add('show'); }
   btn.disabled=false; btn.textContent=t('btn_register');

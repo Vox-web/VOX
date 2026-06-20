@@ -1144,6 +1144,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js"></script>
     <script src="/vox-connection.js"></script>
     <script src="/vox-socket.js"></script>
+    <script src="/vox-activation.js"></script>
     <script>
     // =====================================================================
     // i18n
@@ -1924,6 +1925,8 @@
 
     async function soloToggle() {
         if (soloListening) return soloStop();
+        // Account activation gate ДО WS/мікрофона/прогресу.
+        if (!(await VoxActivation.ensureReady())) return;
         soloListening = true;
         document.getElementById('soloBtn').classList.add('active');
         document.getElementById('soloBtn').textContent = t('soloBtnStop');
@@ -2217,7 +2220,7 @@
         return m[lang] || m.en;
     }
 
-    function startDuoLocal() {
+    async function startDuoLocal() {
         const langA = document.getElementById('duoLangASelect').value;
         const langB = document.getElementById('duoLangBSelect').value;
         // Гейт: one-device поддерживает только часть языков (см. /api/languages)
@@ -2225,6 +2228,8 @@
             alert(_oneDeviceUnsupportedMsg());
             return;
         }
+        // Account activation gate ДО WS/мікрофона/прогресу.
+        if (!(await VoxActivation.ensureReady())) return;
         showScreen('screenDuo');
         document.getElementById('duoStatusDot').className = 'status-dot';
         document.getElementById('duoStatusText').textContent = t('duoStatusConnecting');
@@ -2327,6 +2332,8 @@
 
     // ── Remote Duo ──
     async function startDuoRemote() {
+        // Account activation gate ДО створення сесії/WS/прогресу.
+        if (!(await VoxActivation.ensureReady())) return;
         const langA = document.getElementById('duoLangASelect').value;
         const langB = document.getElementById('duoLangBSelect').value;
         const btn = document.getElementById('btnDuoRemote');
@@ -2533,6 +2540,8 @@
     }
 
     async function createRoom() {
+        // Account activation gate ДО створення кімнати/WS/прогресу.
+        if (!(await VoxActivation.ensureReady())) return;
         const lang = document.getElementById('roomHostLangSelect').value;
         const btn = document.getElementById('btnCreateRoom');
         btn.disabled = true; btn.textContent = '...';
@@ -2874,6 +2883,14 @@
         _billingTimer = setInterval(loadBalance, 30000);
     }
 
+    // Onboarding: якщо існуючий користувач не підтвердив email — одразу
+    // показуємо активацію (без потреби logout/login). Після підтвердження
+    // статус/баланс оновлюються через подію vox:account-updated.
+    if (_billingToken && window.VoxActivation) {
+        VoxActivation.checkOnLoad();
+        window.addEventListener('vox:account-updated', () => loadBalance());
+    }
+
     // Обработка WS-сообщений биллинга (balance_warning, session_ended)
     // Перехватываем JSON сообщения из существующих WS
     const _origSoloOnMsg = (typeof soloWs !== 'undefined') ? null : null; // placeholder
@@ -2907,10 +2924,18 @@
                 }
             }
 
-        } else if (data.type === 'session_ended' && data.reason === 'no_balance') {
-            showVoxToast(t('warnZero'), 'error');
+        } else if (data.type === 'session_ended') {
+            // Server-side terminal: показуємо ПРАВИЛЬНУ причину, а не «Помилка з'єднання».
+            const code = data.code || data.reason;
             if (typeof soloStop === 'function' && soloListening) soloStop();
-            setTimeout(() => openTopupModal(), 1000);
+            if (code === 'email_verification_required') {
+                VoxActivation.handleTerminal('email_verification_required', { balance: data.balance });
+            } else if (code === 'insufficient_balance' || code === 'no_balance') {
+                showVoxToast(t('warnZero'), 'error');
+                VoxActivation.handleTerminal('insufficient_balance', { balance: data.balance });
+            } else if (code === 'billing_unavailable') {
+                VoxActivation.handleTerminal('billing_unavailable');
+            }
         }
     }
     // Патч: перехватываем все входящие WS JSON сообщения

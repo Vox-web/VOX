@@ -29,6 +29,7 @@
     RECONNECTING: 'reconnecting',
     OFFLINE: 'offline',
     AUTH_REQUIRED: 'auth_required',
+    EMAIL_VERIFICATION_REQUIRED: 'email_verification_required',
     INSUFFICIENT_BALANCE: 'insufficient_balance',
     BILLING_UNAVAILABLE: 'billing_unavailable',
     MICROPHONE_ERROR: 'microphone_error',
@@ -38,6 +39,7 @@
   // Терминальные состояния — авто-reconnect НЕ выполняется.
   const TERMINAL = new Set([
     STATES.AUTH_REQUIRED,
+    STATES.EMAIL_VERIFICATION_REQUIRED,
     STATES.INSUFFICIENT_BALANCE,
     STATES.BILLING_UNAVAILABLE,
     STATES.CLOSED,
