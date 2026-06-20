@@ -140,7 +140,8 @@ STRIPE_WEBHOOK_SECRET=whsec_...  # Stripe Webhooks
 BASE_URL=https://your-domain.com # Для email-ссылок и Stripe redirect
 
 # Email-верификация — выбор провайдера через EMAIL_PROVIDER
-# PROD (Railway): Resend HTTP API (Gmail SMTP из Railway недоступен)
+# PROD (Railway): Resend HTTP API (в текущем Railway deployment Gmail SMTP
+# оказался недоступен: [Errno 101] Network is unreachable)
 EMAIL_PROVIDER=resend
 RESEND_API_KEY=re_...
 MAIL_FROM=VOX <noreply@your-verified-domain>

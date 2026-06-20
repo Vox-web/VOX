@@ -176,6 +176,13 @@ def test_duo_remote_guest_not_blocked():
     assert msg.get("code") != "email_verification_required"
 
 
+def test_solo_legacy_route_redirects_to_host():
+    """Нет альтернативного запуска Solo в обход onboarding: /solo → /host."""
+    r = client.get("/solo", follow_redirects=False)
+    assert r.status_code in (307, 308)
+    assert r.headers["location"] == "/host"
+
+
 def test_guest_ws_handlers_have_no_account_gate():
     """Платит host: guest-обработчики не вызывают account gate."""
     text = open(main.__file__, encoding="utf-8").read()
@@ -230,6 +237,21 @@ def test_resend_provider_failure_reports_error(monkeypatch):
     )
     r = client.post("/api/auth/resend-verification", headers=_auth(tok))
     assert r.status_code == 503  # не имитируем успех
+
+
+def test_resend_endpoint_handles_resend_timeout(monkeypatch):
+    """Полный путь endpoint → threadpool → Resend timeout → controlled 503."""
+    tok, _uid = _register(_email("restimeout"))
+    monkeypatch.setenv("EMAIL_PROVIDER", "resend")
+    monkeypatch.setenv("RESEND_API_KEY", "re_x")
+    monkeypatch.setenv("MAIL_FROM", "VOX <n@x.com>")
+
+    def boom(*a, **k):
+        raise billing.email_provider.httpx.TimeoutException("timeout")
+
+    monkeypatch.setattr(billing.email_provider.httpx, "post", boom)
+    r = client.post("/api/auth/resend-verification", headers=_auth(tok))
+    assert r.status_code == 503
 
 
 # ── token reuse ───────────────────────────────────────────────────────────────

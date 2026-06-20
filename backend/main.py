@@ -20,7 +20,7 @@ from typing import Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -503,10 +503,11 @@ async def serve_host():
 
 @app.get("/solo")
 async def serve_solo():
-    html_path = FRONTEND_DIR / "solo.html"
-    if not html_path.exists():
-        raise HTTPException(status_code=404, detail="solo.html not found")
-    return FileResponse(html_path, headers={"Cache-Control": "no-store"})
+    # solo.html — legacy standalone anonymous-страница без аккаунта/онбординга.
+    # Чтобы НЕ существовало альтернативного способа запустить Solo в обход
+    # account activation gate, перенаправляем на актуальный экран /host, где
+    # есть preflight статуса аккаунта и activation modal.
+    return RedirectResponse(url="/host", status_code=308)
 
 
 @app.get("/admin")

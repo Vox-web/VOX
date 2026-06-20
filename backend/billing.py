@@ -14,6 +14,7 @@ except ImportError:  # pragma: no cover
     stripe = None
 from fastapi import APIRouter, Header, HTTPException, Request, WebSocket
 from fastapi.responses import JSONResponse, RedirectResponse
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from billing_db import (
@@ -362,7 +363,11 @@ async def api_resend_verification(authorization: Optional[str] = Header(None)):
             },
         )
 
-    sent = send_verification_email(user["id"], user["email"], user.get("name", ""))
+    # send_verification_email — синхронный (Resend HTTP / Gmail SMTP). Выполняем
+    # его в threadpool, чтобы блокирующий сетевой вызов не останавливал event loop.
+    sent = await run_in_threadpool(
+        send_verification_email, user["id"], user["email"], user.get("name", "")
+    )
     if not sent:
         # Реальная ошибка провайдера — честно сообщаем, не имитируем успех.
         raise HTTPException(503, "Не вдалося надіслати лист. Спробуйте ще раз пізніше.")

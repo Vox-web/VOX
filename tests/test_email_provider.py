@@ -80,3 +80,22 @@ def test_is_configured_reflects_env(monkeypatch):
     assert email_provider.is_configured("resend") is True
     monkeypatch.delenv("MAIL_FROM", raising=False)
     assert email_provider.is_configured("resend") is False
+
+
+# ── production dependency smoke ────────────────────────────────────────────────
+
+def test_httpx_pinned_in_production_requirements():
+    """email_provider требует httpx → он должен быть в Railway requirements."""
+    from pathlib import Path
+    backend_req = (
+        Path(__file__).resolve().parents[1] / "backend" / "requirements.txt"
+    ).read_text(encoding="utf-8")
+    assert "httpx" in backend_req
+
+
+def test_email_provider_uses_real_httpx_module():
+    import importlib
+    import email_provider as ep
+    importlib.reload(ep)
+    # Подтверждаем, что зависимость реально импортирована (а не заглушка).
+    assert ep.httpx.__name__ == "httpx"
