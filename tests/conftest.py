@@ -42,12 +42,19 @@ if str(_BACKEND_DIR) not in sys.path:
 @pytest.fixture(autouse=True)
 def _block_real_email_transport(monkeypatch):
     import smtplib
+    import httpx
 
     def _blocked_smtp(*args, **kwargs):
         raise RuntimeError("Real SMTP transport is blocked during tests")
 
+    def _blocked_post(url, *args, **kwargs):
+        # Покрывает Gmail API (oauth2.googleapis.com / gmail.googleapis.com) и
+        # любой исходящий email-HTTP. Тесты Gmail API ставят свой mock поверх.
+        raise RuntimeError("Real outbound HTTP is blocked during tests: %s" % url)
+
     monkeypatch.setattr(smtplib, "SMTP_SSL", _blocked_smtp)
     monkeypatch.setattr(smtplib, "SMTP", _blocked_smtp)
+    monkeypatch.setattr(httpx, "post", _blocked_post)
     yield
 
 

@@ -90,9 +90,18 @@ async def lifespan(app: FastAPI):
     room_manager = RoomManager(base_url=base_url)
     logger.info("✅ RoomManager готов")
 
-    # Email-провайдер: Gmail SMTP (smtp.gmail.com:465) от GMAIL_USER.
-    gmail_ready = bool(os.getenv("GMAIL_USER") and os.getenv("GMAIL_APP_PASSWORD"))
-    logger.info("📧 Email: Gmail SMTP (configured=%s)", gmail_ready)
+    # Email от Gmail-аккаунта GMAIL_USER. На Railway (исходящий SMTP заблокирован)
+    # основной путь — Gmail API по HTTPS; SMTP остаётся локальным fallback.
+    api_ready = bool(
+        os.getenv("GMAIL_CLIENT_ID")
+        and os.getenv("GMAIL_CLIENT_SECRET")
+        and os.getenv("GMAIL_REFRESH_TOKEN")
+    )
+    smtp_ready = bool(os.getenv("GMAIL_USER") and os.getenv("GMAIL_APP_PASSWORD"))
+    logger.info(
+        "📧 Email: Gmail API HTTPS (configured=%s), SMTP fallback (configured=%s)",
+        api_ready, smtp_ready,
+    )
 
     try:
         logger.info(

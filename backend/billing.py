@@ -5,6 +5,7 @@ Stripe Checkout, Webhooks, Email верификация через Gmail SMTP, �
 
 import os
 import json
+import base64
 import socket
 import ssl
 import logging
@@ -12,6 +13,8 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
+
+import httpx
 
 try:
     import stripe  # биллинг опционален — без пакета приложение всё равно стартует
@@ -170,10 +173,82 @@ def _resolve_ipv4(host: str) -> Optional[str]:
         return None
 
 
+# ---------------------------------------------------------------------------
+# Gmail API через HTTPS (порт 443) — основной путь на PaaS, где исходящий SMTP
+# заблокирован. Отправляет ОТ ТОГО ЖЕ Gmail-аккаунта (GMAIL_USER), но через
+# Gmail REST API по OAuth2. Нужны GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET /
+# GMAIL_REFRESH_TOKEN (это НЕ app password — app password работает только в SMTP).
+# ---------------------------------------------------------------------------
+GMAIL_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GMAIL_API_SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+GMAIL_API_TIMEOUT = 15
+
+
+def gmail_api_configured() -> bool:
+    """True, если заданы OAuth2-креды для Gmail API (HTTPS-путь)."""
+    return bool(
+        os.getenv("GMAIL_CLIENT_ID")
+        and os.getenv("GMAIL_CLIENT_SECRET")
+        and os.getenv("GMAIL_REFRESH_TOKEN")
+    )
+
+
+def _gmail_api_access_token() -> Optional[str]:
+    """Обменять refresh_token на короткоживущий access_token (HTTPS). Без секретов в логах."""
+    try:
+        resp = httpx.post(
+            GMAIL_OAUTH_TOKEN_URL,
+            data={
+                "client_id": os.getenv("GMAIL_CLIENT_ID", ""),
+                "client_secret": os.getenv("GMAIL_CLIENT_SECRET", ""),
+                "refresh_token": os.getenv("GMAIL_REFRESH_TOKEN", ""),
+                "grant_type": "refresh_token",
+            },
+            timeout=GMAIL_API_TIMEOUT,
+        )
+    except Exception as exc:
+        logger.error("Gmail OAuth token transport error: %s", type(exc).__name__)
+        return None
+    if resp.status_code != 200:
+        logger.error("Gmail OAuth token non-200: %s", resp.status_code)
+        return None
+    try:
+        return resp.json().get("access_token")
+    except Exception:
+        return None
+
+
+def _deliver_via_gmail_api(msg_bytes: bytes, to_addr: str):
+    """
+    Отправить письмо через Gmail API (HTTPS). Возвращает (ok, detail).
+    Работает на Railway, где SMTP заблокирован. Письмо уходит от
+    аутентифицированного аккаунта (users/me = GMAIL_USER).
+    """
+    token = _gmail_api_access_token()
+    if not token:
+        return False, "oauth_failed"
+    raw = base64.urlsafe_b64encode(msg_bytes).decode("ascii")
+    try:
+        resp = httpx.post(
+            GMAIL_API_SEND_URL,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"raw": raw},
+            timeout=GMAIL_API_TIMEOUT,
+        )
+    except Exception as exc:
+        return False, f"transport:{type(exc).__name__}"
+    if 200 <= resp.status_code < 300:
+        return True, "gmail_api"
+    return False, f"http_{resp.status_code}"
+
+
 def _deliver_via_gmail(gmail_user: str, gmail_pass: str, to_addr: str, raw_msg: str):
     """
     Отправить уже собранное письмо через Gmail SMTP, перебирая стратегии до
     первого успеха. Возвращает (ok: bool, detail: str).
+
+    Используется как локальный/dev fallback — на PaaS (Railway) исходящий SMTP
+    заблокирован, там работает только Gmail API (см. _deliver_via_gmail_api).
 
     Порядок:
       1. SSL :465 (обычный resolve) — стандартный путь, работает локально.
@@ -217,19 +292,22 @@ def _deliver_via_gmail(gmail_user: str, gmail_pass: str, to_addr: str, raw_msg: 
 
 def send_verification_email(user_id: int, email: str, name: str) -> bool:
     """
-    Отправить письмо верификации email через Gmail SMTP (единственный provider).
+    Отправить письмо верификации email от Gmail-аккаунта GMAIL_USER.
 
-    smtp.gmail.com, отправитель — существующий ящик GMAIL_USER (без MAIL_FROM),
-    аутентификация через GMAIL_APP_PASSWORD. Отправка устойчива к [Errno 101]:
-    при неудаче 465/SSL пробуем STARTTLS:587 с приоритетом IPv4 (см.
-    _deliver_via_gmail).
+    Транспорт выбирается автоматически:
+      * Gmail API по HTTPS (порт 443) — ОСНОВНОЙ путь на Railway, где исходящий
+        SMTP заблокирован. Нужны GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN.
+      * Gmail SMTP (smtp.gmail.com) — fallback для локальной разработки, где SMTP
+        разрешён. Нужны GMAIL_USER/GMAIL_APP_PASSWORD.
+
+    Отправитель — GMAIL_USER (без MAIL_FROM), без сторонних почтовых сервисов.
 
     Семантика результата:
-      * нет GMAIL_USER/GMAIL_APP_PASSWORD → "failed" (False);
-      * все SMTP-попытки упали → "failed" (False), техническая причина в логах
-        без пароля;
-      * SMTP принял письмо → "sent" (True). ВНИМАНИЕ: success означает только,
-        что Gmail принял отправку, а не что письмо попало во «Входящие».
+      * нет рабочих кредов вообще → "failed" (False);
+      * транспорт принял письмо → "sent" (True). ВНИМАНИЕ: success означает
+        только, что Gmail принял отправку, а не что письмо попало во «Входящие»;
+      * все попытки упали → "failed" (False), техническая причина в логах без
+        секретов.
 
     Токен ПЕРЕИСПОЛЬЗУЕТСЯ, если уже существует: повторная отправка не должна
     инвалидировать ранее отправленную рабочую ссылку. Фактический результат
@@ -237,8 +315,12 @@ def send_verification_email(user_id: int, email: str, name: str) -> bool:
     """
     gmail_user = os.getenv("GMAIL_USER", "")
     gmail_pass = os.getenv("GMAIL_APP_PASSWORD", "")
-    if not gmail_user or not gmail_pass:
-        logger.warning("⚠️ GMAIL_USER або GMAIL_APP_PASSWORD не задано — лист не надіслано")
+    api_ready = gmail_api_configured()
+    if not api_ready and not gmail_pass:
+        logger.warning(
+            "⚠️ Email не налаштовано: потрібні GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN "
+            "(Gmail API) або GMAIL_APP_PASSWORD (SMTP). Лист не надіслано."
+        )
         mark_verification_sent(user_id, "failed")
         return False
 
@@ -248,17 +330,29 @@ def send_verification_email(user_id: int, email: str, name: str) -> bool:
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = "🎙 VOX — Підтвердіть email та отримайте $3"
-    msg["From"]    = f"VOX <{gmail_user}>"   # отправитель = существующий GMAIL_USER
-    msg["To"]      = email
+    if gmail_user:
+        msg["From"] = f"VOX <{gmail_user}>"   # отправитель = существующий GMAIL_USER
+    msg["To"] = email
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-    ok, detail = _deliver_via_gmail(gmail_user, gmail_pass, email, msg.as_string())
-    if ok:
-        logger.info("📧 email прийнято Gmail SMTP (%s) для відправки: %s", detail, email)
-        mark_verification_sent(user_id, "sent")
-        return True
+    # 1) Основной путь — Gmail API по HTTPS (работает на Railway).
+    if api_ready:
+        ok, detail = _deliver_via_gmail_api(msg.as_bytes(), email)
+        if ok:
+            logger.info("📧 email надіслано через Gmail API для: %s", email)
+            mark_verification_sent(user_id, "sent")
+            return True
+        logger.error("❌ Gmail API не зміг відправити лист (%s)", detail)
 
-    logger.error("❌ Gmail SMTP не зміг відправити лист (%s)", detail)
+    # 2) Fallback — Gmail SMTP (локальная разработка). На Railway обычно недоступен.
+    if gmail_user and gmail_pass:
+        ok, detail = _deliver_via_gmail(gmail_user, gmail_pass, email, msg.as_string())
+        if ok:
+            logger.info("📧 email прийнято Gmail SMTP (%s) для: %s", detail, email)
+            mark_verification_sent(user_id, "sent")
+            return True
+        logger.error("❌ Gmail SMTP не зміг відправити лист (%s)", detail)
+
     mark_verification_sent(user_id, "failed")
     return False
 

@@ -24,22 +24,36 @@
 
 ---
 
-## 2. EMAIL — GMAIL SMTP (єдиний provider)
+## 2. EMAIL — GMAIL (від акаунта GMAIL_USER)
 
-Верифікаційні листи йдуть через Gmail SMTP SSL (`smtp.gmail.com:465`),
-відправник — існуючий ящик `GMAIL_USER`. Жодного Resend/MAIL_FROM не потрібно.
+Листи йдуть ВІД `GMAIL_USER`. На Railway вихідний SMTP заблокований (логи: 465 →
+[Errno 101], 587 → timeout), тому в PROD використовується **Gmail API по HTTPS**.
+SMTP лишається лише як локальний fallback. Жодного стороннього сервісу/домену.
 
-### A. Отримати App Password
-1. Google Account → Security → 2-Step Verification (увімкнути).
-2. App passwords → створити пароль для «Mail».
-3. Скопіювати 16-значний пароль.
+> ⚠️ App Password (`GMAIL_APP_PASSWORD`) працює ТІЛЬКИ для SMTP. Для Gmail API
+> потрібні окремі OAuth2-креди (нижче).
+
+### A. Отримати OAuth2-креди для Gmail API
+1. Google Cloud Console → New Project (напр. «VOX Mail»).
+2. APIs & Services → Library → увімкнути **Gmail API**.
+3. APIs & Services → OAuth consent screen → External → додати свій Gmail у Test users.
+4. Credentials → Create Credentials → **OAuth client ID** → type **Web application**.
+   - Authorized redirect URI: `https://developers.google.com/oauthplayground`
+   - Зберегти **Client ID** і **Client Secret**.
+5. https://developers.google.com/oauthplayground → ⚙ (Settings) → «Use your own
+   OAuth credentials» → вставити Client ID/Secret.
+6. Зліва ввести scope: `https://www.googleapis.com/auth/gmail.send` →
+   Authorize APIs → увійти своїм Gmail → Exchange authorization code for tokens.
+7. Скопіювати **Refresh token**.
 
 ### B. Додати в Railway env
 ```
 GMAIL_USER=youraddress@gmail.com
-GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
+GMAIL_CLIENT_ID=xxxxx.apps.googleusercontent.com
+GMAIL_CLIENT_SECRET=GOCSPX-xxxxxxxx
+GMAIL_REFRESH_TOKEN=1//xxxxxxxx
 ```
-Відправник листів = `GMAIL_USER`.
+(App Password лишай лише для локальної розробки.)
 
 ---
 
@@ -51,7 +65,9 @@ GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 GMAIL_USER=youraddress@gmail.com
-GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
+GMAIL_CLIENT_ID=xxxxx.apps.googleusercontent.com
+GMAIL_CLIENT_SECRET=GOCSPX-xxxxxxxx
+GMAIL_REFRESH_TOKEN=1//xxxxxxxx
 BASE_URL=https://your-app.railway.app
 ```
 

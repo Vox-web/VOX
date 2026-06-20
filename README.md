@@ -113,7 +113,7 @@ VOX/
 | TTS (основной) | edge-tts (Microsoft) | Бесплатный, ~300мс |
 | TTS (fallback) | OpenAI TTS tts-1 | Платный, автоматический fallback |
 | Биллинг | Stripe Checkout + Webhooks | Пополнение баланса, поминутная тарификация |
-| Email | Gmail SMTP SSL (smtp.gmail.com:465) | Верификация email, $3 бонус (после подтверждения) |
+| Email | Gmail API (HTTPS, prod) / Gmail SMTP (dev) от GMAIL_USER | Верификация email, $3 бонус (после подтверждения) |
 | БД | SQLite (WAL mode) | Users, sessions, reviews, payments |
 | Frontend | Vanilla HTML/JS | AudioWorklet, Web Audio API, WebSocket |
 
@@ -139,8 +139,13 @@ STRIPE_SECRET_KEY=sk_...         # Stripe
 STRIPE_WEBHOOK_SECRET=whsec_...  # Stripe Webhooks
 BASE_URL=https://your-domain.com # Для email-ссылок и Stripe redirect
 
-# Email-верификация — Gmail SMTP SSL (smtp.gmail.com:465), отправитель GMAIL_USER
+# Email-верификация — от Gmail-аккаунта GMAIL_USER.
+# PROD (Railway, SMTP заблокирован): Gmail API по HTTPS — OAuth2-креды:
 GMAIL_USER=youraddress@gmail.com
+GMAIL_CLIENT_ID=xxxxx.apps.googleusercontent.com
+GMAIL_CLIENT_SECRET=GOCSPX-xxxxxxxx
+GMAIL_REFRESH_TOKEN=1//xxxxxxxx
+# DEV fallback (SMTP): GMAIL_APP_PASSWORD (только для SMTP, не для API)
 GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
 
 # Админка
