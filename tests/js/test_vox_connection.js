@@ -243,4 +243,41 @@ test('VoxSocket stops reconnect on billing_unavailable', () => {
   assert.strictEqual(FakeWS.instances.length, 1);
 });
 
+// 13. email_verification_required — терминальное, без reconnect-шторма.
+test('VoxSocket stops reconnect on email_verification_required', () => {
+  FakeWS.instances = [];
+  const clock = new Clock();
+  const socket = new VoxSocket('ws://test/ws', {
+    autoStart: false,
+    connectionOptions: {
+      WebSocketImpl: FakeWS,
+      timers: {
+        setTimeout: (fn, ms) => clock.setTimeout(fn, ms),
+        clearTimeout: id => clock.clearTimeout(id),
+        setInterval: (fn, ms) => clock.setInterval(fn, ms),
+        clearInterval: id => clock.clearInterval(id),
+      },
+      now: () => clock.now(), isOnline: () => true,
+    },
+  });
+  socket.connection.start();
+  FakeWS.instances[0]._open();
+  FakeWS.instances[0]._msg(JSON.stringify({ type: 'session_ended', code: 'email_verification_required' }));
+  assert.strictEqual(socket.connectionState, STATES.EMAIL_VERIFICATION_REQUIRED);
+  clock.tick(120000);
+  assert.strictEqual(FakeWS.instances.length, 1);
+});
+
+// 14. email_verification_required входит в набор терминальных состояний.
+test('email_verification_required is a terminal state', () => {
+  const { conn, clock, FakeWS } = makeConn();
+  conn.start();
+  FakeWS.instances[0]._open();
+  conn.markTerminal(STATES.EMAIL_VERIFICATION_REQUIRED, { reason: 'email_verification_required' });
+  assert.strictEqual(conn.state, STATES.EMAIL_VERIFICATION_REQUIRED);
+  const n = FakeWS.instances.length;
+  clock.tick(120000);
+  assert.strictEqual(FakeWS.instances.length, n);
+});
+
 console.log(`\nvox-connection: ${passed} tests passed`);

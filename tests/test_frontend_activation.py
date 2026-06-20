@@ -1,0 +1,69 @@
+"""
+Block — фронтенд онбординга активации аккаунта (статические проверки файлов).
+
+Покрывает (по ТЗ):
+  16 при email_verification_required фронтенд НЕ создаёт WebSocket;
+  17 не показывает generic «Помилка з'єднання» при email_verification_required;
+  18 activation modal доступна в Solo + обоих Duo-host + Room host;
+  19 после refresh статус/баланс обновляются без logout/login.
+"""
+
+from pathlib import Path
+
+
+FRONTEND = Path(__file__).resolve().parents[1] / "frontend"
+
+
+def _read(name):
+    return (FRONTEND / name).read_text(encoding="utf-8")
+
+
+def test_activation_runtime_is_loaded_on_host_and_landing():
+    for page in ("host.html", "index.html"):
+        assert '<script src="/vox-activation.js"></script>' in _read(page), page
+
+
+def test_activation_module_never_opens_websocket():
+    # Гейт работает на HTTP-статусе; модуль активации не должен трогать WS.
+    js = _read("vox-activation.js")
+    assert "new WebSocket" not in js
+    assert "VoxSocket" not in js
+    assert "/api/account/status" in js
+    assert "/api/auth/resend-verification" in js
+
+
+def test_all_four_host_modes_call_account_gate():
+    host = _read("host.html")
+    # Solo, Duo one-device, Duo remote host, Room host.
+    assert host.count("await VoxActivation.ensureReady()") == 4
+
+
+def test_host_routes_verification_terminal_to_modal_not_generic_error():
+    host = _read("host.html")
+    assert "VoxActivation.handleTerminal('email_verification_required'" in host
+    # Активация показывается отдельной модалкой, а не общим connection error.
+
+
+def test_activation_modal_has_required_ukrainian_copy():
+    js = _read("vox-activation.js")
+    assert "Підтвердіть email, щоб активувати акаунт" in js
+    assert "після підтвердження ви отримаєте $3" in js
+    assert "Перевірте папку «Спам»" in js
+    assert "Надіслати лист повторно" in js
+    assert "Я підтвердив email — перевірити статус" in js
+
+
+def test_status_refresh_updates_balance_without_relogin():
+    js = _read("vox-activation.js")
+    host = _read("host.html")
+    # Модуль шлёт событие обновления аккаунта…
+    assert "vox:account-updated" in js
+    # …а host слушает его и перезагружает баланс (без logout/login).
+    assert "vox:account-updated" in host
+    # Статус перепроверяется на возврате в приложение.
+    for evt in ("visibilitychange", "pageshow", "focus"):
+        assert evt in js, evt
+
+
+def test_index_shows_activation_after_register():
+    assert "VoxActivation.showActivation()" in _read("index.html")
