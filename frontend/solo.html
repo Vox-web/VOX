@@ -2,7 +2,7 @@
 <html lang="uk" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VOX — Переводчик</title>
     <style>
         * {
@@ -645,15 +645,15 @@
         <div class="mic-selector">
             <label id="micSelectorLabel">🎤</label>
             <select id="micDeviceSelect" onchange="onMicDeviceChange(this.value)"></select>
-            <button class="mic-hint-btn" id="micHintBtn" onclick="toggleMicHint()" title="?">ⓘ</button>
-            <button class="mic-refresh-btn" onclick="populateMicDevices()" title="Оновити список">↺</button>
+            <button class="mic-hint-btn" id="micHintBtn" onclick="toggleMicHint()" title="?" aria-label="Info">ⓘ</button>
+            <button class="mic-refresh-btn" onclick="populateMicDevices()" title="Оновити список" aria-label="Оновити список">↺</button>
         </div>
         <div class="mic-hint-box" id="micHintBox"></div>
 
         <div class="speaker-selector" id="speakerSelectorRow">
             <label id="speakerSelectorLabel">🔊</label>
             <select id="speakerDeviceSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
-            <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Refresh">↺</button>
+            <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Refresh" aria-label="Refresh">↺</button>
         </div>
         <div class="speaker-no-support" id="speakerNoSupport"></div>
 
@@ -851,8 +851,18 @@
         },
     };
 
-    let currentUILang = localStorage.getItem('vox_ui_lang_solo') || 'uk';
-    let currentTheme = localStorage.getItem('vox_theme') || 'light';
+    // Язык UI: сохранённый выбор → язык браузера (uk/ru→uk, de→de, иначе en) → uk
+    function _detectUiLang() {
+        const nav = (navigator.language || '').slice(0, 2).toLowerCase();
+        if (nav === 'uk' || nav === 'ru') return 'uk';
+        if (nav === 'de') return 'de';
+        if (nav) return 'en';
+        return 'uk';
+    }
+    let currentUILang = localStorage.getItem('vox_ui_lang_solo') || _detectUiLang();
+    // Тема: сохранённый выбор → системная (prefers-color-scheme)
+    let currentTheme = localStorage.getItem('vox_theme') ||
+        (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
     // Map internal status keys to i18n keys
     const statusKeyMap = {

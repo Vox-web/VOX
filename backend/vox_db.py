@@ -67,8 +67,17 @@ def init_db():
                 created_at  TEXT    DEFAULT (datetime('now'))
             );
 
+            CREATE TABLE IF NOT EXISTS password_resets (
+                token       TEXT    PRIMARY KEY,
+                user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at  TEXT    DEFAULT (datetime('now')),
+                expires_at  TEXT    NOT NULL,
+                used        INTEGER DEFAULT 0
+            );
+
             CREATE INDEX IF NOT EXISTS idx_sessions_token   ON sessions(token);
             CREATE INDEX IF NOT EXISTS idx_reviews_approved ON reviews(is_approved);
+            CREATE INDEX IF NOT EXISTS idx_pwreset_user     ON password_resets(user_id);
         """)
     logger.info(f"✅ БД инициализирована: {DB_PATH}")
 
@@ -149,6 +158,44 @@ def get_user_by_email(email: str) -> Optional[dict]:
             "SELECT * FROM users WHERE email = ?", (email.lower().strip(),)
         ).fetchone()
     return dict(row) if row else None
+
+
+# ─── Восстановление пароля ───────────────────────────────────────────────────
+
+def create_password_reset(user_id: int, ttl_minutes: int = 60) -> str:
+    """Создать одноразовый токен сброса пароля (старые токены пользователя гасятся)."""
+    token = secrets.token_urlsafe(32)
+    expires = (datetime.utcnow() + timedelta(minutes=ttl_minutes)).isoformat()
+    with get_db() as conn:
+        conn.execute("UPDATE password_resets SET used=1 WHERE user_id=? AND used=0", (user_id,))
+        conn.execute(
+            "INSERT INTO password_resets (token, user_id, expires_at) VALUES (?,?,?)",
+            (token, user_id, expires)
+        )
+    return token
+
+
+def reset_password_by_token(token: str, new_password: str) -> dict:
+    """Установить новый пароль по токену. Инвалидирует токен и все сессии пользователя."""
+    if len(new_password) < 6:
+        return {"ok": False, "error": "password_too_short"}
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT user_id FROM password_resets "
+            "WHERE token=? AND used=0 AND expires_at > datetime('now')",
+            (token,)
+        ).fetchone()
+        if not row:
+            return {"ok": False, "error": "invalid_token"}
+        user_id = row["user_id"]
+        conn.execute(
+            "UPDATE users SET password_hash=? WHERE id=?",
+            (hash_password(new_password), user_id)
+        )
+        conn.execute("UPDATE password_resets SET used=1 WHERE user_id=?", (user_id,))
+        # После смены пароля старые сессии недействительны
+        conn.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
+    return {"ok": True, "user_id": user_id}
 
 
 def add_review(

@@ -354,6 +354,20 @@
         .howto-content ol { margin: 0; padding-left: 20px; }
         .howto-content ol li { margin-bottom: 6px; }
         .howto-content .section { margin-bottom: 14px; }
+
+        /* ======== Свёрнутые аудио-настройки (progressive disclosure) ======== */
+        .audio-toggle {
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            margin: 2px auto 0; padding: 8px 14px; cursor: pointer;
+            color: var(--text2); font-size: 13px; border: 1px dashed var(--border);
+            border-radius: 10px; background: none; width: auto;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        .audio-toggle:hover { color: var(--accent); border-color: var(--accent); }
+        .audio-toggle .arrow { transition: transform 0.3s; display: inline-block; font-size: 10px; }
+        .audio-toggle.open .arrow { transform: rotate(180deg); }
+        .audio-settings { display: none; }
+        .audio-settings.open { display: block; }
         .pwa-btn {
             display: flex;
             width: 100%;
@@ -625,6 +639,12 @@
             font-size: 16px; padding: 4px; border-radius: 6px; transition: background 0.2s;
         }
         .p-actions button:hover { background: var(--surface2); }
+        .p-actions .kick-armed {
+            background: var(--red); color: #fff;
+            font-size: 12px; font-weight: 700; padding: 4px 10px;
+            animation: pulse 0.8s infinite;
+        }
+        .p-actions .kick-armed:hover { background: var(--red); }
         .request-actions { display: flex; gap: 6px; margin-top: 6px; }
 
         .mic-section {
@@ -817,7 +837,7 @@
                 <span class="i18n" id="soloStatusText">Не підключено</span>
             </div>
             <div class="lang-row">
-                <label class="i18n" id="soloSrcLangLabel">Ваша мова:</label>
+                <label class="i18n" id="soloSrcLangLabel" for="soloSrcLangSelect">Ваша мова:</label>
                 <select id="soloSrcLangSelect">
                     <option value="auto">🌐 Auto</option>
                     <option value="uk">🇺🇦 Українська</option>
@@ -838,7 +858,7 @@
                 </select>
             </div>
             <div class="lang-row">
-                <label class="i18n" id="soloLangLabel">Мова перекладу:</label>
+                <label class="i18n" id="soloLangLabel" for="soloLangSelect">Мова перекладу:</label>
                 <select id="soloLangSelect">
                     <option value="uk" selected>🇺🇦 Українська</option>
                     <option value="ru">🇷🇺 Русский</option>
@@ -861,21 +881,34 @@
                 <button class="room-share-btn i18n" id="soloSwapBtn" type="button" onclick="swapSoloLanguages()">⇄ Поміняти мови</button>
             </div>
 
-            <!-- Вибір мікрофону -->
-            <div class="mic-selector">
-                <label id="micSelectorLabel">🎤</label>
-                <select id="micDeviceSelect" onchange="onMicDeviceChange(this.value)"></select>
-                <button class="mic-hint-btn" id="micHintBtn" onclick="toggleMicHint()" title="?">ⓘ</button>
-                <button class="mic-refresh-btn" onclick="populateMicDevices()" title="Оновити список">↺</button>
-            </div>
-            <div class="mic-hint-box" id="micHintBox"></div>
+            <!-- Аудіо-налаштування: свёрнуты по умолчанию, чтобы не перегружать экран -->
+            <button class="audio-toggle" id="soloAudioToggle" type="button"
+                    aria-expanded="false" aria-controls="soloAudioSettings"
+                    onclick="toggleAudioSettings()">
+                🎛 <span class="i18n" id="audioSettingsToggle">Налаштування звуку</span>
+                <span class="arrow">▼</span>
+            </button>
+            <div class="audio-settings" id="soloAudioSettings">
+                <!-- Вибір мікрофону -->
+                <div class="mic-selector">
+                    <label id="micSelectorLabel" for="micDeviceSelect">🎤</label>
+                    <select id="micDeviceSelect" onchange="onMicDeviceChange(this.value)"></select>
+                    <button class="mic-hint-btn" id="micHintBtn" onclick="toggleMicHint()" title="?" aria-label="Info">ⓘ</button>
+                    <button class="mic-refresh-btn" onclick="populateMicDevices()" title="Оновити список" aria-label="Оновити список">↺</button>
+                </div>
+                <div class="mic-hint-box" id="micHintBox"></div>
 
-            <div class="speaker-selector" id="speakerSelectorRow">
-                <label id="speakerSelectorLabel">🔊</label>
-                <select id="speakerDeviceSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
-                <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Refresh">↺</button>
+                <div class="speaker-selector" id="speakerSelectorRow">
+                    <label id="speakerSelectorLabel" for="speakerDeviceSelect">🔊</label>
+                    <select id="speakerDeviceSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
+                    <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Refresh" aria-label="Refresh">↺</button>
+                </div>
+                <div class="speaker-no-support" id="speakerNoSupport"></div>
+
+                <button class="hybrid-toggle-btn" id="hybridToggleBtn" onclick="toggleHybrid()">
+                    <span id="hybridToggleLabel">Гібридний режим</span>
+                </button>
             </div>
-            <div class="speaker-no-support" id="speakerNoSupport"></div>
 
             <div class="vad-indicator" id="soloVad">
                 <div class="vad-bar"></div><div class="vad-bar"></div><div class="vad-bar"></div>
@@ -886,9 +919,6 @@
             <button class="tts-toggle-btn" id="ttsToggleBtn" onclick="toggleTts()">
                 <span id="ttsToggleIcon">🔊</span>
                 <span id="ttsToggleLabel">Озвучка увімкнена</span>
-            </button>
-            <button class="hybrid-toggle-btn" id="hybridToggleBtn" onclick="toggleHybrid()">
-                <span id="hybridToggleLabel">Гібридний режим</span>
             </button>
             <div class="card original">
                 <div class="card-label i18n" id="soloLabelOrig">Оригінал</div>
@@ -911,7 +941,7 @@
             <div class="card">
                 <div class="card-label i18n" id="duoSetupTitle">Налаштування Duo</div>
                 <div class="lang-row">
-                    <label class="i18n" id="duoLangALabel">Мова A:</label>
+                    <label class="i18n" id="duoLangALabel" for="duoLangASelect">Мова A:</label>
                     <select id="duoLangASelect">
                         <option value="uk">🇺🇦 Українська</option>
                         <option value="ru">🇷🇺 Русский</option>
@@ -931,7 +961,7 @@
                     </select>
                 </div>
                 <div class="lang-row">
-                    <label class="i18n" id="duoLangBLabel">Мова B:</label>
+                    <label class="i18n" id="duoLangBLabel" for="duoLangBSelect">Мова B:</label>
                     <select id="duoLangBSelect">
                         <option value="uk">🇺🇦 Українська</option>
                         <option value="ru" selected>🇷🇺 Русский</option>
@@ -1040,7 +1070,7 @@
             <div class="card">
                 <div class="card-label i18n" id="roomSetupTitle">Налаштування кімнати</div>
                 <div class="lang-row">
-                    <label class="i18n" id="roomHostLangLabel">Ваша мова:</label>
+                    <label class="i18n" id="roomHostLangLabel" for="roomHostLangSelect">Ваша мова:</label>
                     <select id="roomHostLangSelect">
                         <option value="uk" selected>🇺🇦 Українська</option>
                         <option value="en">🇬🇧 English</option>
@@ -1110,14 +1140,14 @@
             <div class="mic-selector" id="roomMicSelectorRow">
                 <label id="roomMicSelectorLabel">🎤</label>
                 <select id="roomMicDeviceSelect" onchange="onMicDeviceChange(this.value)"></select>
-                <button class="mic-refresh-btn" onclick="populateMicDevices()" title="Оновити">↺</button>
+                <button class="mic-refresh-btn" onclick="populateMicDevices()" title="Оновити" aria-label="Оновити">↺</button>
             </div>
 
             <!-- Вибір динаміка (Room) -->
             <div class="speaker-selector" id="roomSpeakerSelectorRow">
                 <label id="roomSpeakerSelectorLabel">🔊</label>
                 <select id="roomSpeakerDeviceSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
-                <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Оновити">↺</button>
+                <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Оновити" aria-label="Оновити">↺</button>
             </div>
             <div class="speaker-no-support" id="roomSpeakerNoSupport"></div>
 
@@ -1183,6 +1213,11 @@
             stateListening: 'Слухає', stateRequesting: 'Просить слово...',
             stateSpeaking: 'Говорить', stateMuted: 'Заглушений',
             confirmClose: 'Закрити кімнату? Всі учасники будуть відключені.',
+            audioSettingsToggle: 'Налаштування звуку',
+            actGrant: 'Дозволити говорити', actDeny: 'Відхилити запит',
+            actRevoke: 'Забрати слово', actMute: 'Заглушити',
+            actUnmute: 'Увімкнути звук', actKick: 'Видалити з кімнати',
+            kickConfirm: 'Точно?',
             howtoToggle: 'Як користуватися?',
             howtoHtml: '<div class="section"><h4>🎧 Solo — Персональний переклад</h4><ol><li>Оберіть вашу мову та мову перекладу</li><li>Натисніть <b>СЛУХАТИ</b> — говоріть у мікрофон</li><li>Через 1-2 сек. почуєте переклад у навушниках</li><li>Натисніть <b>СТОП</b> щоб зупинити</li></ol></div><div class="section"><h4>👥 Кімната — Груповий переклад</h4><ol><li>Натисніть «Створити кімнату» та оберіть мову</li><li>Покажіть QR-код учасникам — вони сканують телефоном</li><li>Кожен учасник обирає свою мову і чує переклад</li><li>Учасник натискає «Хочу сказати» щоб отримати слово</li><li>Ви керуєте: даєте слово, заглушуєте, відключаєте</li></ol></div>',
             navReview: 'Відгук', navCabinet: 'Кабінет',
@@ -1243,6 +1278,11 @@
             stateListening: 'Listening', stateRequesting: 'Requesting...',
             stateSpeaking: 'Speaking', stateMuted: 'Muted',
             confirmClose: 'Close this room? All participants will be disconnected.',
+            audioSettingsToggle: 'Audio settings',
+            actGrant: 'Allow to speak', actDeny: 'Deny request',
+            actRevoke: 'Take the floor back', actMute: 'Mute',
+            actUnmute: 'Unmute', actKick: 'Remove from room',
+            kickConfirm: 'Sure?',
             howtoToggle: 'How does it work?',
             howtoHtml: '<div class="section"><h4>🎧 Solo — Personal Translation</h4><ol><li>Select your language and translation language</li><li>Press <b>LISTEN</b> — speak into the microphone</li><li>In 1-2 sec. you\'ll hear the translation in your earphones</li><li>Press <b>STOP</b> to end</li></ol></div><div class="section"><h4>👥 Room — Group Translation</h4><ol><li>Press "Create Room" and select your language</li><li>Show the QR code to participants — they scan with their phone</li><li>Each participant selects their language and hears translation</li><li>Participant presses "I want to speak" to request the floor</li><li>You control everything: grant speech, mute, disconnect</li></ol></div>',
             navReview: 'Review', navCabinet: 'Cabinet',
@@ -1303,6 +1343,11 @@
             stateListening: 'Hört zu', stateRequesting: 'Bittet ums Wort...',
             stateSpeaking: 'Spricht', stateMuted: 'Stummgeschaltet',
             confirmClose: 'Raum schließen? Alle Teilnehmer werden getrennt.',
+            audioSettingsToggle: 'Audio-Einstellungen',
+            actGrant: 'Sprechen erlauben', actDeny: 'Anfrage ablehnen',
+            actRevoke: 'Wort entziehen', actMute: 'Stummschalten',
+            actUnmute: 'Stummschaltung aufheben', actKick: 'Aus dem Raum entfernen',
+            kickConfirm: 'Sicher?',
             howtoToggle: 'Wie funktioniert es?',
             howtoHtml: '<div class="section"><h4>🎧 Solo — Persönliche Übersetzung</h4><ol><li>Wählen Sie Ihre Sprache und die Übersetzungssprache</li><li>Drücken Sie <b>HÖREN</b> — sprechen Sie ins Mikrofon</li><li>In 1-2 Sek. hören Sie die Übersetzung im Kopfhörer</li><li>Drücken Sie <b>STOPP</b> zum Beenden</li></ol></div><div class="section"><h4>👥 Raum — Gruppenübersetzung</h4><ol><li>Drücken Sie «Raum erstellen» und wählen Sie Ihre Sprache</li><li>Zeigen Sie den QR-Code den Teilnehmern — sie scannen mit dem Handy</li><li>Jeder Teilnehmer wählt seine Sprache und hört die Übersetzung</li><li>Teilnehmer drückt «Ich möchte sprechen» um das Wort zu erhalten</li><li>Sie steuern alles: Wort erteilen, stummschalten, trennen</li></ol></div>',
             navReview: 'Bewertung', navCabinet: 'Kabinett',
@@ -1332,8 +1377,18 @@
         },
     };
 
-    let uiLang = localStorage.getItem('vox_ui_lang') || 'uk';
-    let currentTheme = localStorage.getItem('vox_theme') || 'light';
+    // Язык UI: сохранённый выбор → язык браузера (uk/ru→uk, de→de, иначе en) → uk
+    function _detectUiLang() {
+        const nav = (navigator.language || '').slice(0, 2).toLowerCase();
+        if (nav === 'uk' || nav === 'ru') return 'uk';
+        if (nav === 'de') return 'de';
+        if (nav) return 'en';
+        return 'uk';
+    }
+    let uiLang = localStorage.getItem('vox_ui_lang') || _detectUiLang();
+    // Тема: сохранённый выбор → системная (prefers-color-scheme)
+    let currentTheme = localStorage.getItem('vox_theme') ||
+        (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     let _userPpm = 0.05;
     function t(k) { return (I18N[uiLang]||I18N.en)[k] || I18N.en[k] || k; }
 
@@ -1480,6 +1535,14 @@
         const content = document.getElementById('howtoContent');
         btn.classList.toggle('open');
         content.classList.toggle('open');
+    }
+
+    function toggleAudioSettings() {
+        const btn = document.getElementById('soloAudioToggle');
+        const panel = document.getElementById('soloAudioSettings');
+        const open = panel.classList.toggle('open');
+        btn.classList.toggle('open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
 
     let curScreen = 'screenMenu';
@@ -2686,11 +2749,33 @@
             const p = participants[g], st = p.state||'listening';
             const sl = t('state'+st.charAt(0).toUpperCase()+st.slice(1))||st;
             let act = '';
-            if (st==='requesting') act = `<div class="request-actions"><button class="btn btn-sm btn-primary" onclick="hCmd('grant_speak','${g}')">✅</button><button class="btn btn-sm btn-ghost" onclick="hCmd('deny_speak','${g}')">✖</button></div>`;
-            else if (st==='speaking') act = `<button class="btn btn-sm btn-danger" onclick="hCmd('revoke_speak','${g}')">⏹</button>`;
+            if (st==='requesting') act = `<div class="request-actions"><button class="btn btn-sm btn-primary" onclick="hCmd('grant_speak','${g}')" title="${t('actGrant')}" aria-label="${t('actGrant')}">✅</button><button class="btn btn-sm btn-ghost" onclick="hCmd('deny_speak','${g}')" title="${t('actDeny')}" aria-label="${t('actDeny')}">✖</button></div>`;
+            else if (st==='speaking') act = `<button class="btn btn-sm btn-danger" onclick="hCmd('revoke_speak','${g}')" title="${t('actRevoke')}" aria-label="${t('actRevoke')}">⏹</button>`;
             const mi = st==='muted'?'🔊':'🔇', ma = st==='muted'?'unmute':'mute';
-            return `<div class="participant-item ${st} fade-in"><div class="p-dot ${st}"></div><div class="p-info"><div class="p-name">${_esc(p.display_name||'Guest')}</div><div class="p-lang">${p.language} · ${sl}</div>${act}</div><div class="p-actions"><button onclick="hCmd('${ma}','${g}')">${mi}</button><button onclick="hCmd('kick','${g}')">❌</button></div></div>`;
+            const mt = st==='muted'?t('actUnmute'):t('actMute');
+            // Kick — двухшаговый: первый тап «взводит» кнопку, второй (за 3с) выполняет
+            const kickArmed = _kickArm === g;
+            const kickBtn = kickArmed
+                ? `<button class="kick-armed" onclick="armKick('${g}')" title="${t('actKick')}" aria-label="${t('actKick')}">${t('kickConfirm')}</button>`
+                : `<button onclick="armKick('${g}')" title="${t('actKick')}" aria-label="${t('actKick')}">❌</button>`;
+            return `<div class="participant-item ${st} fade-in"><div class="p-dot ${st}"></div><div class="p-info"><div class="p-name">${_esc(p.display_name||'Guest')}</div><div class="p-lang">${p.language} · ${sl}</div>${act}</div><div class="p-actions"><button onclick="hCmd('${ma}','${g}')" title="${mt}" aria-label="${mt}">${mi}</button>${kickBtn}</div></div>`;
         }).join('');
+    }
+
+    // Двухшаговое подтверждение удаления участника (без блокирующего confirm())
+    let _kickArm = null;
+    let _kickArmTimer = null;
+    function armKick(g) {
+        if (_kickArm === g) {
+            clearTimeout(_kickArmTimer);
+            _kickArm = null;
+            hCmd('kick', g);
+            return;
+        }
+        _kickArm = g;
+        clearTimeout(_kickArmTimer);
+        _kickArmTimer = setTimeout(() => { _kickArm = null; renderParticipants(); }, 3000);
+        renderParticipants();
     }
 
     function hCmd(a, g) { if (roomWs?.readyState===WebSocket.OPEN) roomWs.send(JSON.stringify({action:a,guest_id:g})); }

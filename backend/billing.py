@@ -357,6 +357,99 @@ def send_verification_email(user_id: int, email: str, name: str) -> bool:
     return False
 
 
+def _build_password_reset_html(name: str, reset_url: str) -> str:
+    """HTML письма сброса пароля (та же стилистика, что и верификация)."""
+    safe_name = name or "друже"
+    return f"""<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>VOX — Скидання пароля</title>
+</head>
+<body style="margin:0;padding:0;background:#09080f;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#09080f;padding:40px 20px">
+    <tr><td align="center">
+      <table width="100%" style="max-width:480px;background:#15121f;border:1px solid #2a2340;border-radius:20px;overflow:hidden">
+        <tr>
+          <td style="background:linear-gradient(135deg,#1a1530,#0f0d1a);padding:36px 40px;text-align:center;border-bottom:1px solid #2a2340">
+            <div style="font-size:30px;font-weight:800;color:#7c6aff;letter-spacing:6px">VOX</div>
+            <div style="color:#5e5880;font-size:13px;margin-top:6px">Real-Time AI Translation</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:36px 40px">
+            <h2 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#f0eeff">
+              Привіт, {safe_name}! 🔑
+            </h2>
+            <p style="margin:0 0 12px;color:#9b93c4;font-size:15px;line-height:1.6">
+              Ми отримали запит на скидання пароля вашого акаунта
+              <strong style="color:#a594ff">VOX</strong>.<br/>
+              Натисніть кнопку нижче, щоб встановити новий пароль.
+              Посилання діє <strong style="color:#f0eeff">60 хвилин</strong>.
+            </p>
+            <div style="text-align:center;margin:28px 0">
+              <a href="{reset_url}" style="display:inline-block;background:linear-gradient(135deg,#9b8aff,#7c6aff);color:#fff;font-size:16px;font-weight:700;text-decoration:none;padding:16px 40px;border-radius:12px;box-shadow:0 8px 24px rgba(124,106,255,.4)">
+                🔐 Встановити новий пароль
+              </a>
+            </div>
+            <p style="color:#5e5880;font-size:12px;text-align:center;margin:0">
+              Якщо ви не запитували скидання пароля — просто проігноруйте цей лист,
+              ваш пароль залишиться без змін.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 40px;border-top:1px solid #2a2340;text-align:center">
+            <div style="color:#3d3560;font-size:12px">© 2025 VOX AI Translation. Усі права захищені.</div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
+def send_password_reset_email(email: str, name: str, reset_token: str) -> bool:
+    """
+    Отправить письмо сброса пароля. Транспорт тот же, что у верификации:
+    Gmail API (HTTPS) как основной путь, Gmail SMTP как локальный fallback.
+    """
+    gmail_user = os.getenv("GMAIL_USER", "")
+    gmail_pass = os.getenv("GMAIL_APP_PASSWORD", "")
+    api_ready = gmail_api_configured()
+    if not api_ready and not gmail_pass:
+        logger.warning("⚠️ Email не налаштовано — лист скидання пароля не надіслано.")
+        return False
+
+    reset_url = f"{BASE_URL}/landing?reset_token={reset_token}"
+    html_body = _build_password_reset_html(name, reset_url)
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "🔑 VOX — Скидання пароля"
+    if gmail_user:
+        msg["From"] = f"VOX <{gmail_user}>"
+    msg["To"] = email
+    msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+    if api_ready:
+        ok, detail = _deliver_via_gmail_api(msg.as_bytes(), email)
+        if ok:
+            logger.info("📧 reset-лист надіслано через Gmail API для: %s", email)
+            return True
+        logger.error("❌ Gmail API не зміг відправити reset-лист (%s)", detail)
+
+    if gmail_user and gmail_pass:
+        ok, detail = _deliver_via_gmail(gmail_user, gmail_pass, email, msg.as_string())
+        if ok:
+            logger.info("📧 reset-лист прийнято Gmail SMTP (%s) для: %s", detail, email)
+            return True
+        logger.error("❌ Gmail SMTP не зміг відправити reset-лист (%s)", detail)
+
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------

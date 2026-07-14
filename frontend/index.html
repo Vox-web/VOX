@@ -107,11 +107,11 @@ nav{
 @media(max-width:600px){
   nav{padding:0 12px}
   .nav-auth-btn{
-    padding:6px 10px;
+    padding:9px 11px;
     font-size:12px;
   }
   .lang-btn{
-    padding:4px 6px;
+    padding:8px 7px;
     font-size:11px;
   }
   .nav-logo{
@@ -550,6 +550,8 @@ footer{
   display:none;text-align:center;
 }
 .form-success.show{display:block}
+.auth-alt-link{color:var(--text3);font-size:13px;text-decoration:none;transition:color .2s}
+.auth-alt-link:hover{color:var(--accent2)}
 
 /* Review modal stars */
 .star-rating{display:flex;gap:6px;margin-bottom:18px}
@@ -557,7 +559,9 @@ footer{
   font-size:28px;cursor:pointer;
   filter:grayscale(1) opacity(.4);
   transition:all .15s;user-select:none;
+  background:none;border:none;padding:0;line-height:1;
 }
+.star:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 .star.active,.star:hover{filter:none;transform:scale(1.15)}
 
 /* ── TOAST ── */
@@ -682,8 +686,8 @@ footer{
     </div>
     <div class="stats-row">
       <div class="stat-card"><div class="stat-num">15</div><div class="stat-label" data-i18n="stat_langs">мов</div></div>
-      <div class="stat-card"><div class="stat-num">~300ms</div><div class="stat-label" data-i18n="stat_latency">затримка</div></div>
-      <div class="stat-card"><div class="stat-num">∞</div><div class="stat-label" data-i18n="stat_rooms">учасників</div></div>
+      <div class="stat-card"><div class="stat-num">~1 c</div><div class="stat-label" data-i18n="stat_latency">затримка</div></div>
+      <div class="stat-card"><div class="stat-num">∞</div><div class="stat-label" data-i18n="stat_rooms">учасників у кімнаті</div></div>
       <div class="stat-card"><div class="stat-num">24/7</div><div class="stat-label" data-i18n="stat_avail">доступність</div></div>
     </div>
     <div class="hero-scroll"><div class="scroll-line"></div><span data-i18n="hero_scroll">Гортай нижче</span></div>
@@ -801,22 +805,8 @@ footer{
       <h2 class="section-title" data-i18n="rev_title">Що кажуть<br/>користувачі</h2>
     </div>
     <div class="reviews-grid" id="publicReviews">
-      <!-- Loaded from API or fallback static -->
-      <div class="review-card">
-        <div class="review-stars">★★★★★</div>
-        <p class="review-text">"Неймовірна швидкість! Веду переговори з німецькими партнерами — VOX рятує ситуацію кожного разу."</p>
-        <div class="review-author"><div class="review-avatar">А</div><div><div class="review-name">Андрій К.</div><div class="review-date">лютий 2025</div></div></div>
-      </div>
-      <div class="review-card">
-        <div class="review-stars">★★★★★</div>
-        <p class="review-text">"Finally a tool that actually works in real-time. The room feature is brilliant for multilingual meetings."</p>
-        <div class="review-author"><div class="review-avatar">S</div><div><div class="review-name">Sarah M.</div><div class="review-date">March 2025</div></div></div>
-      </div>
-      <div class="review-card">
-        <div class="review-stars">★★★★☆</div>
-        <p class="review-text">"Sehr beeindruckende Genauigkeit. Der QR-Code-Raum ist besonders praktisch für Konferenzen."</p>
-        <div class="review-author"><div class="review-avatar">T</div><div><div class="review-name">Thomas B.</div><div class="review-date">Februar 2025</div></div></div>
-      </div>
+      <!-- Заполняется реальными отзывами из /api/reviews/public -->
+      <div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:24px 0" data-i18n="rev_empty">Поки що немає відгуків — станьте першим!</div>
     </div>
     <div class="reviews-cta">
       <button class="btn-secondary" onclick="openReviewModal('landing')">
@@ -886,9 +876,9 @@ footer{
 <!-- ══════════════ AUTH MODAL ══════════════ -->
 <!-- ── TOPUP MODAL ── -->
 <div class="modal-overlay" id="modalTopup" onclick="if(event.target===this)closeModal('modalTopup')" style="z-index:600">
-  <div class="modal" style="max-width:380px">
-    <button class="modal-close" onclick="closeModal('modalTopup')">✕</button>
-    <h2 style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:6px"><span data-i18n="dash_topup_title">💳 Поповнити баланс</span></h2>
+  <div class="modal" style="max-width:380px" role="dialog" aria-modal="true" aria-labelledby="topupModalTitle">
+    <button class="modal-close" onclick="closeModal('modalTopup')" aria-label="Close">✕</button>
+    <h2 id="topupModalTitle" style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:6px"><span data-i18n="dash_topup_title">💳 Поповнити баланс</span></h2>
     <p style="color:var(--text3);font-size:14px;margin-bottom:24px" data-i18n="topup_sub">Оберіть суму поповнення. Кошти одразу зараховуються на рахунок.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px" id="topupGrid">
       <button onclick="doTopup(5)"  class="topup-amount-btn">$5<span>≈ 100 хв</span></button>
@@ -901,9 +891,9 @@ footer{
 </div>
 
 <div class="modal-overlay" id="modalAuth" onclick="closeModalOnOverlay(event,'modalAuth')">
-  <div class="modal">
-    <button class="modal-close" onclick="closeModal('modalAuth')">✕</button>
-    <h2 data-i18n="auth_title">Вітаємо у VOX</h2>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+    <button class="modal-close" onclick="closeModal('modalAuth')" aria-label="Close">✕</button>
+    <h2 id="authModalTitle" data-i18n="auth_title">Вітаємо у VOX</h2>
     <p class="modal-sub" data-i18n="auth_sub">Увійди або створи акаунт</p>
     <div class="modal-tabs">
       <button class="modal-tab active" id="tabLogin" onclick="switchTab('login')" data-i18n="tab_login">Увійти</button>
@@ -911,60 +901,93 @@ footer{
     </div>
 
     <!-- LOGIN FORM -->
-    <div id="formLogin">
+    <form id="formLogin" onsubmit="event.preventDefault();doLogin()">
       <div class="form-group">
-        <label class="form-label" data-i18n="f_email">Email</label>
+        <label class="form-label" for="loginEmail" data-i18n="f_email">Email</label>
         <input class="form-input" type="email" id="loginEmail" placeholder="your@email.com" autocomplete="email"/>
       </div>
       <div class="form-group">
-        <label class="form-label" data-i18n="f_password">Пароль</label>
+        <label class="form-label" for="loginPassword" data-i18n="f_password">Пароль</label>
         <input class="form-input" type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password"/>
       </div>
-      <button class="form-submit" id="loginSubmit" onclick="doLogin()" data-i18n="btn_login">Увійти</button>
+      <button class="form-submit" id="loginSubmit" type="submit" data-i18n="btn_login">Увійти</button>
       <div class="form-error" id="loginError"></div>
-    </div>
+      <div style="text-align:center;margin-top:14px">
+        <a href="#" class="auth-alt-link" onclick="event.preventDefault();showForgotView()" data-i18n="forgot_link">Забули пароль?</a>
+      </div>
+    </form>
 
     <!-- REGISTER FORM -->
-    <div id="formRegister" style="display:none">
+    <form id="formRegister" style="display:none" onsubmit="event.preventDefault();doRegister()">
       <div class="form-group">
-        <label class="form-label" data-i18n="f_name">Ім'я</label>
+        <label class="form-label" for="regName" data-i18n="f_name">Ім'я</label>
         <input class="form-input" type="text" id="regName" placeholder="Ваше ім'я" autocomplete="name"/>
       </div>
       <div class="form-group">
-        <label class="form-label" data-i18n="f_email">Email</label>
+        <label class="form-label" for="regEmail" data-i18n="f_email">Email</label>
         <input class="form-input" type="email" id="regEmail" placeholder="your@email.com" autocomplete="email"/>
       </div>
       <div class="form-group">
-        <label class="form-label" data-i18n="f_password">Пароль</label>
+        <label class="form-label" for="regPassword" data-i18n="f_password">Пароль</label>
         <input class="form-input" type="password" id="regPassword" placeholder="Мін. 6 символів" autocomplete="new-password"/>
       </div>
       <div class="form-group">
-        <label class="form-label" data-i18n="f_password2">Повторіть пароль</label>
+        <label class="form-label" for="regPassword2" data-i18n="f_password2">Повторіть пароль</label>
         <input class="form-input" type="password" id="regPassword2" placeholder="••••••••" autocomplete="new-password"/>
       </div>
-      <button class="form-submit" id="regSubmit" onclick="doRegister()" data-i18n="btn_register">Зареєструватись</button>
+      <button class="form-submit" id="regSubmit" type="submit" data-i18n="btn_register">Зареєструватись</button>
       <div class="form-error" id="regError"></div>
       <div class="form-success" id="regSuccess"></div>
-    </div>
+    </form>
+
+    <!-- FORGOT PASSWORD FORM -->
+    <form id="formForgot" style="display:none" onsubmit="event.preventDefault();doForgot()">
+      <p class="modal-sub" style="margin-bottom:18px" data-i18n="forgot_sub">Вкажіть email — надішлемо посилання для зміни пароля.</p>
+      <div class="form-group">
+        <label class="form-label" for="forgotEmail" data-i18n="f_email">Email</label>
+        <input class="form-input" type="email" id="forgotEmail" placeholder="your@email.com" autocomplete="email"/>
+      </div>
+      <button class="form-submit" id="forgotSubmit" type="submit" data-i18n="btn_forgot">Надіслати посилання</button>
+      <div class="form-error" id="forgotError"></div>
+      <div class="form-success" id="forgotSuccess"></div>
+      <div style="text-align:center;margin-top:14px">
+        <a href="#" class="auth-alt-link" onclick="event.preventDefault();switchTab('login')" data-i18n="back_to_login">← Назад до входу</a>
+      </div>
+    </form>
+
+    <!-- RESET PASSWORD FORM (открывается по ссылке из письма) -->
+    <form id="formReset" style="display:none" onsubmit="event.preventDefault();doResetPassword()">
+      <p class="modal-sub" style="margin-bottom:18px" data-i18n="reset_sub">Встановіть новий пароль для вашого акаунта.</p>
+      <div class="form-group">
+        <label class="form-label" for="resetPassword" data-i18n="f_new_password">Новий пароль</label>
+        <input class="form-input" type="password" id="resetPassword" placeholder="Мін. 6 символів" autocomplete="new-password"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="resetPassword2" data-i18n="f_password2">Повторіть пароль</label>
+        <input class="form-input" type="password" id="resetPassword2" placeholder="••••••••" autocomplete="new-password"/>
+      </div>
+      <button class="form-submit" id="resetSubmit" type="submit" data-i18n="btn_reset">Змінити пароль</button>
+      <div class="form-error" id="resetError"></div>
+    </form>
   </div>
 </div>
 
 <!-- ══════════════ REVIEW MODAL ══════════════ -->
 <div class="modal-overlay" id="modalReview" onclick="closeModalOnOverlay(event,'modalReview')">
-  <div class="modal">
-    <button class="modal-close" onclick="closeModal('modalReview')">✕</button>
-    <h2 data-i18n="rev_modal_title">Ваш відгук</h2>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="reviewModalTitle">
+    <button class="modal-close" onclick="closeModal('modalReview')" aria-label="Close">✕</button>
+    <h2 id="reviewModalTitle" data-i18n="rev_modal_title">Ваш відгук</h2>
     <p class="modal-sub" data-i18n="rev_modal_sub">Розкажіть про свій досвід з VOX</p>
     <div class="review-source-badge" id="reviewSourceBadge">⭐ <span>Відгук з Landing Page</span></div>
 
     <div id="reviewFormWrap">
       <p class="form-label" style="margin-bottom:10px" data-i18n="rev_rating">Оцінка</p>
-      <div class="star-rating" id="starRating">
-        <span class="star" data-v="1" onclick="setStar(1)">★</span>
-        <span class="star" data-v="2" onclick="setStar(2)">★</span>
-        <span class="star" data-v="3" onclick="setStar(3)">★</span>
-        <span class="star" data-v="4" onclick="setStar(4)">★</span>
-        <span class="star" data-v="5" onclick="setStar(5)">★</span>
+      <div class="star-rating" id="starRating" role="radiogroup" aria-label="Rating">
+        <button type="button" class="star" data-v="1" onclick="setStar(1)" aria-label="1/5">★</button>
+        <button type="button" class="star" data-v="2" onclick="setStar(2)" aria-label="2/5">★</button>
+        <button type="button" class="star" data-v="3" onclick="setStar(3)" aria-label="3/5">★</button>
+        <button type="button" class="star" data-v="4" onclick="setStar(4)" aria-label="4/5">★</button>
+        <button type="button" class="star" data-v="5" onclick="setStar(5)" aria-label="5/5">★</button>
       </div>
       <div class="form-group">
         <label class="form-label" data-i18n="rev_text_label">Ваш відгук</label>
@@ -1009,7 +1032,7 @@ uk:{
   hero_desc:"Спілкуйтесь без мовних бар'єрів. Миттєва транскрипція та переклад у реальному часі для особистих розмов і багатомовних кімнат.",
   hero_cta_start:"Розпочати безкоштовно", hero_cta_how:"Як це працює", hero_cta_bonus:"Спробувати безкоштовно — $3 бонус",
   hero_scroll:"Гортай нижче",
-  stat_langs:"мов", stat_latency:"затримка", stat_rooms:"учасників", stat_avail:"доступність",
+  stat_langs:"мов", stat_latency:"затримка", stat_rooms:"учасників у кімнаті", stat_avail:"доступність",
   feat_tag:"Можливості", feat_title:"Все що потрібно\nдля живого спілкування",
   feat_desc:"VOX поєднує найкращі AI-сервіси для безшовної комунікації між людьми будь-яких мов.",
   f1t:"Streaming транскрипція", f1d:"Deepgram Nova-2 перетворює мову в текст за ~300мс. Бачиш слова ще під час розмови.",
@@ -1024,6 +1047,7 @@ uk:{
   s3t:"Усі розуміють", s3d:"Гості чують переклад своєю мовою. Підтримується 15 мов одночасно.",
   langs_tag:"Підтримувані мови",
   rev_tag:"Відгуки", rev_title:"Що кажуть\nкористувачі", rev_btn:"Залишити відгук",
+  rev_empty:"Поки що немає відгуків — станьте першим!",
   cta_tag:"Почни зараз", cta_title:"Готовий говорити\nз усім світом?",
   cta_desc:"Реєстрація безкоштовна. Почни прямо зараз — без кредитної картки.",
   cta_btn:"Зареєструватись безкоштовно",
@@ -1051,6 +1075,11 @@ uk:{
   footer_privacy:"Конфіденційність",
   footer_contact:"Контакти",
   f_password2:"Повторіть пароль",
+  forgot_link:"Забули пароль?", forgot_sub:"Вкажіть email — надішлемо посилання для зміни пароля.",
+  btn_forgot:"Надіслати посилання", forgot_sent:"✉️ Якщо цей email зареєстровано, лист із посиланням вже в дорозі.",
+  back_to_login:"← Назад до входу", reset_sub:"Встановіть новий пароль для вашого акаунта.",
+  f_new_password:"Новий пароль", btn_reset:"Змінити пароль",
+  reset_done:"✅ Пароль змінено! Увійдіть з новим паролем.",
   hero_cta_host:"Перейти до VOX Host",
   topup_sub:"Оберіть суму поповнення. Кошти одразу зараховуються на рахунок.", topup_secure:"🔒 Безпечна оплата через Stripe · Без підписки",
   
@@ -1063,7 +1092,7 @@ en:{
   hero_desc:"Communicate without language barriers. Instant transcription and translation in real time for personal conversations and multilingual rooms.",
   hero_cta_start:"Start for free", hero_cta_how:"How it works", hero_cta_bonus:"Try for free — $3 bonus",
   hero_scroll:"Scroll down",
-  stat_langs:"languages", stat_latency:"latency", stat_rooms:"participants", stat_avail:"availability",
+  stat_langs:"languages", stat_latency:"latency", stat_rooms:"participants per room", stat_avail:"availability",
   feat_tag:"Features", feat_title:"Everything you need\nfor live communication",
   feat_desc:"VOX combines the best AI services for seamless communication between people of any language.",
   f1t:"Streaming transcription", f1d:"Deepgram Nova-2 converts speech to text in ~300ms. See words while still speaking.",
@@ -1078,6 +1107,7 @@ en:{
   s3t:"Everyone understands", s3d:"Guests hear translation in their language. 15 languages supported simultaneously.",
   langs_tag:"Supported languages",
   rev_tag:"Reviews", rev_title:"What users\nare saying", rev_btn:"Leave a review",
+  rev_empty:"No reviews yet — be the first!",
   cta_tag:"Start now", cta_title:"Ready to talk\nto the whole world?",
   cta_desc:"Registration is free. Start right now — no credit card required.",
   cta_btn:"Sign up for free",
@@ -1105,6 +1135,11 @@ en:{
   footer_privacy:"Privacy",
   footer_contact:"Contact",
   f_password2:"Repeat password",
+  forgot_link:"Forgot password?", forgot_sub:"Enter your email — we'll send a password reset link.",
+  btn_forgot:"Send reset link", forgot_sent:"✉️ If this email is registered, a reset link is on its way.",
+  back_to_login:"← Back to login", reset_sub:"Set a new password for your account.",
+  f_new_password:"New password", btn_reset:"Change password",
+  reset_done:"✅ Password changed! Log in with your new password.",
   hero_cta_host:"Go to VOX Host",
   topup_sub:"Choose a top-up amount. Funds are credited instantly.", topup_secure:"🔒 Secure payment via Stripe · No subscription",
   
@@ -1117,7 +1152,7 @@ de:{
   hero_desc:"Kommunizieren Sie ohne Sprachbarrieren. Sofortige Transkription und Übersetzung in Echtzeit für persönliche Gespräche und mehrsprachige Räume.",
   hero_cta_start:"Kostenlos starten", hero_cta_how:"So funktioniert es", hero_cta_bonus:"Kostenlos testen — $3 Bonus",
   hero_scroll:"Nach unten scrollen",
-  stat_langs:"Sprachen", stat_latency:"Latenz", stat_rooms:"Teilnehmer", stat_avail:"Verfügbarkeit",
+  stat_langs:"Sprachen", stat_latency:"Latenz", stat_rooms:"Teilnehmer pro Raum", stat_avail:"Verfügbarkeit",
   feat_tag:"Funktionen", feat_title:"Alles was Sie brauchen\nfür Live-Kommunikation",
   feat_desc:"VOX kombiniert die besten KI-Dienste für nahtlose Kommunikation zwischen Menschen jeder Sprache.",
   f1t:"Streaming-Transkription", f1d:"Deepgram Nova-2 wandelt Sprache in ~300ms in Text um. Wörter erscheinen während des Sprechens.",
@@ -1132,6 +1167,7 @@ de:{
   s3t:"Alle verstehen", s3d:"Gäste hören die Übersetzung in ihrer Sprache. 15 Sprachen gleichzeitig unterstützt.",
   langs_tag:"Unterstützte Sprachen",
   rev_tag:"Bewertungen", rev_title:"Was Nutzer\nsagen", rev_btn:"Bewertung hinterlassen",
+  rev_empty:"Noch keine Bewertungen — seien Sie der Erste!",
   cta_tag:"Jetzt starten", cta_title:"Bereit mit der\nganzen Welt zu sprechen?",
   cta_desc:"Die Registrierung ist kostenlos. Jetzt starten — keine Kreditkarte erforderlich.",
   cta_btn:"Kostenlos registrieren",
@@ -1159,12 +1195,25 @@ de:{
   footer_privacy:"Datenschutz",
   footer_contact:"Kontakt",
   f_password2:"Passwort wiederholen",
+  forgot_link:"Passwort vergessen?", forgot_sub:"E-Mail eingeben — wir senden einen Link zum Zurücksetzen.",
+  btn_forgot:"Link senden", forgot_sent:"✉️ Falls diese E-Mail registriert ist, ist der Link unterwegs.",
+  back_to_login:"← Zurück zum Login", reset_sub:"Legen Sie ein neues Passwort für Ihr Konto fest.",
+  f_new_password:"Neues Passwort", btn_reset:"Passwort ändern",
+  reset_done:"✅ Passwort geändert! Melden Sie sich mit dem neuen Passwort an.",
   hero_cta_host:"Zu VOX Host",
   topup_sub:"Wählen Sie einen Betrag. Das Guthaben wird sofort gutgeschrieben.", topup_secure:"🔒 Sichere Zahlung über Stripe · Kein Abonnement",
   
 }};
 
-let currentLang = localStorage.getItem('vox_ui_lang') || 'uk';
+// Язык UI: сохранённый выбор → язык браузера (uk/ru→uk, de→de, иначе en) → uk
+function detectUiLang(){
+  const nav = (navigator.language || '').slice(0,2).toLowerCase();
+  if(nav==='uk'||nav==='ru') return 'uk';
+  if(nav==='de') return 'de';
+  if(nav) return 'en';
+  return 'uk';
+}
+let currentLang = localStorage.getItem('vox_ui_lang') || detectUiLang();
 function setLang(lang){
   currentLang = lang;
   localStorage.setItem('vox_ui_lang', lang);
@@ -1424,25 +1473,118 @@ async function submitReview(){
 // ═══════════════════════════════════════════════════════
 //  MODAL HELPERS
 // ═══════════════════════════════════════════════════════
+let _modalReturnFocus = null;
 function openModal(id, tab){
-  document.getElementById('modal'+capitalize(id)).classList.add('open');
+  const overlay = document.getElementById('modal'+capitalize(id));
+  overlay.classList.add('open');
   if(tab) switchTab(tab);
   document.body.style.overflow='hidden';
+  // a11y: запомнить, куда вернуть фокус, и сфокусировать первое поле/кнопку
+  _modalReturnFocus = document.activeElement;
+  setTimeout(()=>{
+    // Первое видимое поле ввода; если его нет — первая видимая кнопка (кроме ✕)
+    const candidates = [...overlay.querySelectorAll('input:not([type=hidden]), textarea'),
+                        ...overlay.querySelectorAll('button:not(.modal-close)')];
+    const target = candidates.find(el=>el.offsetParent!==null);
+    if(target) target.focus();
+  }, 60);
 }
 function closeModal(id){
-  document.getElementById(id).classList.remove('open');
+  const overlay = document.getElementById(id);
+  if(!overlay.classList.contains('open')) return;
+  overlay.classList.remove('open');
   document.body.style.overflow='';
+  if(_modalReturnFocus && document.body.contains(_modalReturnFocus)){
+    _modalReturnFocus.focus();
+    _modalReturnFocus = null;
+  }
 }
 function closeModalOnOverlay(e, id){
   if(e.target===document.getElementById(id)) closeModal(id);
 }
 function capitalize(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
 function switchTab(tab){
+  const tabs = document.querySelector('#modalAuth .modal-tabs');
+  if(tabs) tabs.style.display='flex';
+  ['formForgot','formReset'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.style.display='none';
+  });
   ['login','register'].forEach(t=>{
     document.getElementById('tab'+capitalize(t)).classList.toggle('active', t===tab);
     document.getElementById('form'+capitalize(t)).style.display = t===tab?'block':'none';
   });
 }
+
+// ═══════════════════════════════════════════════════════
+//  PASSWORD RESET FLOW
+// ═══════════════════════════════════════════════════════
+let resetToken = null;
+
+function _showAuthView(id){
+  const tabs = document.querySelector('#modalAuth .modal-tabs');
+  if(tabs) tabs.style.display='none';
+  ['formLogin','formRegister','formForgot','formReset'].forEach(f=>{
+    const el = document.getElementById(f);
+    if(el) el.style.display = f===id?'block':'none';
+  });
+}
+
+function showForgotView(){
+  _showAuthView('formForgot');
+  document.getElementById('forgotError').classList.remove('show');
+  document.getElementById('forgotSuccess').classList.remove('show');
+  const em = document.getElementById('loginEmail').value.trim();
+  if(em) document.getElementById('forgotEmail').value = em;
+}
+
+async function doForgot(){
+  const email = document.getElementById('forgotEmail').value.trim();
+  const errEl = document.getElementById('forgotError');
+  const okEl  = document.getElementById('forgotSuccess');
+  errEl.classList.remove('show'); okEl.classList.remove('show');
+  if(!email){errEl.textContent=(currentLang==='en'?'Enter your email':currentLang==='de'?'E-Mail eingeben':'Вкажіть email');errEl.classList.add('show');return;}
+  const btn = document.getElementById('forgotSubmit');
+  btn.disabled=true;btn.classList.add('btn-loading');
+  try{
+    await fetch('/api/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    okEl.textContent = t('forgot_sent');
+    okEl.classList.add('show');
+  }catch(e){ errEl.textContent='Server error'; errEl.classList.add('show'); }
+  btn.disabled=false; btn.classList.remove('btn-loading'); btn.textContent=t('btn_forgot');
+}
+
+async function doResetPassword(){
+  const pass  = document.getElementById('resetPassword').value;
+  const pass2 = document.getElementById('resetPassword2').value;
+  const errEl = document.getElementById('resetError');
+  errEl.classList.remove('show');
+  if(!pass||!pass2){errEl.textContent=(currentLang==='en'?'Fill all fields':currentLang==='de'?'Alle Felder ausfüllen':'Заповніть всі поля');errEl.classList.add('show');return;}
+  if(pass!==pass2){errEl.textContent=(currentLang==='en'?'Passwords do not match':currentLang==='de'?'Passwörter stimmen nicht überein':'Паролі не співпадають');errEl.classList.add('show');return;}
+  const btn = document.getElementById('resetSubmit');
+  btn.disabled=true;btn.classList.add('btn-loading');
+  try{
+    const r = await fetch('/api/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:resetToken,new_password:pass})});
+    const d = await r.json();
+    if(r.ok){
+      resetToken = null;
+      switchTab('login');
+      showToast(t('reset_done'),'success');
+    } else { errEl.textContent=d.detail||'Error'; errEl.classList.add('show'); }
+  }catch(e){ errEl.textContent='Server error'; errEl.classList.add('show'); }
+  btn.disabled=false; btn.classList.remove('btn-loading'); btn.textContent=t('btn_reset');
+}
+
+// Пришли по ссылке из письма: /landing?reset_token=...
+(function(){
+  const rt = new URLSearchParams(location.search).get('reset_token');
+  if(rt){
+    resetToken = rt;
+    history.replaceState(null,'',location.pathname);
+    openModal('auth');
+    _showAuthView('formReset');
+  }
+})();
 document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeModal('modalAuth'); closeModal('modalReview'); } });
 
 // ═══════════════════════════════════════════════════════
@@ -1458,10 +1600,31 @@ function showToast(msg, type=''){
 }
 
 // ═══════════════════════════════════════════════════════
+//  PUBLIC REVIEWS (реальные отзывы вместо статичных)
+// ═══════════════════════════════════════════════════════
+async function loadPublicReviews(){
+  try{
+    const r = await fetch('/api/reviews/public');
+    if(!r.ok) return;
+    const list = await r.json();
+    if(!Array.isArray(list) || !list.length) return; // остаётся приглашение «станьте першим»
+    const esc = s => String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    document.getElementById('publicReviews').innerHTML = list.slice(0,6).map(rv=>{
+      const name = esc((rv.user_name||'').trim() || 'Anonymous');
+      const rating = Math.max(1, Math.min(5, rv.rating|0));
+      const stars = '★'.repeat(rating) + '☆'.repeat(5-rating);
+      const date = esc((rv.created_at||'').slice(0,10));
+      return `<div class="review-card"><div class="review-stars">${stars}</div><p class="review-text">"${esc(rv.text)}"</p><div class="review-author"><div class="review-avatar">${name[0].toUpperCase()}</div><div><div class="review-name">${name}</div><div class="review-date">${date}</div></div></div></div>`;
+    }).join('');
+  }catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════
 setLang(currentLang);
 checkAuth();
+loadPublicReviews();
 function toggleProfilePanel(){
   const panel = document.getElementById('profilePanel');
   panel.style.display = panel.style.display === 'none' ? 'block' : 'none';

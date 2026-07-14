@@ -35,7 +35,9 @@ from room_manager import RoomManager, ParticipantState
 from vox_db import (init_db, register_user, login_user,
                     get_user_by_token, add_review, get_reviews,
                     approve_review, delete_review, get_all_users,
-                    get_finance_settings, set_user_margin)
+                    get_finance_settings, set_user_margin,
+                    get_user_by_email, create_password_reset,
+                    reset_password_by_token)
 
 from pydantic import BaseModel, EmailStr
 import smtplib
@@ -456,6 +458,13 @@ class RegisterBody(BaseModel):
 class LoginBody(BaseModel):
     email: str
     password: str
+
+class ForgotPasswordBody(BaseModel):
+    email: str
+
+class ResetPasswordBody(BaseModel):
+    token: str
+    new_password: str
 
 class ReviewBody(BaseModel):
     rating: int
@@ -2257,6 +2266,50 @@ async def api_login(body: LoginBody):
     return result
 
 
+# Cooldown на запросы сброса пароля: email -> unix time последней отправки.
+# Защита от спама письмами; ответ всегда ok, чтобы не раскрывать наличие email.
+_pw_reset_last_sent: dict = {}
+_PW_RESET_COOLDOWN_SEC = 60
+
+
+@app.post("/api/auth/forgot-password")
+async def api_forgot_password(body: ForgotPasswordBody):
+    email = body.email.lower().strip()
+    if not email:
+        raise HTTPException(400, "Email обов'язковий")
+
+    now = time.time()
+    if now - _pw_reset_last_sent.get(email, 0) < _PW_RESET_COOLDOWN_SEC:
+        # Тот же нейтральный ответ — без утечки информации и без повторного письма
+        return {"ok": True}
+    _pw_reset_last_sent[email] = now
+
+    user = get_user_by_email(email)
+    if user:
+        token = create_password_reset(user["id"])
+        from billing import send_password_reset_email
+        try:
+            await run_in_threadpool(
+                send_password_reset_email, user["email"], user.get("name", ""), token
+            )
+        except Exception as e:
+            logger.warning(f"send_password_reset_email failed: {e}")
+    # Всегда ok: не раскрываем, зарегистрирован ли email
+    return {"ok": True}
+
+
+@app.post("/api/auth/reset-password")
+async def api_reset_password(body: ResetPasswordBody):
+    result = reset_password_by_token(body.token.strip(), body.new_password)
+    if not result["ok"]:
+        errors = {
+            "password_too_short": "Пароль занадто короткий (мін. 6 символів)",
+            "invalid_token": "Посилання недійсне або застаріло. Запросіть нове.",
+        }
+        raise HTTPException(400, errors.get(result["error"], result["error"]))
+    return {"ok": True}
+
+
 @app.get("/api/me")
 async def api_me(authorization: Optional[str] = Header(None)):
     token = (authorization or "").replace("Bearer ", "").strip()
@@ -2292,7 +2345,10 @@ async def api_add_review(
 
 @app.get("/api/reviews/public")
 async def api_public_reviews():
-    return get_reviews(approved_only=True, limit=50)
+    reviews = get_reviews(approved_only=True, limit=50)
+    # Наружу — только публичные поля (без user_email/user_id)
+    public_fields = ("id", "user_name", "rating", "text", "source", "created_at")
+    return [{k: r.get(k) for k in public_fields} for r in reviews]
 
 
 # ===========================================================================

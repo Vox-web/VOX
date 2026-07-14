@@ -326,7 +326,7 @@
                 <div class="card-label" id="joinTitle">Join Room</div>
 
                 <div class="lang-row">
-                    <label id="joinLangLabel">Your language:</label>
+                    <label id="joinLangLabel" for="guestLangSelect">Your language:</label>
                     <select id="guestLangSelect">
                         <option value="en" selected>🇬🇧 English</option>
                         <option value="uk">🇺🇦 Українська</option>
@@ -405,13 +405,13 @@
             <div class="mic-selector" id="guestMicSelectorRow">
                 <label id="guestMicSelectorLabel">🎤</label>
                 <select id="guestMicDeviceSelect" onchange="onGuestMicDeviceChange(this.value)"></select>
-                <button class="mic-refresh-btn" onclick="populateGuestMicDevices()" title="Refresh">↺</button>
+                <button class="mic-refresh-btn" onclick="populateGuestMicDevices()" title="Refresh" aria-label="Refresh">↺</button>
             </div>
 
             <div class="speaker-selector" id="speakerSelectorRow">
                 <label id="speakerSelectorLabel">🔊</label>
                 <select id="speakerDeviceSelect" onchange="onSpeakerDeviceChange(this.value)"></select>
-                <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Refresh">↺</button>
+                <button class="spk-refresh-btn" onclick="populateSpeakerDevices()" title="Refresh" aria-label="Refresh">↺</button>
             </div>
             <div class="speaker-no-support" id="speakerNoSupport"></div>
 
@@ -1999,6 +1999,23 @@
             if (sel) sel.value = micId;
         }
     }
+
+    // Автовыбор языка по браузеру (если нет восстановленной сессии и
+    // пользователь ещё ничего не выбирал сам)
+    (function autoDetectLang() {
+        if (savedSession) return; // язык уже восстановлен из сессии
+        const saved = localStorage.getItem('vox_guest_lang_pref');
+        const sel = document.getElementById('guestLangSelect');
+        const candidate = saved || (navigator.language || '').slice(0, 2).toLowerCase();
+        if (candidate && [...sel.options].some(o => o.value === candidate)) {
+            sel.value = candidate;
+            guestLang = candidate;
+        }
+    })();
+    // Запоминаем осознанный выбор языка для следующих визитов
+    document.getElementById('guestLangSelect').addEventListener('change', (e) => {
+        localStorage.setItem('vox_guest_lang_pref', e.target.value);
+    });
 
     // Init i18n
     applyI18n();
