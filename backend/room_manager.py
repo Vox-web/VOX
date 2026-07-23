@@ -15,7 +15,7 @@ import base64
 import logging
 import secrets
 import string
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
@@ -47,7 +47,7 @@ class Participant:
     language: str                           # "en", "de", "pl", ...
     state: ParticipantState = ParticipantState.LISTENING
     websocket: Optional[WebSocket] = None
-    joined_at: datetime = field(default_factory=datetime.utcnow)
+    joined_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict:
         return {
@@ -67,7 +67,7 @@ class Room:
     host_websocket: Optional[WebSocket] = None
     participants: dict[str, Participant] = field(default_factory=dict)
     active_speaker: Optional[str] = None   # guest_id або None (= хост / ніхто)
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     max_participants: int = 10
     host_disconnected_at: Optional[datetime] = None   # час дропу хоста (grace period)
     _close_task: Optional[asyncio.Task] = field(default=None, repr=False, compare=False)

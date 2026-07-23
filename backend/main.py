@@ -601,7 +601,7 @@ async def get_status():
     return JSONResponse({
         "status": "ok",
         "transcriber": "deepgram",
-        "translator_ready": translator is not None,
+        "translator_ready": True,
         "tts_ready": tts_engine is not None,
         "active_rooms": len(room_manager.rooms) if room_manager else 0,
         "config": session_config,
