@@ -755,7 +755,7 @@ function renderReviews(){
     return;
   }
   const starsStr = n => '★'.repeat(n)+'☆'.repeat(5-n);
-  const esc = s => (s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
   wrap.innerHTML = `
   <table>
@@ -926,7 +926,7 @@ function renderUsersCards(users){
       </div>
       <div class="user-card-actions">
         <button class="act-btn btn-edit" onclick="openEditUser(${u.id})">✏️ Редагувати</button>
-        <button class="act-btn btn-delete" onclick="deleteUser(${u.id},'${esc(u.name)}')">🗑 Видалити</button>
+        <button class="act-btn btn-delete" data-uid="${u.id}" data-uname="${esc(u.name)}" onclick="deleteUser(+this.dataset.uid, this.dataset.uname)">🗑 Видалити</button>
       </div>
     </div>
   `).join('');

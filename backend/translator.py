@@ -462,7 +462,7 @@ class Translator:
             return {}
 
         # Запускаем переводы параллельно
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         tasks = [
             loop.run_in_executor(None, self.translate, text, source_lang, lang)
             for lang in langs

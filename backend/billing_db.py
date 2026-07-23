@@ -91,11 +91,13 @@ def migrate():
 def get_user_balance(user_id: int) -> float:
     """Вернуть текущий баланс пользователя."""
     con = _conn()
-    cur = con.cursor()
-    cur.execute("SELECT balance FROM users WHERE id=?", (user_id,))
-    row = cur.fetchone()
-    con.close()
-    return float(row["balance"]) if row and row["balance"] is not None else 0.0
+    try:
+        cur = con.cursor()
+        cur.execute("SELECT balance FROM users WHERE id=?", (user_id,))
+        row = cur.fetchone()
+        return float(row["balance"]) if row and row["balance"] is not None else 0.0
+    finally:
+        con.close()
 
 
 def update_balance(user_id: int, delta: float) -> float:
@@ -104,18 +106,20 @@ def update_balance(user_id: int, delta: float) -> float:
     Возвращает новый баланс.
     """
     con = _conn()
-    cur = con.cursor()
-    cur.execute(
-        "UPDATE users SET balance = ROUND(balance + ?, 6) WHERE id=?",
-        (delta, user_id)
-    )
-    con.commit()
-    cur.execute("SELECT balance FROM users WHERE id=?", (user_id,))
-    row = cur.fetchone()
-    con.close()
-    new_bal = float(row["balance"]) if row else 0.0
-    logger.info(f"💰 balance update: user_id={user_id} delta={delta:+.4f} new={new_bal:.4f}")
-    return new_bal
+    try:
+        cur = con.cursor()
+        cur.execute(
+            "UPDATE users SET balance = ROUND(balance + ?, 6) WHERE id=?",
+            (delta, user_id)
+        )
+        con.commit()
+        cur.execute("SELECT balance FROM users WHERE id=?", (user_id,))
+        row = cur.fetchone()
+        new_bal = float(row["balance"]) if row else 0.0
+        logger.info(f"💰 balance update: user_id={user_id} delta={delta:+.4f} new={new_bal:.4f}")
+        return new_bal
+    finally:
+        con.close()
 
 
 def deduct_session_cost(user_id: int, mode: str, guests: int) -> float:
@@ -127,14 +131,16 @@ def deduct_session_cost(user_id: int, mode: str, guests: int) -> float:
     """
     try:
         con = _conn()
-        cur = con.cursor()
-        cur.execute(
-            "SELECT price_per_min FROM user_finance_settings WHERE user_id=?",
-            (user_id,)
-        )
-        row = cur.fetchone()
-        price_per_min = float(row["price_per_min"]) if row and row["price_per_min"] else 0.05
-        con.close()
+        try:
+            cur = con.cursor()
+            cur.execute(
+                "SELECT price_per_min FROM user_finance_settings WHERE user_id=?",
+                (user_id,)
+            )
+            row = cur.fetchone()
+            price_per_min = float(row["price_per_min"]) if row and row["price_per_min"] else 0.05
+        finally:
+            con.close()
     except Exception:
         price_per_min = 0.05
 
@@ -152,13 +158,15 @@ def generate_verify_token(user_id: int) -> str:
     """Генерировать и сохранить токен верификации email."""
     token = secrets.token_urlsafe(32)
     con = _conn()
-    con.execute(
-        "UPDATE users SET email_verify_token=?, is_email_verified=0 WHERE id=?",
-        (token, user_id)
-    )
-    con.commit()
-    con.close()
-    return token
+    try:
+        con.execute(
+            "UPDATE users SET email_verify_token=?, is_email_verified=0 WHERE id=?",
+            (token, user_id)
+        )
+        con.commit()
+        return token
+    finally:
+        con.close()
 
 
 def verify_email_token(token: str) -> dict:
@@ -390,15 +398,16 @@ def get_account_start_status(user_id: int) -> dict:
 def create_payment_record(user_id: int, session_id: str, amount_usd: float) -> int:
     """Создать запись о платеже со статусом 'pending'."""
     con = _conn()
-    cur = con.cursor()
-    cur.execute(
-        "INSERT INTO payments (user_id, stripe_session_id, amount, status) VALUES (?,?,?,'pending')",
-        (user_id, session_id, amount_usd)
-    )
-    con.commit()
-    row_id = cur.lastrowid
-    con.close()
-    return row_id
+    try:
+        cur = con.cursor()
+        cur.execute(
+            "INSERT INTO payments (user_id, stripe_session_id, amount, status) VALUES (?,?,?,'pending')",
+            (user_id, session_id, amount_usd)
+        )
+        con.commit()
+        return cur.lastrowid
+    finally:
+        con.close()
 
 
 def confirm_stripe_payment(session_id: str) -> bool:
@@ -407,77 +416,89 @@ def confirm_stripe_payment(session_id: str) -> bool:
     - Обновить статус на 'completed'
     - Начислить баланс пользователю
     Возвращает True если платёж найден и ещё не был подтверждён.
+    BEGIN IMMEDIATE гарантирует атомарность: параллельные webhook-повторы от Stripe
+    не смогут одновременно пройти проверку status != 'completed'.
     """
     con = _conn()
-    cur = con.cursor()
-    cur.execute(
-        "SELECT id, user_id, amount, status FROM payments WHERE stripe_session_id=?",
-        (session_id,)
-    )
-    row = cur.fetchone()
-    if not row:
-        con.close()
-        logger.warning(f"⚠️ confirm_stripe: session_id={session_id} не найден")
-        return False
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        cur = con.cursor()
+        cur.execute(
+            "SELECT id, user_id, amount, status FROM payments WHERE stripe_session_id=?",
+            (session_id,)
+        )
+        row = cur.fetchone()
+        if not row:
+            con.rollback()
+            logger.warning(f"⚠️ confirm_stripe: session_id={session_id} не найден")
+            return False
 
-    if row["status"] == "completed":
-        con.close()
-        logger.info(f"ℹ️ confirm_stripe: session_id={session_id} уже подтверждён")
-        return False
+        if row["status"] == "completed":
+            con.rollback()
+            logger.info(f"ℹ️ confirm_stripe: session_id={session_id} уже подтверждён")
+            return False
 
-    # Обновляем статус
-    con.execute(
-        "UPDATE payments SET status='completed' WHERE stripe_session_id=?",
-        (session_id,)
-    )
-    # Начисляем баланс
-    con.execute(
-        "UPDATE users SET balance = ROUND(balance + ?, 6) WHERE id=?",
-        (row["amount"], row["user_id"])
-    )
-    con.commit()
-    con.close()
-    logger.info(f"✅ confirm_stripe: user={row['user_id']} +${row['amount']:.2f}")
-    return True
+        con.execute(
+            "UPDATE payments SET status='completed' WHERE stripe_session_id=?",
+            (session_id,)
+        )
+        con.execute(
+            "UPDATE users SET balance = ROUND(balance + ?, 6) WHERE id=?",
+            (row["amount"], row["user_id"])
+        )
+        con.commit()
+        logger.info(f"✅ confirm_stripe: user={row['user_id']} +${row['amount']:.2f}")
+        return True
+    except Exception as e:
+        con.rollback()
+        logger.error(f"confirm_stripe_payment: {e}")
+        return False
+    finally:
+        con.close()
 
 
 def get_all_payments(limit: int = 200) -> list:
     """Вернуть список всех платежей для админки."""
     con = _conn()
-    cur = con.cursor()
-    cur.execute("""
-        SELECT p.id, p.user_id, u.email, u.name,
-               p.stripe_session_id, p.amount, p.status, p.created_at
-        FROM payments p
-        LEFT JOIN users u ON u.id = p.user_id
-        ORDER BY p.created_at DESC
-        LIMIT ?
-    """, (limit,))
-    rows = [dict(r) for r in cur.fetchall()]
-    con.close()
-    return rows
+    try:
+        cur = con.cursor()
+        cur.execute("""
+            SELECT p.id, p.user_id, u.email, u.name,
+                   p.stripe_session_id, p.amount, p.status, p.created_at
+            FROM payments p
+            LEFT JOIN users u ON u.id = p.user_id
+            ORDER BY p.created_at DESC
+            LIMIT ?
+        """, (limit,))
+        return [dict(r) for r in cur.fetchall()]
+    finally:
+        con.close()
 
 
 def admin_adjust_balance(user_id: int, new_balance: float) -> bool:
     """Установить баланс вручную (для админки)."""
     con = _conn()
-    cur = con.cursor()
-    cur.execute("UPDATE users SET balance=? WHERE id=?", (round(new_balance, 4), user_id))
-    changed = cur.rowcount > 0
-    con.commit()
-    con.close()
-    logger.info(f"🔧 admin_adjust: user={user_id} new_balance={new_balance}")
-    return changed
+    try:
+        cur = con.cursor()
+        cur.execute("UPDATE users SET balance=? WHERE id=?", (round(new_balance, 4), user_id))
+        changed = cur.rowcount > 0
+        con.commit()
+        logger.info(f"🔧 admin_adjust: user={user_id} new_balance={new_balance}")
+        return changed
+    finally:
+        con.close()
 
 
 def get_user_by_id(user_id: int) -> dict | None:
     """Получить пользователя по id."""
     con = _conn()
-    cur = con.cursor()
-    cur.execute("SELECT id, email, name, balance, is_email_verified, bonus_given FROM users WHERE id=?", (user_id,))
-    row = cur.fetchone()
-    con.close()
-    return dict(row) if row else None
+    try:
+        cur = con.cursor()
+        cur.execute("SELECT id, email, name, balance, is_email_verified, bonus_given FROM users WHERE id=?", (user_id,))
+        row = cur.fetchone()
+        return dict(row) if row else None
+    finally:
+        con.close()
 
 
 # ---------------------------------------------------------------------------

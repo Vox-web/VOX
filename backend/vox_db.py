@@ -16,7 +16,7 @@ import sqlite3
 import hashlib
 import secrets
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -98,7 +98,7 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 def create_session_token(user_id: int, days: int = 30) -> str:
     token = secrets.token_urlsafe(32)
-    expires = (datetime.utcnow() + timedelta(days=days)).isoformat()
+    expires = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
     with get_db() as conn:
         conn.execute(
             "INSERT INTO sessions (token, user_id, expires_at) VALUES (?,?,?)",
@@ -147,7 +147,7 @@ def get_user_by_token(token: str) -> Optional[dict]:
         row = conn.execute("""
             SELECT u.id, u.email, u.name, u.created_at
             FROM sessions s JOIN users u ON s.user_id = u.id
-            WHERE s.token = ? AND s.expires_at > datetime('now')
+            WHERE s.token = ? AND s.expires_at > datetime('now') AND u.is_active = 1
         """, (token,)).fetchone()
     return dict(row) if row else None
 
@@ -165,7 +165,7 @@ def get_user_by_email(email: str) -> Optional[dict]:
 def create_password_reset(user_id: int, ttl_minutes: int = 60) -> str:
     """Создать одноразовый токен сброса пароля (старые токены пользователя гасятся)."""
     token = secrets.token_urlsafe(32)
-    expires = (datetime.utcnow() + timedelta(minutes=ttl_minutes)).isoformat()
+    expires = (datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)).isoformat()
     with get_db() as conn:
         conn.execute("UPDATE password_resets SET used=1 WHERE user_id=? AND used=0", (user_id,))
         conn.execute(

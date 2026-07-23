@@ -80,7 +80,9 @@ def _check_admin(authorization: Optional[str]):
     """Проверить Basic-авторизацию админа (идентична main.py)."""
     import base64
     admin_login = os.getenv("ADMIN_LOGIN", "admin")
-    admin_password = os.getenv("ADMIN_PASSWORD", "kozerog")
+    admin_password = os.getenv("ADMIN_PASSWORD", "")
+    if not admin_password:
+        raise HTTPException(503, "Admin not configured")
     if not authorization:
         raise HTTPException(401, "Unauthorized")
     try:
@@ -533,8 +535,8 @@ async def api_stripe_webhook(request: Request):
         raise HTTPException(503, "Stripe не настроен")
 
     if not STRIPE_WEBHOOK_SECRET:
-        logger.warning("⚠️ STRIPE_WEBHOOK_SECRET не задан — webhook не верифицируется")
-        event = json.loads(payload)
+        logger.error("❌ STRIPE_WEBHOOK_SECRET не задан — webhook отклонён")
+        raise HTTPException(500, "Webhook не настроен: STRIPE_WEBHOOK_SECRET отсутствует")
     else:
         try:
             event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)

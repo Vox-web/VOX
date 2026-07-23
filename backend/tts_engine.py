@@ -151,7 +151,7 @@ class TTSEngine:
         Returns:
             {lang_code: mp3_bytes}
         """
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         tasks = [
             loop.run_in_executor(None, self.synthesize, text, lang)
             for lang, text in translations.items()

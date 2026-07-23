@@ -14,6 +14,7 @@ import json
 import time
 import asyncio
 import logging
+from html import escape as _html_escape
 from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -189,15 +190,19 @@ async def api_contact(body: ContactBody):
         raise HTTPException(status_code=500, detail="GMAIL_USER або GMAIL_APP_PASSWORD не задано")
 
     subject_line = body.subject.strip() if body.subject.strip() else "No subject"
-    safe_message = body.message.replace("\n", "<br>")
+    safe_name    = _html_escape(body.name)
+    safe_email   = _html_escape(str(body.email))
+    safe_lang    = _html_escape(body.lang)
+    safe_subject = _html_escape(subject_line)
+    safe_message = _html_escape(body.message).replace("\n", "<br>")
 
-    html = f"""
+    email_html = f"""
     <div style="font-family:Arial,sans-serif;line-height:1.6">
       <h2>New contact form submission from VOX</h2>
-      <p><strong>Name:</strong> {body.name}</p>
-      <p><strong>Email:</strong> {body.email}</p>
-      <p><strong>Language:</strong> {body.lang}</p>
-      <p><strong>Subject:</strong> {subject_line}</p>
+      <p><strong>Name:</strong> {safe_name}</p>
+      <p><strong>Email:</strong> {safe_email}</p>
+      <p><strong>Language:</strong> {safe_lang}</p>
+      <p><strong>Subject:</strong> {safe_subject}</p>
       <hr />
       <p><strong>Message:</strong></p>
       <p>{safe_message}</p>
@@ -205,11 +210,11 @@ async def api_contact(body: ContactBody):
     """
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"VOX Contact Form [{body.lang.upper()}] from {body.name}: {subject_line}"
+    msg["Subject"] = f"VOX Contact Form [{_html_escape(body.lang.upper())}] from {_html_escape(body.name)}: {safe_subject}"
     msg["From"]    = f"VOX <{gmail_user}>"
     msg["To"]      = owner_email
     msg["Reply-To"] = body.email
-    msg.attach(MIMEText(html, "html", "utf-8"))
+    msg.attach(MIMEText(email_html, "html", "utf-8"))
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=5) as server:
@@ -481,7 +486,9 @@ class UpdateUserBody(BaseModel):
     new_balance: Optional[float] = None    
 
 ADMIN_LOGIN    = os.getenv("ADMIN_LOGIN", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "kozerog")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+if not ADMIN_PASSWORD:
+    logger.warning("⚠️ ADMIN_PASSWORD не задан — admin endpoints недоступны!")
 
 
 # ===========================================================================
@@ -880,14 +887,24 @@ def _infer_duo_source_lang(text: str, detected: str, lang_a: str, lang_b: str) -
 
     return detected
 
+_tts_openai_client = None
+
+
+def _get_tts_openai_client():
+    global _tts_openai_client
+    if _tts_openai_client is None:
+        from openai import OpenAI
+        _tts_openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    return _tts_openai_client
+
+
 async def _tts_buffer_flush(buffer: list, target_lang: str, ws: WebSocket):
     if not buffer:
         return
     combined = " ".join(buffer)
     buffer.clear()
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = _get_tts_openai_client()
         lang_names = {
             "uk": "Ukrainian", "ru": "Russian", "en": "English",
             "de": "German", "pl": "Polish", "fr": "French",
@@ -995,8 +1012,10 @@ async def websocket_duo(ws: WebSocket):
                 lang_a = msg.get("lang_a", lang_a)
                 lang_b = msg.get("lang_b", lang_b)
                 session_tts_enabled = bool(msg.get("tts_enabled", session_tts_enabled))
-    except (asyncio.TimeoutError, Exception):
-        pass
+    except asyncio.TimeoutError:
+        pass  # анонимный клиент — auth сообщение необязательно
+    except Exception as e:
+        logger.warning("Duo one-device: init handshake error: %s", e)
 
     if not _auth_ok:
         await ws.close()
@@ -1447,8 +1466,10 @@ async def websocket_solo(ws: WebSocket):
                     solo_target_lang = first["target_lang"]
                 if "tts_enabled" in first:
                     session_tts_enabled = bool(first["tts_enabled"])
-    except (asyncio.TimeoutError, Exception):
-        pass
+    except asyncio.TimeoutError:
+        pass  # анонимный клиент — auth сообщение необязательно
+    except Exception as e:
+        logger.warning("Solo: init handshake error: %s", e)
 
     if not _auth_ok:
         await ws.close()
@@ -1705,15 +1726,7 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
         await ws.close(code=4004, reason="Room not found")
         return
 
-    # Reconnect: якщо хост повертається в межах grace period
-    if room.host_disconnected_at is not None:
-        room_manager.host_reconnected(room_id, ws)
-        logger.info(f"🔄 Хост перепідключився до кімнати '{room_id}'")
-    else:
-        room.host_websocket = ws
-        logger.info(f"🔌 Хост подключён к комнате '{room_id}'")
-
-    # Billing auth must be resolved before starting the paid Deepgram stream.
+    # Auth ПЕРЕД добавлением ws в комнату — предотвращает перехват чужой комнаты.
     _user_id = None
     _auth_ok = True
 
@@ -1733,6 +1746,14 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
     if not await _enforce_account_start(ws, _user_id):
         await ws.close()
         return
+
+    # Только после успешного auth подключаем ws к комнате
+    if room.host_disconnected_at is not None:
+        room_manager.host_reconnected(room_id, ws)
+        logger.info(f"🔄 Хост перепідключився до кімнати '{room_id}'")
+    else:
+        room.host_websocket = ws
+        logger.info(f"🔌 Хост подключён к комнате '{room_id}'")
 
     billing_handle = await _begin_session_billing(
         ws,
@@ -2279,6 +2300,11 @@ async def api_forgot_password(body: ForgotPasswordBody):
         raise HTTPException(400, "Email обов'язковий")
 
     now = time.time()
+    # Очищаем устаревшие записи, чтобы dict не рос бесконечно
+    stale = [k for k, v in _pw_reset_last_sent.items() if now - v > _PW_RESET_COOLDOWN_SEC * 2]
+    for k in stale:
+        _pw_reset_last_sent.pop(k, None)
+
     if now - _pw_reset_last_sent.get(email, 0) < _PW_RESET_COOLDOWN_SEC:
         # Тот же нейтральный ответ — без утечки информации и без повторного письма
         return {"ok": True}

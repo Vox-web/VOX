@@ -13,8 +13,8 @@ import asyncio
 import io
 import base64
 import logging
+import secrets
 import string
-import random
 from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
@@ -108,7 +108,7 @@ class RoomManager:
     @staticmethod
     def _generate_room_id(length: int = 6) -> str:
         chars = string.ascii_lowercase + string.digits
-        return "".join(random.choices(chars, k=length))
+        return "".join(secrets.choice(chars) for _ in range(length))
 
     @staticmethod
     def _generate_guest_id() -> str:
