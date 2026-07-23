@@ -179,23 +179,29 @@ def reset_password_by_token(token: str, new_password: str) -> dict:
     """Установить новый пароль по токену. Инвалидирует токен и все сессии пользователя."""
     if len(new_password) < 6:
         return {"ok": False, "error": "password_too_short"}
-    with get_db() as conn:
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
             "SELECT user_id FROM password_resets "
             "WHERE token=? AND used=0 AND expires_at > datetime('now')",
             (token,)
         ).fetchone()
         if not row:
+            conn.rollback()
             return {"ok": False, "error": "invalid_token"}
         user_id = row["user_id"]
-        conn.execute(
-            "UPDATE users SET password_hash=? WHERE id=?",
-            (hash_password(new_password), user_id)
-        )
+        conn.execute("UPDATE users SET password_hash=? WHERE id=?", (hash_password(new_password), user_id))
         conn.execute("UPDATE password_resets SET used=1 WHERE user_id=?", (user_id,))
-        # После смены пароля старые сессии недействительны
         conn.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
-    return {"ok": True, "user_id": user_id}
+        conn.commit()
+        return {"ok": True, "user_id": user_id}
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"reset_password_by_token: {e}")
+        return {"ok": False, "error": "db_error"}
+    finally:
+        conn.close()
 
 
 def add_review(

@@ -138,7 +138,8 @@ async def lifespan(app: FastAPI):
                     p.websocket for p in room.participants.values()
                 )
                 host_gone = room.host_disconnected_at is not None
-                age = now - getattr(room, "created_at_ts", now)
+                created_at = getattr(room, "created_at", None)
+                age = (now - created_at.timestamp()) if created_at is not None else 0
                 if no_guests and host_gone and age > 3600:
                     await room_manager.close_room(room_id)
                     logger.info("🧹 TTL: удалена заброшенная комната %s", room_id)
@@ -1514,12 +1515,15 @@ async def websocket_solo(ws: WebSocket):
         await ws.close()
         return
 
+    dg = DeepgramTranscriber()
     billing_handle = await _begin_session_billing(
         ws, ("solo", _user_id), _user_id, "solo"
     )
-
-    dg = DeepgramTranscriber()
-    await dg.start(language=solo_source_lang or "uk")
+    try:
+        await dg.start(language=solo_source_lang or "uk")
+    except Exception:
+        await _billing_coordinator.stop(billing_handle)
+        raise
     last_solo_seen_final_text = ""
     # Фактическая частота входного аудио из браузера. Раньше Solo полагался
     # только на AudioContext(16000), но Android/Safari часто его игнорируют —
@@ -1783,6 +1787,13 @@ async def websocket_room_host(ws: WebSocket, room_id: str):
         room_manager.host_reconnected(room_id, ws)
         logger.info(f"🔄 Хост перепідключився до кімнати '{room_id}'")
     else:
+        # Если старый хост всё ещё подключён — уведомляем его перед заменой
+        if room.host_websocket is not None:
+            try:
+                await room.host_websocket.send_json({"type": "replaced", "reason": "new_connection"})
+                await room.host_websocket.close(1000, "replaced")
+            except Exception:
+                pass
         room.host_websocket = ws
         logger.info(f"🔌 Хост подключён к комнате '{room_id}'")
 
