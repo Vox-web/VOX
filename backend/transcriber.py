@@ -63,6 +63,40 @@ class DeepgramTranscriber:
         await dg.stop()
     """
 
+    # Признаки незавершённого хвоста фразы для _can_synthetic_commit.
+    # Вынесен на уровень класса чтобы не компилировать regex при каждом вызове.
+    _INCOMPLETE_TAIL_RE = re.compile(
+        r"""(?ix)
+        (?:
+            # RU / UK
+            \b(?:и|й|та|або|чи|але|проте|однак|що|як|якщо|тому|адже|бо|
+                но|или|либо|а|что|как|если|потому|ведь|же|ли|бы)\b |
+            # DE
+            \b(?:und|oder|aber|dass|weil|wenn|denn|als|ob|zu|mit|für|von|bei|nach|auf|an|in|
+                ein|eine|einen|einem|einer|eines|
+                der|die|das|den|dem|des|
+                mein|meine|meinen|meinem|meiner|
+                dein|deine|deinen|deinem|deiner|
+                sein|seine|seinen|seinem|seiner|
+                ihr|ihre|ihren|ihrem|ihrer|
+                unser|unsere|unseren|unserem|unserer|
+                euer|eure|euren|eurem|eurer|
+                irgendein|irgendeine|irgendeinen|irgendeinem|irgendeiner)\b |
+            # EN
+            \b(?:and|or|but|that|which|who|if|because|so|with|for|to|from|in|on|at|by|of|
+                a|an|the|this|these|those|my|your|his|her|our|their|some|any)\b |
+            # FR / ES / IT / PT — базовая защита
+            \b(?:et|ou|mais|que|si|car|avec|pour|de|du|des|un|une|le|la|les|
+                y|o|pero|que|si|con|para|de|del|un|una|el|la|los|las|
+                e|o|ma|che|se|con|per|di|un|una|il|lo|la|gli|le|
+                e|ou|mas|que|se|com|para|de|do|da|um|uma|o|a|os|as)\b |
+            # Запятая / тире / двоеточие / точка с запятой в конце
+            [,\-–—:;]
+        )\s*$
+        """,
+        re.IGNORECASE | re.VERBOSE,
+    )
+
     def __init__(self):
         self.api_key = os.getenv("DEEPGRAM_API_KEY")
         if not self.api_key:
@@ -146,40 +180,7 @@ class DeepgramTranscriber:
         if tail_char in ".!?…":
             return True
 
-        # Явно незавершённый хвост
-        incomplete_tail_re = re.compile(
-            r"""(?ix)
-            (?:
-                # RU / UK
-                \b(?:и|й|та|або|чи|але|проте|однак|що|як|якщо|тому|адже|бо|
-                    но|или|либо|а|что|как|если|потому|ведь|же|ли|бы)\b |
-                # DE
-                \b(?:und|oder|aber|dass|weil|wenn|denn|als|ob|zu|mit|für|von|bei|nach|auf|an|in|
-                    ein|eine|einen|einem|einer|eines|
-                    der|die|das|den|dem|des|
-                    mein|meine|meinen|meinem|meiner|
-                    dein|deine|deinen|deinem|deiner|
-                    sein|seine|seinen|seinem|seiner|
-                    ihr|ihre|ihren|ihrem|ihrer|
-                    unser|unsere|unseren|unserem|unserer|
-                    euer|eure|euren|eurem|eurer|
-                    irgendein|irgendeine|irgendeinen|irgendeinem|irgendeiner)\b |
-                # EN
-                \b(?:and|or|but|that|which|who|if|because|so|with|for|to|from|in|on|at|by|of|
-                    a|an|the|this|these|those|my|your|his|her|our|their|some|any)\b |
-                # FR / ES / IT / PT — базовая защита
-                \b(?:et|ou|mais|que|si|car|avec|pour|de|du|des|un|une|le|la|les|
-                    y|o|pero|que|si|con|para|de|del|un|una|el|la|los|las|
-                    e|o|ma|che|se|con|per|di|un|una|il|lo|la|gli|le|
-                    e|ou|mas|que|se|com|para|de|do|da|um|uma|o|a|os|as)\b |
-                # Запятая / тире / двоеточие / точка с запятой в конце
-                [,\-–—:;]
-            )\s*$
-            """,
-            re.IGNORECASE | re.VERBOSE,
-        )
-
-        if incomplete_tail_re.search(normalized):
+        if self._INCOMPLETE_TAIL_RE.search(normalized):
             return False
 
         # Без сильной пунктуации коммитим только уже зрелый кусок,

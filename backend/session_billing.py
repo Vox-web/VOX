@@ -32,6 +32,7 @@ class BillingCoordinator:
         guest_count: Callable[[], int] = lambda: 0,
         on_balance: Callable[[float, int], Awaitable[None]],
         on_error: Callable[[Exception], Awaitable[None]],
+        get_balance: Callable[[int], float] | None = None,
     ) -> BillingHandle:
         previous = self._active.get(key)
         if previous:
@@ -41,7 +42,7 @@ class BillingCoordinator:
 
         owner = object()
         task = asyncio.create_task(
-            self._run(user_id, mode, deduct, guest_count, on_balance, on_error)
+            self._run(user_id, mode, deduct, guest_count, on_balance, on_error, get_balance)
         )
         handle = BillingHandle(key=key, owner=owner, task=task)
         self._active[key] = handle
@@ -64,13 +65,19 @@ class BillingCoordinator:
         if current is not None and current.owner is owner:
             self._active.pop(key, None)
 
-    async def _run(self, user_id, mode, deduct, guest_count, on_balance, on_error):
+    async def _run(self, user_id, mode, deduct, guest_count, on_balance, on_error, get_balance=None):
         while True:
             try:
                 if mode == "room" and max(0, int(guest_count())) == 0:
                     # A billable minute starts only while somebody is listening.
                     await self._sleep(1)
                     continue
+                # Pre-flight: если баланс уже нулевой — завершить сразу, не ждать минуту.
+                if get_balance is not None:
+                    current = get_balance(user_id)
+                    if current <= 0:
+                        await on_balance(current, max(0, int(guest_count())))
+                        return
                 # Billing is postpaid: no charge until a full minute has elapsed.
                 await self._sleep(60)
                 guests = max(0, int(guest_count()))

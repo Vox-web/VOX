@@ -328,6 +328,10 @@ class Translator:
             store_context=True,
             use_cache=True,
         )
+
+    def translate_no_context(self, text: str, source_lang: str, target_lang: str) -> str:
+        """Перевести без записи в контекст — для параллельных вызовов."""
+        return self._translate_raw(text, source_lang, target_lang, store_context=False)
         
     def translate_with_semantic_gate(self, text: str, source_lang: str, target_lang: str) -> dict:
         """
@@ -461,12 +465,17 @@ class Translator:
         if not langs:
             return {}
 
-        # Запускаем переводы параллельно
+        # Переводим параллельно без записи каждого варианта в контекст — иначе
+        # при 5 языках одна фраза добавляла бы 5 записей и засоряла контекст.
         loop = asyncio.get_running_loop()
         tasks = [
-            loop.run_in_executor(None, self.translate, text, source_lang, lang)
+            loop.run_in_executor(None, self.translate_no_context, text, source_lang, lang)
             for lang in langs
         ]
         results = await asyncio.gather(*tasks)
+
+        # Добавляем в контекст один раз от лица первого языка
+        if results:
+            self._context_append(text, results[0])
 
         return dict(zip(langs, results))

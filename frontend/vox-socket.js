@@ -79,6 +79,7 @@
 
     _handleMessage(data, event) {
       const code = data && typeof data === 'object' && (data.code || data.reason);
+      const msgType = data && typeof data === 'object' && data.type;
       if (typeof this.onmessage === 'function') {
         const payload = data instanceof ArrayBuffer || typeof data === 'string'
           ? data
@@ -93,6 +94,9 @@
         this.connection.markTerminal(STATES.AUTH_REQUIRED, { reason: code });
       } else if (code === 'billing_unavailable') {
         this.connection.markTerminal(STATES.BILLING_UNAVAILABLE, { reason: code });
+      } else if (msgType === 'host_left') {
+        // Хост явно завершил сессию — reconnect не нужен
+        this.connection.markTerminal(STATES.CLOSED, { reason: 'host_left' });
       }
     }
 

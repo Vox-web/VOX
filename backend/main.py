@@ -60,7 +60,6 @@ logger = logging.getLogger("vox")
 # ---------------------------------------------------------------------------
 # Глобальные компоненты
 # ---------------------------------------------------------------------------
-translator: Translator | None = None
 tts_engine: TTSEngine | None = None
 room_manager: RoomManager | None = None
 
@@ -68,7 +67,7 @@ room_manager: RoomManager | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Инициализация компонентов при старте сервера."""
-    global translator, tts_engine, room_manager
+    global tts_engine, room_manager
 
     logger.info("🚀 VOX сервер запускается...")
 
@@ -82,9 +81,6 @@ async def lifespan(app: FastAPI):
         logger.error("❌ DEEPGRAM_API_KEY не задан! Добавьте в .env")
     else:
         logger.info("✅ Deepgram API key найден")
-
-    translator = Translator()
-    logger.info("✅ Переводчик готов")
 
     tts_engine = TTSEngine()
     logger.info("✅ TTS движок готов")
@@ -130,11 +126,30 @@ async def lifespan(app: FastAPI):
                     _duo_sessions.pop(duo_id, None)
                     logger.info(f"🧹 TTL: удалена мёртвая Duo-сессия {duo_id}")
 
+    async def _room_ttl_cleanup():
+        while True:
+            await asyncio.sleep(300)
+            now = time.time()
+            for room_id in list(room_manager.rooms):
+                room = room_manager.rooms.get(room_id)
+                if not room:
+                    continue
+                no_guests = not any(
+                    p.websocket for p in room.participants.values()
+                )
+                host_gone = room.host_disconnected_at is not None
+                age = now - getattr(room, "created_at_ts", now)
+                if no_guests and host_gone and age > 3600:
+                    await room_manager.close_room(room_id)
+                    logger.info("🧹 TTL: удалена заброшенная комната %s", room_id)
+
     app.state.duo_cleanup_task = asyncio.create_task(_duo_ttl_cleanup())
+    app.state.room_cleanup_task = asyncio.create_task(_room_ttl_cleanup())
     logger.info("🟢 VOX сервер готов к работе!")
     yield
 
     app.state.duo_cleanup_task.cancel()
+    app.state.room_cleanup_task.cancel()
     if room_manager:
         for room_id in list(room_manager.rooms.keys()):
             await room_manager.close_room(room_id)
@@ -393,7 +408,7 @@ async def _begin_session_billing(ws, key, user_id, mode, guest_count=lambda: 0):
     if not user_id:
         return None
 
-    from billing_db import deduct_session_cost, get_balance_warning
+    from billing_db import deduct_session_cost, get_balance_warning, get_user_balance
 
     async def on_balance(new_balance, guests):
         logger.info(
@@ -441,6 +456,7 @@ async def _begin_session_billing(ws, key, user_id, mode, guest_count=lambda: 0):
         guest_count=guest_count,
         on_balance=on_balance,
         on_error=on_error,
+        get_balance=get_user_balance,
     )
 
 # ---------------------------------------------------------------------------
@@ -1197,8 +1213,6 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
         await ws.send_json({"type": "error", "message": "Duo session not found"})
         await ws.close(); return
 
-    session.host_ws = ws
-    session.host_disconnected_at = None
     _user_id = None
     _auth_ok = True
 
@@ -1208,11 +1222,17 @@ async def websocket_duo_host(ws: WebSocket, duo_id: str):
             first = json.loads(first_raw["text"])
             if first.get("type") == "auth":
                 _auth_ok, _user_id = await _resolve_session_user(ws, first.get("token", ""))
-    except (asyncio.TimeoutError, Exception):
+    except asyncio.TimeoutError:
         pass
+    except Exception as e:
+        logger.warning("Duo remote host: init handshake error: %s", e)
 
     if not _auth_ok:
         await ws.close(); return
+
+    # Подключаем WS к сессии только после успешного auth
+    session.host_ws = ws
+    session.host_disconnected_at = None
 
     # Гейт баланса ДО старта платной транскрипции.
     if not await _enforce_account_start(ws, _user_id):
@@ -1315,6 +1335,12 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
         await ws.close()
         return
 
+    # Закрываем предыдущее гостевое соединение при быстром reconnect
+    if session.guest_ws and session.guest_ws is not ws:
+        try:
+            await session.guest_ws.close(1001, "replaced")
+        except Exception:
+            pass
     session.guest_ws = ws
     await ws.send_json({"type": "duo_ready", "lang_a": session.lang_a, "lang_b": session.lang_b})
 
@@ -1452,14 +1478,17 @@ async def websocket_solo(ws: WebSocket):
     _auth_ok = True
 
     try:
-        first_raw = await asyncio.wait_for(ws.receive(), timeout=5.0)
-        if first_raw.get("text"):
+        # Читаем до 2 сообщений: auth и config могут прийти в любом порядке
+        for _ in range(2):
+            first_raw = await asyncio.wait_for(ws.receive(), timeout=2.0)
+            if not first_raw.get("text"):
+                continue
             first = json.loads(first_raw["text"])
+            msg_type = first.get("type")
 
-            if first.get("type") == "auth":
+            if msg_type == "auth":
                 _auth_ok, _user_id = await _resolve_session_user(ws, first.get("token", ""))
-
-            elif first.get("type") == "config":
+            elif msg_type == "config":
                 if first.get("source_lang"):
                     solo_source_lang = first["source_lang"]
                 if first.get("target_lang"):
@@ -1467,7 +1496,7 @@ async def websocket_solo(ws: WebSocket):
                 if "tts_enabled" in first:
                     session_tts_enabled = bool(first["tts_enabled"])
     except asyncio.TimeoutError:
-        pass  # анонимный клиент — auth сообщение необязательно
+        pass  # анонимный клиент или только один тип сообщения
     except Exception as e:
         logger.warning("Solo: init handshake error: %s", e)
 
@@ -1564,6 +1593,8 @@ async def websocket_solo(ws: WebSocket):
                             "🧠 [SOLO_SEMANTIC] commit_final → flush_all добавил %d пакетов",
                             len(extra),
                         )
+                    # Сбрасываем аккумулятор — следующий cumulative preview начинается заново
+                    last_solo_seen_final_text = ""
 
                 logger.info(
                     "🧠 [SOLO_SEMANTIC] final text=%r incremental=%r packets=%d "
@@ -2204,14 +2235,14 @@ async def _process_room_speech(
         target_langs.add(host_lang)
 
     if not target_langs:
-        await room_manager.broadcast_translation(
+        await asyncio.shield(room_manager.broadcast_translation(
             room=room,
             transcript_text=result.text,
             source_lang=source_lang,
             translations={},
             audio_chunks={},
             speaker_guest_id=speaker_guest_id,
-        )
+        ))
         return {}
 
     translations = await translator.translate_parallel(
@@ -2219,14 +2250,14 @@ async def _process_room_speech(
     )
     audio_chunks = await tts_engine.synthesize_parallel(translations)
 
-    await room_manager.broadcast_translation(
+    await asyncio.shield(room_manager.broadcast_translation(
         room=room,
         transcript_text=result.text,
         source_lang=source_lang,
         translations=translations,
         audio_chunks=audio_chunks,
         speaker_guest_id=speaker_guest_id,
-    )
+    ))
 
     logger.info(
         f"📢 Комната '{room.room_id}': "
@@ -2457,11 +2488,9 @@ async def admin_update_user(
     authorization: Optional[str] = Header(None)
 ):
     _check_admin(authorization)
-    import sqlite3
-    from db_config import DB_PATH
     from vox_db import hash_password
-    con = sqlite3.connect(DB_PATH)
-    con.row_factory = sqlite3.Row
+    from billing_db import _conn as _billing_conn
+    con = _billing_conn()
     cur = con.cursor()
     cur.execute("SELECT id FROM users WHERE id=?", (user_id,))
     if not cur.fetchone():
@@ -2500,9 +2529,8 @@ async def admin_delete_user(
     authorization: Optional[str] = Header(None)
 ):
     _check_admin(authorization)
-    import sqlite3
-    from db_config import DB_PATH
-    con = sqlite3.connect(DB_PATH)
+    from billing_db import _conn as _billing_conn
+    con = _billing_conn()
     cur = con.cursor()
     cur.execute("SELECT id FROM users WHERE id=?", (user_id,))
     if not cur.fetchone():
@@ -2538,11 +2566,12 @@ async def admin_get_finance(
 
     from datetime import datetime, timedelta, timezone
 
+    from billing_db import DEFAULT_PRICE_PER_MIN
+
     users = get_all_users(limit=1000)
     margins = get_finance_settings()
 
-    DEFAULT_PRICE_PER_MIN = 0.05   # $0.05/мин — текущий тариф
-    DEFAULT_MARGIN        = 60.0   # 60% рентабельность по умолчанию
+    DEFAULT_MARGIN = 60.0   # 60% рентабельность по умолчанию
 
     # --- Период фильтрации ---
     now = datetime.now(timezone.utc)
