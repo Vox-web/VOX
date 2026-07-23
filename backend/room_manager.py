@@ -318,6 +318,7 @@ class RoomManager:
                 "language": None,
             })
 
+        participant.websocket = None
         del room.participants[guest_id]
 
         # Уведомляем хоста

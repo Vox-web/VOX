@@ -162,6 +162,18 @@ def get_user_by_email(email: str) -> Optional[dict]:
 
 # ─── Восстановление пароля ───────────────────────────────────────────────────
 
+def has_recent_password_reset(user_id: int, within_seconds: int = 60) -> bool:
+    """True если для пользователя уже есть свежий (< within_seconds) неиспользованный токен сброса."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM password_resets WHERE user_id=? AND used=0 "
+            "AND expires_at > datetime('now') "
+            "AND created_at > datetime('now', ? || ' seconds')",
+            (user_id, f"-{within_seconds}"),
+        ).fetchone()
+    return row is not None
+
+
 def create_password_reset(user_id: int, ttl_minutes: int = 60) -> str:
     """Создать одноразовый токен сброса пароля (старые токены пользователя гасятся)."""
     token = secrets.token_urlsafe(32)

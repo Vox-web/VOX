@@ -38,7 +38,7 @@ from vox_db import (init_db, register_user, login_user,
                     approve_review, delete_review, get_all_users,
                     get_finance_settings, set_user_margin,
                     get_user_by_email, create_password_reset,
-                    reset_password_by_token)
+                    reset_password_by_token, has_recent_password_reset)
 
 from pydantic import BaseModel, EmailStr
 import smtplib
@@ -774,6 +774,7 @@ class DuoSession:
         self.lang_b = lang_b
         self.host_ws: Optional[WebSocket] = None
         self.guest_ws: Optional[WebSocket] = None
+        self.guest_result_task: Optional[asyncio.Task] = None
         self.created_at: float = time.time()
         self.host_disconnected_at: Optional[float] = None
 
@@ -1336,12 +1337,19 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
         await ws.close()
         return
 
-    # Закрываем предыдущее гостевое соединение при быстром reconnect
+    # Закрываем предыдущее гостевое соединение и отменяем его result_task при быстром reconnect
     if session.guest_ws and session.guest_ws is not ws:
         try:
             await session.guest_ws.close(1001, "replaced")
         except Exception:
             pass
+    if session.guest_result_task and not session.guest_result_task.done():
+        session.guest_result_task.cancel()
+        try:
+            await session.guest_result_task
+        except (asyncio.CancelledError, Exception):
+            pass
+        session.guest_result_task = None
     session.guest_ws = ws
     await ws.send_json({"type": "duo_ready", "lang_a": session.lang_a, "lang_b": session.lang_b})
 
@@ -1409,6 +1417,7 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
                 break
 
     result_task = asyncio.create_task(handle_results())
+    session.guest_result_task = result_task
 
     try:
         while True:
@@ -1434,6 +1443,8 @@ async def websocket_duo_guest(ws: WebSocket, duo_id: str):
         logger.info(f"🔌 Duo guest відключився {duo_id}")
     finally:
         result_task.cancel()
+        if session.guest_result_task is result_task:
+            session.guest_result_task = None
         session.guest_ws = None
         try:
             await result_task
@@ -2353,7 +2364,7 @@ async def api_forgot_password(body: ForgotPasswordBody):
     _pw_reset_last_sent[email] = now
 
     user = get_user_by_email(email)
-    if user:
+    if user and not has_recent_password_reset(user["id"], within_seconds=_PW_RESET_COOLDOWN_SEC):
         token = create_password_reset(user["id"])
         from billing import send_password_reset_email
         try:
