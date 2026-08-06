@@ -56,13 +56,32 @@ class TTSEngine:
         """Получить голоса для языка."""
         return self.VOICE_MAP.get(lang, self.VOICE_MAP["en"])
 
-    def synthesize(self, text: str, lang: str) -> Optional[bytes]:
+    # Просодия по умолчанию для «живого» звучания.
+    # Чуть медленнее нейтрального темпа — убирает ощущение «синхронного тараторящего
+    # робота», даёт голосу дышать. Паузы/интонацию edge-tts берёт из пунктуации текста
+    # (запятые, …, ?, !), поэтому важно синтезировать фразу целиком, а не по кускам.
+    DEFAULT_EDGE_RATE = "-6%"
+    DEFAULT_EDGE_PITCH = "+0Hz"
+    DEFAULT_EDGE_VOLUME = "+0%"
+
+    def synthesize(
+        self,
+        text: str,
+        lang: str,
+        *,
+        rate: Optional[str] = None,
+        pitch: Optional[str] = None,
+        volume: Optional[str] = None,
+    ) -> Optional[bytes]:
         """
         Синтезировать речь.
 
         Args:
-            text: Текст для озвучки
+            text: Текст для озвучки (лучше передавать целую фразу/абзац, а не
+                  отдельные предложения — так сохраняется сквозная интонация и паузы)
             lang: Код языка ("uk", "en", ...)
+            rate/pitch/volume: параметры просодии edge-tts (напр. "-6%", "+0Hz", "+0%").
+                  None → берутся DEFAULT_EDGE_* для естественного звучания.
 
         Returns:
             MP3 bytes или None при ошибке
@@ -72,9 +91,16 @@ class TTSEngine:
 
         voices = self._get_voices(lang)
 
+        edge_rate = rate if rate is not None else self.DEFAULT_EDGE_RATE
+        edge_pitch = pitch if pitch is not None else self.DEFAULT_EDGE_PITCH
+        edge_volume = volume if volume is not None else self.DEFAULT_EDGE_VOLUME
+
         # Попытка 1: edge-tts (быстрее и бесплатно)
         try:
-            audio = self._edge_tts_sync(text, voices["edge"])
+            audio = self._edge_tts_sync(
+                text, voices["edge"],
+                rate=edge_rate, pitch=edge_pitch, volume=edge_volume,
+            )
             if audio:
                 logger.info(f"🔊 edge-tts [{lang}]: {len(audio)} байт")
                 return audio
@@ -99,13 +125,15 @@ class TTSEngine:
         return None
 
     def _openai_tts(self, text: str, voice: str) -> Optional[bytes]:
-        """Синтез через OpenAI TTS API."""
+        """Синтез через OpenAI TTS API (fallback)."""
         response = self.openai_client.audio.speech.create(
             model="tts-1",
             voice=voice,
             input=text,
             response_format="mp3",
-            speed=1.25,
+            # Естественный темп. Раньше стояло 1.25 — голос «тараторил» и звучал
+            # синхронно-машинно. 1.0 даёт живую разговорную подачу.
+            speed=1.0,
         )
 
         # Читаем все байты
@@ -113,15 +141,28 @@ class TTSEngine:
         logger.debug(f"🔊 OpenAI TTS: {len(audio_bytes)} байт")
         return audio_bytes
 
-    def _edge_tts_sync(self, text: str, voice: str) -> Optional[bytes]:
+    def _edge_tts_sync(
+        self,
+        text: str,
+        voice: str,
+        *,
+        rate: str = "+0%",
+        pitch: str = "+0Hz",
+        volume: str = "+0%",
+    ) -> Optional[bytes]:
         """
         Синтез через edge-tts (Microsoft, бесплатный).
         edge-tts — async библиотека, оборачиваем в sync.
+
+        rate/pitch/volume передаются в Communicate — так голос звучит живее
+        (естественный темп с паузами), а не «синхронно-машинно».
         """
         import edge_tts
 
         async def _generate():
-            communicate = edge_tts.Communicate(text, voice)
+            communicate = edge_tts.Communicate(
+                text, voice, rate=rate, pitch=pitch, volume=volume,
+            )
             buffer = io.BytesIO()
             async for chunk in communicate.stream():
                 if chunk["type"] == "audio":

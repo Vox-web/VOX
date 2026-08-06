@@ -14,7 +14,7 @@
  */
 
 // Версия SW. Меняйте при изменении логики кеширования/обновления.
-const SW_VERSION = '3.2.1';
+const SW_VERSION = '3.2.2';
 const CACHE_NAME = 'vox-static-' + SW_VERSION;
 
 const PRECACHE = [

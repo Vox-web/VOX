@@ -194,6 +194,27 @@ class SoloSemanticBuffer:
     def flush_all(self, source_lang: str, target_lang: str) -> list[dict[str, str]]:
         return self._flush(source_lang, target_lang, force=True)
 
+    def flush_on_utterance_end(self, source_lang: str, target_lang: str) -> list[dict[str, str]]:
+        """
+        Deepgram сообщил о конце фразы (speech_final / UtteranceEnd).
+
+        НЕ форсим буфер вслепую — иначе на каждой микропаузе спикера мы выдавливали
+        бы незрелый хвост, рвя фразу в неудачном месте и не давая накопиться базе.
+        Вместо этого:
+          • если мысль уже вызрела (прошло >= flush_after_sec от начала куска) —
+            дожимаем force: это естественная граница предложения, качество не пострадает;
+          • если накопилось мало (спикер лишь коротко запнулся) — делаем МЯГКИЙ flush:
+            semantic gate отдаёт только завершённые части, а незрелый хвост придерживаем,
+            чтобы он слился со следующей речью. Перевод остаётся потоковым (параллельным),
+            но идёт с небольшим отставанием-накоплением, а не рвётся на паузах.
+
+        Хвост не зависает навсегда: его добьёт роллинг-окно (flush_after_sec /
+        hard_flush_sec) на следующем push, аварийный клапан carry-overflow или idle-reset.
+        """
+        age = (time.monotonic() - self._opened_at) if self._opened_at else 0.0
+        force = age >= self.flush_after_sec
+        return self._flush(source_lang, target_lang, force=force)
+
     def _flush(self, source_lang: str, target_lang: str, force: bool) -> list[dict[str, str]]:
         full = self._normalize(" ".join(part for part in [self._carry, *self._parts] if part))
         logger.info(

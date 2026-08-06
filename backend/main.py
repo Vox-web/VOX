@@ -1472,14 +1472,19 @@ async def websocket_solo(ws: WebSocket):
     # Кожне Solo-підключення має власний tts_enabled і мовні налаштування
     session_tts_enabled: bool = True
 
-    # Solo: окремий перекладач на сесію, щоб контекст не був спільним на весь сервер
-    solo_translator = Translator(context_size=10)
+    # Solo: окремий перекладач на сесію, щоб контекст не був спільним на весь сервер.
+    # context_size=16 — накопленная «база» недавних фраз, из которой GPT держит
+    # связность речи, единую терминологию и плавные смысловые переходы (а не переводит
+    # каждый кусок в вакууме). Больше базы → связнее и естественнее перевод.
+    solo_translator = Translator(context_size=16)
     solo_buffer = SoloSemanticBuffer(
         translator=solo_translator,
         flush_after_sec=7.0,
         hard_flush_sec=12.0,
         idle_reset_sec=30.0,
-        min_ready_words=4,
+        # min_ready_words=6: не выпускать в озвучку огрызки короче 6 слов —
+        # даём мысли дозреть, чтобы предложения были цельными, без резких обрывов.
+        min_ready_words=6,
         keep_tail_words=6,
     )
 
@@ -1594,18 +1599,21 @@ async def websocket_solo(ws: WebSocket):
                     target_lang,
                 )
 
-                # Если Deepgram сообщил, что фраза завершена (speech_final / UtteranceEnd) —
-                # дожимаем буфер немедленно, не ждём таймера flush_after_sec.
+                # Deepgram сообщил, что фраза завершена (speech_final / UtteranceEnd).
+                # НЕ форсим весь буфер — это рвало бы фразу на микропаузах спикера.
+                # flush_on_utterance_end дожимает только вызревшую мысль, а незрелый
+                # хвост придерживает, чтобы он слился со следующей речью (потоковый
+                # перевод с накоплением, а не «ждём полной остановки спикера»).
                 if result.commit_final:
                     extra = await asyncio.to_thread(
-                        solo_buffer.flush_all,
+                        solo_buffer.flush_on_utterance_end,
                         source_lang,
                         target_lang,
                     )
                     if extra:
                         packets = list(packets) + list(extra)
                         logger.info(
-                            "🧠 [SOLO_SEMANTIC] commit_final → flush_all добавил %d пакетов",
+                            "🧠 [SOLO_SEMANTIC] commit_final → flush_on_utterance_end добавил %d пакетов",
                             len(extra),
                         )
                     # Сбрасываем аккумулятор — следующий cumulative preview начинается заново
@@ -1636,14 +1644,16 @@ async def websocket_solo(ws: WebSocket):
                     })
 
                     if session_tts_enabled:
-                        sentences = _split_sentences(translated_text) or [translated_text]
-                        audio_results = await asyncio.gather(*[
-                            asyncio.to_thread(tts_engine.synthesize, s, packet["lang_to"])
-                            for s in sentences
-                        ])
-                        for audio_bytes in audio_results:
-                            if audio_bytes:
-                                await ws.send_bytes(b"AUDIO:" + audio_bytes)
+                        # Синтезируем ВЕСЬ пакет одной фразой, а не по предложениям.
+                        # Раньше нарезка на предложения + отдельный синтез каждого
+                        # ломала сквозную интонацию и паузы между ними — отсюда
+                        # «рубленый машинный» звук. Целая фраза → edge-tts сам
+                        # расставляет естественные паузы по пунктуации.
+                        audio_bytes = await asyncio.to_thread(
+                            tts_engine.synthesize, translated_text, packet["lang_to"]
+                        )
+                        if audio_bytes:
+                            await ws.send_bytes(b"AUDIO:" + audio_bytes)
 
                     logger.info(
                         "🧠 [SOLO_SEMANTIC] flush src=%r out=%r",

@@ -6,4 +6,4 @@ README ссылаются сюда. Держите в согласии с fronte
 в pwa-install.js) и SW_VERSION в sw.js.
 """
 
-__version__ = "3.2.1"
+__version__ = "3.2.2"
